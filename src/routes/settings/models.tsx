@@ -61,7 +61,7 @@ type ModelCardProps = {
 }
 
 const ModelCard = memo(({ model, currentProviders, onEdit, onDelete }: ModelCardProps) => {
-    // Determine the active provider following priority: BYOK Core > Custom > OpenRouter > i3-internal
+    // Determine the active provider following priority: BYOK Core > Custom > i3-internal > OpenRouter
     const getActiveProvider = () => {
         // Handle custom models differently - they have a direct providerId reference
         if ("isCustom" in model && model.isCustom) {
@@ -97,19 +97,19 @@ const ModelCard = memo(({ model, currentProviders, onEdit, onDelete }: ModelCard
             }
         }
 
+        // Check i3-internal before OpenRouter so built-in native providers win.
+        for (const adapter of sharedModel.adapters) {
+            const providerId = adapter.split(":")[0]
+            if (providerId.startsWith("i3-") && isInternalProviderEnabled(providerId)) {
+                return { name: "Built-in", available: true }
+            }
+        }
+
         // Check OpenRouter
         for (const adapter of sharedModel.adapters) {
             const providerId = adapter.split(":")[0]
             if (providerId === "openrouter" && currentProviders.core.openrouter?.enabled) {
                 return { name: "OpenRouter", available: true }
-            }
-        }
-
-        // Check i3-internal (always available)
-        for (const adapter of sharedModel.adapters) {
-            const providerId = adapter.split(":")[0]
-            if (providerId.startsWith("i3-") && isInternalProviderEnabled(providerId)) {
-                return { name: "Built-in", available: true }
             }
         }
 

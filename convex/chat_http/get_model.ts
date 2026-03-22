@@ -71,15 +71,15 @@ export const getModel = async (ctx: ActionCtx, modelId: string) => {
     if (!model) return new ChatError("bad_model:api")
     if (!model.adapters.length) return new ChatError("bad_model:api", "No adapters found for model")
 
-    // Priority sorting: BYOK Core Providers > OpenRouter > Server (i3-)
+    // Priority sorting: BYOK Core Providers > Server (i3-) > OpenRouter
     const sortedAdapters = model.adapters.sort((a, b) => {
         const providerA = a.split(":")[0]
         const providerB = b.split(":")[0]
 
         const getPriority = (provider: string) => {
             if (CoreProviders.includes(provider as CoreProvider)) return 1
-            if (provider === "openrouter") return 2
-            if (provider.startsWith("i3-")) return 3
+            if (provider.startsWith("i3-")) return 2
+            if (provider === "openrouter") return 3
             return 4
         }
 
