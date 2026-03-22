@@ -104,34 +104,50 @@ export const manualStreamTransform = (
                     if (chunk.mimeType.startsWith("image/")) {
                         const promise = new DelayedPromise<void>()
                         uploadPromises.push(promise.value)
-                        const fileExtension = chunk.mimeType.split("/")[1] || "png"
-                        const key = `generations/${userId}/${Date.now()}-${crypto.randomUUID()}-gen.${fileExtension}`
-                        const uint8Array = Uint8Array.from(atob(chunk.base64), (c) =>
-                            c.charCodeAt(0)
-                        )
+                        try {
+                            const fileExtension = chunk.mimeType.split("/")[1] || "png"
+                            const key = `generations/${userId}/${Date.now()}-${crypto.randomUUID()}-gen.${fileExtension}`
 
-                        const storedKey = await r2.store(actionCtx, uint8Array, {
-                            authorId: userId,
-                            key,
-                            type: chunk.mimeType
-                        })
+                            // Use the SDK-generated binary payload directly instead of re-decoding
+                            // the base64 representation. This is safer across provider backends.
+                            const storedKey = await r2.store(actionCtx, chunk.uint8Array, {
+                                authorId: userId,
+                                key,
+                                type: chunk.mimeType
+                            })
 
-                        console.log("Stored model-generated image to R2:", storedKey)
+                            console.log("Stored model-generated image to R2:", storedKey)
 
-                        parts.push({
-                            type: "file",
-                            mimeType: chunk.mimeType,
-                            data: storedKey
-                        })
-
-                        promise.resolve()
-
-                        controller.enqueue(
-                            formatDataStreamPart("file", {
+                            parts.push({
+                                type: "file",
                                 mimeType: chunk.mimeType,
                                 data: storedKey
                             })
-                        )
+
+                            controller.enqueue(
+                                formatDataStreamPart("file", {
+                                    mimeType: chunk.mimeType,
+                                    data: storedKey
+                                })
+                            )
+                        } catch (error) {
+                            console.error(
+                                "[cvx][chat][stream] Failed to persist model-generated image:",
+                                error
+                            )
+
+                            const fallbackMessage =
+                                "The model generated an image, but saving it failed. Please retry."
+
+                            parts.push({
+                                type: "text",
+                                text: fallbackMessage
+                            })
+
+                            controller.enqueue(formatDataStreamPart("text", fallbackMessage))
+                        } finally {
+                            promise.resolve()
+                        }
                     } else {
                         controller.enqueue(
                             formatDataStreamPart("file", {

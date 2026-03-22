@@ -136,6 +136,16 @@ const ReasoningEffortSelector = ({ selectedModel }: { selectedModel: string | nu
 
     if (!modelSupportsEffortControl) return null
 
+    const allowedEfforts: ReasoningEffort[] = modelSupportsDisablingReasoning
+        ? ["off", "low", "medium", "high"]
+        : ["low", "medium", "high"]
+
+    useEffect(() => {
+        if (!allowedEfforts.includes(reasoningEffort)) {
+            setReasoningEffort("medium")
+        }
+    }, [allowedEfforts, reasoningEffort, setReasoningEffort])
+
     const formatEffortForDisplay = (effort: ReasoningEffort) => {
         return effort.charAt(0).toUpperCase() + effort.slice(1)
     }
@@ -151,20 +161,11 @@ const ReasoningEffortSelector = ({ selectedModel }: { selectedModel: string | nu
                     <Zap className="size-4 sm:hidden" />
                 </SelectTrigger>
                 <SelectContent>
-                    {modelSupportsDisablingReasoning && (
-                        <SelectItem value="off" className="text-xs sm:text-sm">
-                            {formatEffortForDisplay("off")}
+                    {allowedEfforts.map((effort) => (
+                        <SelectItem key={effort} value={effort} className="text-xs sm:text-sm">
+                            {formatEffortForDisplay(effort)}
                         </SelectItem>
-                    )}
-                    <SelectItem value="low" className="text-xs sm:text-sm">
-                        {formatEffortForDisplay("low")}
-                    </SelectItem>
-                    <SelectItem value="medium" className="text-xs sm:text-sm">
-                        {formatEffortForDisplay("medium")}
-                    </SelectItem>
-                    <SelectItem value="high" className="text-xs sm:text-sm">
-                        {formatEffortForDisplay("high")}
-                    </SelectItem>
+                    ))}
                 </SelectContent>
             </Select>
         </PromptInputAction>

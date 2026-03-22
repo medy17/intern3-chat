@@ -15,6 +15,25 @@ import { getUserIdentity } from "./lib/identity"
 import type { Thread } from "./schema"
 import { HTTPAIMessage, type Message } from "./schema/message"
 
+const normalizeThreadTitle = (title: string) =>
+    title
+        .replace(/[\r\n]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 100)
+
+const getInitialThreadTitle = (userMessage: Infer<typeof HTTPAIMessage>) => {
+    const firstTextPart = userMessage.parts.find(
+        (part): part is Extract<(typeof userMessage.parts)[number], { type: "text" }> =>
+            part.type === "text"
+    )
+
+    const normalized = normalizeThreadTitle(firstTextPart?.text ?? "")
+    if (!normalized) return "New Chat"
+
+    return normalizeThreadTitle(normalized.split(" ").slice(0, 6).join(" "))
+}
+
 export const getThreadById = internalQuery({
     args: { threadId: v.id("threads") },
     handler: async ({ db }, { threadId }) => {
@@ -66,10 +85,11 @@ export const createThreadOrInsertMessages = internalMutation({
                 parts: [],
                 role: "assistant" as const
             }
+            const initialTitle = getInitialThreadTitle(userMessage)
 
             const newId = await ctx.db.insert("threads", {
                 authorId,
-                title: "New Chat",
+                title: initialTitle,
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
                 projectId: folderId // Set the project ID if creating from a folder
@@ -396,7 +416,8 @@ export const updateThreadName = internalMutation({
     },
     handler: async ({ db }, { threadId, name }) => {
         await db.patch(threadId, {
-            title: name
+            title: name,
+            updatedAt: Date.now()
         })
     }
 })

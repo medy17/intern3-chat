@@ -9,6 +9,25 @@ import { getUserIdentity } from "../lib/identity"
 import { type CoreProvider, CoreProviders, MODELS_SHARED } from "../lib/models"
 import { createGoogleOpenAICompatibleProvider, createProvider } from "../lib/provider_factory"
 
+const getGoogleImageModel = async (
+    providerSpecificModelId: string,
+    apiKey: string | "internal",
+    googleAuthMode?: "ai-studio" | "vertex"
+) => {
+    const sdkProvider = await createProvider("google", apiKey, {
+        googleAuthMode
+    })
+
+    if (sdkProvider.imageModel) {
+        return sdkProvider.imageModel(providerSpecificModelId)
+    }
+
+    const googleImageProvider = createGoogleOpenAICompatibleProvider(apiKey, {
+        googleAuthMode
+    })
+    return googleImageProvider.imageModel(providerSpecificModelId)
+}
+
 export const getModel = async (ctx: ActionCtx, modelId: string) => {
     const user = await getUserIdentity(ctx.auth, { allowAnons: false })
     if ("error" in user) throw new ChatError("unauthorized:chat")
@@ -60,8 +79,7 @@ export const getModel = async (ctx: ActionCtx, modelId: string) => {
 
             if (model.mode === "image") {
                 if (providerId === "google") {
-                    const googleImageProvider = createGoogleOpenAICompatibleProvider("internal")
-                    finalModel = googleImageProvider.imageModel(providerSpecificModelId)
+                    finalModel = await getGoogleImageModel(providerSpecificModelId, "internal")
                     break
                 }
 
@@ -90,13 +108,11 @@ export const getModel = async (ctx: ActionCtx, modelId: string) => {
             if (model.mode === "image") {
                 if (providerIdRaw === "google") {
                     try {
-                        const googleImageProvider = createGoogleOpenAICompatibleProvider(
+                        finalModel = await getGoogleImageModel(
+                            providerSpecificModelId,
                             provider.key,
-                            {
-                                googleAuthMode: provider.authMode
-                            }
+                            provider.authMode
                         )
-                        finalModel = googleImageProvider.imageModel(providerSpecificModelId)
                         break
                     } catch (error) {
                         console.error(

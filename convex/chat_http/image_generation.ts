@@ -74,7 +74,10 @@ export async function generateAndStoreImage({
             { imageSize, aspectRatio, size }
         )
 
-        const isGoogleOpenAIImageModel = imageModel.provider.startsWith("google.")
+        // Google's OpenAI-compatible image endpoint uses provider "google.image".
+        // Vertex-native image models use "google.vertex.image" and should use the
+        // standard aspectRatio path instead of the OpenAI-compatible payload shape.
+        const isGoogleOpenAIImageModel = imageModel.provider === "google.image"
 
         const { images } = await experimental_generateImage({
             model: imageModel,

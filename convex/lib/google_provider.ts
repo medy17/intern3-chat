@@ -17,6 +17,16 @@ type VertexConfigWrapper = {
     project_id?: string
 }
 
+const hasInternalVertexCredentialEnv = () =>
+    Boolean(
+        process.env.GOOGLE_VERTEX_CREDENTIALS_JSON ||
+            ((process.env.GOOGLE_VERTEX_CLIENT_EMAIL || process.env.GOOGLE_CLIENT_EMAIL) &&
+                (process.env.GOOGLE_VERTEX_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY) &&
+                (process.env.GOOGLE_VERTEX_PROJECT ||
+                    process.env.GOOGLE_CLOUD_PROJECT ||
+                    process.env.GCLOUD_PROJECT))
+    )
+
 export const getGoogleAuthMode = (
     secret: string | "internal",
     explicitMode?: GoogleAuthMode
@@ -26,7 +36,12 @@ export const getGoogleAuthMode = (
     }
 
     if (secret === "internal") {
-        return process.env.GOOGLE_INTERNAL_PROVIDER === "vertex" ? "vertex" : "ai-studio"
+        const configuredMode = process.env.GOOGLE_INTERNAL_PROVIDER
+        if (configuredMode === "vertex" || configuredMode === "ai-studio") {
+            return configuredMode
+        }
+
+        return hasInternalVertexCredentialEnv() ? "vertex" : "ai-studio"
     }
 
     return secret.trim().startsWith("{") ? "vertex" : "ai-studio"
@@ -45,6 +60,8 @@ export const getGoogleAiStudioApiKey = (secret: string | "internal") => {
         process.env.GOOGLE_API_KEY
     )
 }
+
+export const hasInternalGoogleVertexConfig = () => hasInternalVertexCredentialEnv()
 
 const parseVertexWrapper = (raw: string): VertexConfigWrapper =>
     JSON.parse(raw) as VertexConfigWrapper

@@ -50,11 +50,19 @@ const buildGoogleProviderOptions = (
         options.responseModalities = ["TEXT", "IMAGE"]
     }
 
-    if (supportsEffortControl && reasoningEffort !== "off") {
+    if (supportsEffortControl) {
+        const thinkingBudget =
+            reasoningEffort === "off"
+                ? 0
+                : reasoningEffort === "low"
+                  ? 1000
+                  : reasoningEffort === "medium"
+                    ? 6000
+                    : 12000
+
         options.thinkingConfig = {
-            includeThoughts: true,
-            thinkingBudget:
-                reasoningEffort === "low" ? 1000 : reasoningEffort === "medium" ? 6000 : 12000
+            thinkingBudget,
+            ...(reasoningEffort !== "off" ? { includeThoughts: true } : {})
         }
     }
 
@@ -455,8 +463,11 @@ export const chatPOST = httpAction(async (ctx, req) => {
             })
 
             if (nameGenerationPromise) {
-                const res = await nameGenerationPromise
-                if (res instanceof ChatError) res.toResponse()
+                try {
+                    await nameGenerationPromise
+                } catch (error) {
+                    console.error("[cvx][chat][thread-name] Failed to generate thread name:", error)
+                }
             }
 
             await ctx

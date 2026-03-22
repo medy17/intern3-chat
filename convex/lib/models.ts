@@ -217,7 +217,8 @@ export const MODELS_SHARED: SharedModel[] = [
         name: "Gemini 3 Flash Preview",
         shortName: "3 Flash",
         adapters: ["i3-google:gemini-3-flash-preview", "google:gemini-3-flash-preview"],
-        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"]
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
     },
     {
         id: "gemini-3.1-pro-preview",
@@ -234,7 +235,8 @@ export const MODELS_SHARED: SharedModel[] = [
             "i3-google:gemini-3.1-flash-lite-preview",
             "google:gemini-3.1-flash-lite-preview"
         ],
-        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"]
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
     },
     {
         id: "gemini-3.1-flash-image-preview",
@@ -244,14 +246,16 @@ export const MODELS_SHARED: SharedModel[] = [
             "i3-google:gemini-3.1-flash-image-preview",
             "google:gemini-3.1-flash-image-preview"
         ],
-        abilities: ["vision"]
+        abilities: ["reasoning", "vision", "effort_control"],
+        supportsDisablingReasoning: true
     },
     {
         id: "gemini-3-pro-image-preview",
         name: "Gemini 3 Pro Image Preview",
         shortName: "3 Pro Image",
         adapters: ["i3-google:gemini-3-pro-image-preview", "google:gemini-3-pro-image-preview"],
-        abilities: ["reasoning", "vision", "effort_control"]
+        abilities: ["reasoning", "vision", "effort_control"],
+        supportsDisablingReasoning: true
     },
     // Image Generation Models
     {

@@ -9,6 +9,13 @@ import type { DataModel, Id } from "../_generated/dataModel"
 import type { UserSettings } from "../schema"
 import { getModel } from "./get_model"
 
+const TITLE_MODEL_FALLBACKS = [
+    "gpt-4.1-mini",
+    "gpt-4o-mini",
+    "gemini-2.0-flash-lite",
+    "gemini-2.0-flash"
+] as const
+
 const contentToText = (content: CoreMessage["content"]): string => {
     if (typeof content === "string") {
         return content
@@ -43,6 +50,41 @@ const contentToText = (content: CoreMessage["content"]): string => {
     return ""
 }
 
+const normalizeTitle = (title: string) =>
+    title
+        .replace(/[\r\n]+/g, " ")
+        .replace(/^["'`]+|["'`]+$/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 100)
+
+const fallbackTitleFromMessages = (messages: CoreMessage[]) => {
+    const firstUserMessage = messages.find((message) => message.role === "user")
+    const rawTitle = normalizeTitle(contentToText(firstUserMessage?.content ?? ""))
+
+    if (!rawTitle) return "New Chat"
+
+    const words = rawTitle.split(" ")
+    return normalizeTitle(words.slice(0, 6).join(" "))
+}
+
+const getAvailableTitleModelId = async (
+    ctx: GenericActionCtx<DataModel>,
+    userId: string,
+    preferredModelId: string
+) => {
+    const registry = await ctx.runQuery(internal.settings.getUserRegistryInternal, {
+        userId
+    })
+
+    const candidates = [preferredModelId, ...TITLE_MODEL_FALLBACKS]
+
+    return candidates.find((candidate, index) => {
+        if (candidates.indexOf(candidate) !== index) return false
+        return (registry.models[candidate]?.adapters.length ?? 0) > 0
+    })
+}
+
 export const generateThreadName = async (
     ctx: GenericActionCtx<DataModel>,
     threadId: Id<"threads">,
@@ -52,21 +94,34 @@ export const generateThreadName = async (
 ) => {
     const relevant_messages = messages.filter((message) => message.role !== "system").slice(0, 5)
 
-    const modelData = await getModel(ctx, settings.titleGenerationModel)
-    if (modelData instanceof ChatError) return modelData
-    const { model } = modelData
-    if (model.modelType === "image")
-        return new ChatError(
-            "bad_request:api",
-            "Why is your title generation model an image model?"
-        )
+    const fallbackTitle = fallbackTitleFromMessages(relevant_messages)
+    const titleModelId = await getAvailableTitleModelId(ctx, userId, settings.titleGenerationModel)
 
-    const result = await generateText({
-        model,
-        messages: [
-            {
-                role: "system",
-                content: `
+    if (!titleModelId) {
+        await ctx.runMutation(internal.threads.updateThreadName, {
+            threadId,
+            name: fallbackTitle
+        })
+        return fallbackTitle
+    }
+
+    try {
+        const modelData = await getModel(ctx, titleModelId)
+        if (modelData instanceof ChatError) {
+            throw new Error(modelData.message)
+        }
+
+        const { model } = modelData
+        if (model.modelType === "image") {
+            throw new Error("Title generation model resolved to an image model")
+        }
+
+        const result = await generateText({
+            model,
+            messages: [
+                {
+                    role: "system",
+                    content: `
 You are tasked with generating a concise, descriptive title for a chat conversation based on the initial messages. The title should:
 
 1. Be 2-6 words long
@@ -84,22 +139,31 @@ Examples of good titles:
 - "Career Change Advice"
 
 Generate a title that accurately represents what this conversation is about based on the messages provided.`
-            },
-            {
-                role: "user",
-                content: `Here are the first 5 messages of the conversation:
+                },
+                {
+                    role: "user",
+                    content: `Here are the first 5 messages of the conversation:
 
 ${relevant_messages.map((message) => `${message.role}: ${contentToText(message.content)}`).join("\n")}
 
 Generate a title that accurately represents what this conversation is about based on the messages provided.`
-            }
-        ]
-    })
+                }
+            ]
+        })
 
-    await ctx.runMutation(internal.threads.updateThreadName, {
-        threadId,
-        name: result.text
-    })
+        const generatedTitle = normalizeTitle(result.text) || fallbackTitle
+        await ctx.runMutation(internal.threads.updateThreadName, {
+            threadId,
+            name: generatedTitle
+        })
 
-    return result.text
+        return generatedTitle
+    } catch (error) {
+        console.error("[cvx][chat][thread-name] Title generation failed, using fallback:", error)
+        await ctx.runMutation(internal.threads.updateThreadName, {
+            threadId,
+            name: fallbackTitle
+        })
+        return fallbackTitle
+    }
 }
