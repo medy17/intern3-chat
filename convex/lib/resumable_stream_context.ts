@@ -43,7 +43,7 @@ export const getResumableStreamContext = () => {
                             const reEncoded =
                                 typeof message.message === "string"
                                     ? message.message
-                                    : String(message.message)
+                                    : JSON.stringify(message.message)
                             if (debugMode) {
                                 console.debug(`[Redis] Message received: re-encoded=${reEncoded}`)
                             }
@@ -59,7 +59,7 @@ export const getResumableStreamContext = () => {
                             const reEncoded =
                                 typeof message.message === "string"
                                     ? message.message
-                                    : String(message.message)
+                                    : JSON.stringify(message.message)
                             if (debugMode) {
                                 console.debug(
                                     `[Redis] Pattern message received: re-encoded=${reEncoded}`

@@ -53,7 +53,18 @@ export const chatGET = httpAction(async (ctx, req) => {
             execute: () => {}
         }).pipeThrough(new JsonToSseTransformStream())
 
-    const stream = await streamContext.resumeExistingStream(recentStreamId._id)
+    let stream: ReadableStream<string> | null | undefined
+
+    try {
+        stream = await streamContext.resumeExistingStream(recentStreamId._id)
+    } catch (error) {
+        console.warn("[cvx][chat][resume] Failed to resume stream", {
+            threadId,
+            streamId: recentStreamId._id,
+            error
+        })
+        return new Response(null, { status: 204 })
+    }
 
     /*
      * For when the generation is streaming during SSR
