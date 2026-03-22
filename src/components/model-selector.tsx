@@ -23,6 +23,7 @@ import { api } from "@/convex/_generated/api"
 import { MODELS_SHARED, type SharedModel } from "@/convex/lib/models"
 import { DefaultSettings } from "@/convex/settings"
 import { useSession } from "@/hooks/auth-hooks"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { useDiskCachedQuery } from "@/lib/convex-cached-query"
 import {
     type DisplayModel,
@@ -299,6 +300,10 @@ export function ModelSelector({
 
     const [open, setOpen] = React.useState(false)
     const [searchValue, setSearchValue] = React.useState("")
+    const triggerRef = React.useRef<HTMLSpanElement>(null)
+    const [desktopAlignOffset, setDesktopAlignOffset] = React.useState(0)
+    const [desktopPopoverWidth, setDesktopPopoverWidth] = React.useState<number | null>(null)
+    const isMobile = useIsMobile()
 
     const { availableModels, currentProviders } = useAvailableModels(
         "error" in userSettings ? DefaultSettings(session.user?.id ?? "") : userSettings
@@ -370,6 +375,50 @@ export function ModelSelector({
         }
     }, [open])
 
+    React.useLayoutEffect(() => {
+        if (!open) return
+
+        const updateOffset = () => {
+            const trigger = triggerRef.current
+            const composer = trigger?.closest(
+                '[data-slot="prompt-input-root"]'
+            ) as HTMLElement | null
+
+            if (!trigger || !composer) {
+                setDesktopAlignOffset(0)
+                setDesktopPopoverWidth(null)
+                return
+            }
+
+            const triggerRect = trigger.getBoundingClientRect()
+            const composerRect = composer.getBoundingClientRect()
+            setDesktopAlignOffset(Math.round(composerRect.left - triggerRect.left))
+            setDesktopPopoverWidth(Math.round(composerRect.width))
+        }
+
+        updateOffset()
+
+        const resizeObserver =
+            typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateOffset) : null
+
+        const trigger = triggerRef.current
+        const composer = trigger?.closest('[data-slot="prompt-input-root"]') as HTMLElement | null
+
+        if (resizeObserver) {
+            if (trigger) resizeObserver.observe(trigger)
+            if (composer) resizeObserver.observe(composer)
+        }
+
+        window.addEventListener("resize", updateOffset)
+        window.addEventListener("scroll", updateOffset, true)
+
+        return () => {
+            resizeObserver?.disconnect()
+            window.removeEventListener("resize", updateOffset)
+            window.removeEventListener("scroll", updateOffset, true)
+        }
+    }, [open])
+
     const filteredSections = React.useMemo(() => {
         const query = searchValue.trim().toLowerCase()
         if (!query) return providerSections
@@ -413,32 +462,43 @@ export function ModelSelector({
     return (
         <ResponsivePopover open={open} onOpenChange={setOpen}>
             <ResponsivePopoverTrigger asChild>
-                <Button
-                    variant="ghost"
-                    aria-expanded={open}
-                    className={cn(
-                        "h-8 bg-secondary/70 font-normal text-xs backdrop-blur-lg sm:text-sm md:rounded-md",
-                        className,
-                        "!px-1.5 min-[390px]:!px-2 gap-0.5 min-[390px]:gap-2"
-                    )}
-                >
-                    {selectedModelData && (
-                        <div className="flex items-center gap-2">
-                            <div className="block min-[390px]:hidden">{selectedModelIcon}</div>
-                            <span className="hidden md:hidden min-[390px]:block">
-                                {(selectedModelData as SharedModel)?.shortName ||
-                                    selectedModelData.name}
-                            </span>
-                            <span className="hidden md:block">{selectedModelData.name}</span>
-                        </div>
-                    )}
-                    <ChevronDown className="ml-auto h-4 w-4" />
-                </Button>
+                <span ref={triggerRef} className="inline-flex">
+                    <Button
+                        variant="ghost"
+                        aria-expanded={open}
+                        className={cn(
+                            "h-8 bg-secondary/70 font-normal text-xs backdrop-blur-lg sm:text-sm md:rounded-md",
+                            className,
+                            "!px-1.5 min-[390px]:!px-2 gap-0.5 min-[390px]:gap-2"
+                        )}
+                    >
+                        {selectedModelData && (
+                            <div className="flex items-center gap-2">
+                                <div className="block min-[390px]:hidden">{selectedModelIcon}</div>
+                                <span className="hidden md:hidden min-[390px]:block">
+                                    {(selectedModelData as SharedModel)?.shortName ||
+                                        selectedModelData.name}
+                                </span>
+                                <span className="hidden md:block">{selectedModelData.name}</span>
+                            </div>
+                        )}
+                        <ChevronDown className="ml-auto h-4 w-4" />
+                    </Button>
+                </span>
             </ResponsivePopoverTrigger>
 
             <ResponsivePopoverContent
                 className="w-[min(92vw,680px)] p-0 md:w-[680px]"
                 align="start"
+                alignOffset={desktopAlignOffset}
+                style={
+                    !isMobile && desktopPopoverWidth
+                        ? {
+                              width: `${desktopPopoverWidth}px`,
+                              maxWidth: "92vw"
+                          }
+                        : undefined
+                }
                 title="Select Model"
                 description="Choose a model for your conversation"
             >

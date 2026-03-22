@@ -87,6 +87,7 @@ const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(
                     }}
                 >
                     <div
+                        data-slot="prompt-input-root"
                         className={cn(
                             "rounded-t-lg border-2 border-input bg-background/80 p-2 shadow-xs backdrop-blur-lg md:rounded-lg dark:bg-input/70",
                             className
