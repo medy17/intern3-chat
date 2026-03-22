@@ -74,8 +74,7 @@ export function useChatIntegration<IsShared extends boolean>({
         reasoningEffort,
         getEffectiveMcpOverrides
     } = useModelStore()
-    const { rerenderTrigger, shouldUpdateQuery, setShouldUpdateQuery, triggerRerender } =
-        useChatStore()
+    const { rerenderTrigger, shouldUpdateQuery, setShouldUpdateQuery } = useChatStore()
     const seededNextId = useRef<string | null>(null)
 
     // For regular threads, use getThreadMessages
@@ -125,11 +124,7 @@ export function useChatIntegration<IsShared extends boolean>({
     }, [threadMessages, sharedThread, isShared, sharedThreadId])
 
     const chatHelpers = useChat({
-        id: isShared
-            ? `shared_${sharedThreadId}`
-            : threadId === undefined
-              ? `new_chat_${rerenderTrigger}`
-              : threadId,
+        id: isShared ? `shared_${sharedThreadId}` : rerenderTrigger,
         experimental_throttle: 50,
         transport: isShared
             ? undefined
@@ -169,8 +164,10 @@ export function useChatIntegration<IsShared extends boolean>({
                       }
                   },
                   prepareReconnectToStreamRequest({ api, id }) {
+                      const reconnectThreadId = threadId ?? id
+
                       return {
-                          api: `${api}?chatId=${encodeURIComponent(id)}`,
+                          api: `${api}?chatId=${encodeURIComponent(reconnectThreadId)}`,
                           headers: {
                               authorization: `Bearer ${tokenData.token}`
                           }
@@ -181,7 +178,6 @@ export function useChatIntegration<IsShared extends boolean>({
         onFinish: () => {
             if (!isShared && shouldUpdateQuery) {
                 setShouldUpdateQuery(false)
-                triggerRerender()
             }
         },
         generateId: () => {

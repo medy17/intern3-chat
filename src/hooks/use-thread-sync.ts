@@ -13,10 +13,16 @@ export function useThreadSync({ routeThreadId }: UseThreadSyncProps) {
             console.log("[thread-sync] resetChat")
             resetChat()
         } else {
+            const isSameThread = threadId === routeThreadId
             setThreadId(routeThreadId)
-            triggerRerender()
+
+            // Avoid recreating the active chat instance when a brand-new chat
+            // adopts its server-created thread id mid-stream.
+            if (!isSameThread) {
+                triggerRerender()
+            }
         }
-    }, [routeThreadId, setThreadId, resetChat, triggerRerender])
+    }, [routeThreadId, threadId, setThreadId, resetChat, triggerRerender])
 
     return { threadId, setThreadId }
 }
