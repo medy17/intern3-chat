@@ -569,8 +569,6 @@ export const chatPOST = httpAction(async (ctx, req) => {
 
                 await result.consumeStream()
                 await Promise.allSettled(uploadPromises)
-                console.log("uploadPromises", uploadPromises)
-                console.log("parts", parts)
 
                 writer.write({
                     type: "finish",
@@ -661,7 +659,10 @@ export const chatPOST = httpAction(async (ctx, req) => {
     })
 
     const streamContext = getResumableStreamContext()
-    if (streamContext) {
+    const shouldBypassResumableForImagePayloads =
+        model.modelType === "image" || isGoogleImagePreviewModel(modelData.modelId)
+
+    if (streamContext && !shouldBypassResumableForImagePayloads) {
         const sseStream = stream.pipeThrough(new JsonToSseTransformStream())
         return new Response(
             (await streamContext.resumableStream(streamId, () => sseStream))?.pipeThrough(
