@@ -454,29 +454,30 @@ export function ModelSelector({
                     </div>
                 </div>
 
-                <div className="grid min-h-[420px] grid-rows-[auto,1fr] md:grid-cols-[156px,1fr] md:grid-rows-1">
-                    <div className="border-b p-2 md:border-r md:border-b-0">
+                <div className="grid min-h-[420px] grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[76px_minmax(0,1fr)] md:grid-rows-1">
+                    <div className="border-b p-2 md:border-r md:border-b-0 md:p-1.5">
                         <ScrollArea className="max-h-28 md:max-h-[420px]">
                             <div className="flex gap-2 md:flex-col">
                                 {filteredSections.map((section) => {
                                     const isActive = section.id === visibleSection?.id
 
-                                    return (
+                                    const trigger = (
                                         <button
                                             key={section.id}
                                             type="button"
                                             onClick={() => setActiveProvider(section.id)}
                                             className={cn(
-                                                "flex min-w-fit items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors md:min-w-0",
+                                                "flex min-w-fit items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors md:min-w-0 md:flex-col md:justify-center md:gap-1 md:px-2 md:py-3",
                                                 "hover:border-accent hover:bg-accent/10",
                                                 isActive &&
                                                     "border-accent bg-accent/10 text-foreground"
                                             )}
+                                            aria-label={section.label}
                                         >
                                             <div className="flex size-7 items-center justify-center rounded-md bg-secondary/70">
                                                 {section.icon}
                                             </div>
-                                            <div className="min-w-0 md:block">
+                                            <div className="min-w-0 md:hidden">
                                                 <div className="truncate font-medium text-sm">
                                                     {section.compactLabel}
                                                 </div>
@@ -486,6 +487,15 @@ export function ModelSelector({
                                                 </div>
                                             </div>
                                         </button>
+                                    )
+
+                                    return (
+                                        <Tooltip key={section.id}>
+                                            <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+                                            <TooltipContent side="right">
+                                                {section.label}
+                                            </TooltipContent>
+                                        </Tooltip>
                                     )
                                 })}
                             </div>
