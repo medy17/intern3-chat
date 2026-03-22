@@ -21,7 +21,7 @@ import type { Id } from "../_generated/dataModel"
 import { httpAction } from "../_generated/server"
 import { dbMessagesToCore } from "../lib/db_to_core_messages"
 import { getUserIdentity } from "../lib/identity"
-import type { ImageSize } from "../lib/models"
+import { type ImageSize, MODELS_SHARED, type ModelReasoningProfiles } from "../lib/models"
 import { getResumableStreamContext } from "../lib/resumable_stream_context"
 import { type AbilityId, getToolkit } from "../lib/toolkit"
 import type { HTTPAIMessage } from "../schema/message"
@@ -33,10 +33,33 @@ import { manualStreamTransform } from "./manual_stream_transform"
 import { buildPrompt } from "./prompt"
 import { RESPONSE_OPTS } from "./shared"
 
+const DEFAULT_REASONING_PROFILES: ModelReasoningProfiles = {
+    google: {
+        off: { thinkingBudget: 0, includeThoughts: false },
+        low: { thinkingBudget: 1000, includeThoughts: true },
+        medium: { thinkingBudget: 6000, includeThoughts: true },
+        high: { thinkingBudget: 12000, includeThoughts: true }
+    },
+    openai: {
+        low: { reasoningEffort: "low", reasoningSummary: "detailed" },
+        medium: { reasoningEffort: "medium", reasoningSummary: "detailed" },
+        high: { reasoningEffort: "high", reasoningSummary: "detailed" }
+    },
+    anthropic: {
+        low: { budgetTokens: 1000 },
+        medium: { budgetTokens: 6000 },
+        high: { budgetTokens: 12000 }
+    }
+}
+
+const resolveReasoningProfiles = (modelId: string) =>
+    MODELS_SHARED.find((model) => model.id === modelId)?.reasoningProfiles
+
 const buildGoogleProviderOptions = (
     modelId: string,
-    reasoningEffort?: ReasoningEffort,
-    supportsEffortControl = false
+    reasoningEffort: ReasoningEffort,
+    supportsEffortControl = false,
+    reasoningProfiles?: ModelReasoningProfiles
 ): GoogleGenerativeAIProviderOptions => {
     const options: GoogleGenerativeAIProviderOptions = {}
 
@@ -51,18 +74,17 @@ const buildGoogleProviderOptions = (
     }
 
     if (supportsEffortControl) {
-        const thinkingBudget =
-            reasoningEffort === "off"
-                ? 0
-                : reasoningEffort === "low"
-                  ? 1000
-                  : reasoningEffort === "medium"
-                    ? 6000
-                    : 12000
+        const googleProfile =
+            reasoningProfiles?.google?.[reasoningEffort] ??
+            DEFAULT_REASONING_PROFILES.google?.[reasoningEffort]
 
-        options.thinkingConfig = {
-            thinkingBudget,
-            ...(reasoningEffort !== "off" ? { includeThoughts: true } : {})
+        if (googleProfile) {
+            options.thinkingConfig = {
+                thinkingBudget: googleProfile.thinkingBudget,
+                ...(googleProfile.includeThoughts !== undefined
+                    ? { includeThoughts: googleProfile.includeThoughts }
+                    : {})
+            }
         }
     }
 
@@ -71,21 +93,28 @@ const buildGoogleProviderOptions = (
 
 const buildOpenAIProviderOptions = (
     modelId: string,
-    reasoningEffort?: ReasoningEffort,
-    supportsEffortControl = false
+    reasoningEffort: ReasoningEffort,
+    supportsEffortControl = false,
+    reasoningProfiles?: ModelReasoningProfiles
 ): OpenAIResponsesProviderOptions => {
     const options: OpenAIResponsesProviderOptions = {}
 
+    const openaiProfile =
+        reasoningEffort !== "off"
+            ? (reasoningProfiles?.openai?.[reasoningEffort] ??
+              DEFAULT_REASONING_PROFILES.openai?.[reasoningEffort])
+            : undefined
+
     if (
         supportsEffortControl &&
-        reasoningEffort !== "off" &&
+        openaiProfile &&
         (modelId.startsWith("o1") ||
             modelId.startsWith("o3") ||
             modelId.startsWith("o4") ||
             modelId.startsWith("gpt-5.4"))
     ) {
-        options.reasoningEffort = reasoningEffort
-        options.reasoningSummary = "detailed"
+        options.reasoningEffort = openaiProfile.reasoningEffort
+        options.reasoningSummary = openaiProfile.reasoningSummary
     }
 
     return options
@@ -93,18 +122,24 @@ const buildOpenAIProviderOptions = (
 
 const buildAnthropicProviderOptions = (
     modelId: string,
-    reasoningEffort?: ReasoningEffort
+    reasoningEffort: ReasoningEffort,
+    reasoningProfiles?: ModelReasoningProfiles
 ): AnthropicProviderOptions => {
     const options: AnthropicProviderOptions = {}
 
+    const anthropicProfile =
+        reasoningEffort !== "off"
+            ? (reasoningProfiles?.anthropic?.[reasoningEffort] ??
+              DEFAULT_REASONING_PROFILES.anthropic?.[reasoningEffort])
+            : undefined
+
     if (
-        reasoningEffort !== "off" &&
+        anthropicProfile &&
         ["sonnet-4", "4-sonnet", "4-opus", "opus-4", "3.7"].some((m) => modelId.includes(m))
     ) {
         options.thinking = {
             type: "enabled",
-            budgetTokens:
-                reasoningEffort === "low" ? 1000 : reasoningEffort === "medium" ? 6000 : 12000
+            budgetTokens: anthropicProfile.budgetTokens
         }
     }
 
@@ -156,6 +191,8 @@ export const chatPOST = httpAction(async (ctx, req) => {
     const modelData = await getModel(ctx, body.model)
     if (modelData instanceof ChatError) return modelData.toResponse()
     const { model, modelName } = modelData
+    const effectiveReasoningEffort: ReasoningEffort = body.reasoningEffort ?? "medium"
+    const reasoningProfiles = resolveReasoningProfiles(body.model)
 
     const mapped_messages = await dbMessagesToCore(dbMessages, modelData.abilities)
 
@@ -400,17 +437,20 @@ export const chatPOST = httpAction(async (ctx, req) => {
                     providerOptions: {
                         google: buildGoogleProviderOptions(
                             modelData.modelId,
-                            body.reasoningEffort,
-                            modelData.abilities.includes("effort_control")
+                            effectiveReasoningEffort,
+                            modelData.abilities.includes("effort_control"),
+                            reasoningProfiles
                         ),
                         openai: buildOpenAIProviderOptions(
                             modelData.modelId,
-                            body.reasoningEffort,
-                            modelData.abilities.includes("effort_control")
+                            effectiveReasoningEffort,
+                            modelData.abilities.includes("effort_control"),
+                            reasoningProfiles
                         ),
                         anthropic: buildAnthropicProviderOptions(
                             modelData.modelId,
-                            body.reasoningEffort
+                            effectiveReasoningEffort,
+                            reasoningProfiles
                         )
                     }
                 })

@@ -3,6 +3,7 @@
 import { createAnthropic } from "@ai-sdk/anthropic"
 import { createFal } from "@ai-sdk/fal"
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
+import { createVertex } from "@ai-sdk/google-vertex/edge"
 import { createGroq } from "@ai-sdk/groq"
 import { createOpenAI } from "@ai-sdk/openai"
 import type { ProviderV1 } from "@ai-sdk/provider"
@@ -44,16 +45,21 @@ export const createProvider = (
     apiKey: string | "internal",
     options?: {
         googleAuthMode?: GoogleAuthMode
+        modelId?: string
     }
 ): Promise<Omit<ProviderV1, "textEmbeddingModel">> => {
     return createProviderInternal(providerId, apiKey, options)
 }
+
+const shouldUseGlobalVertexLocation = (modelId?: string) =>
+    Boolean(modelId && /^gemini-3(\.|-)/.test(modelId))
 
 const createProviderInternal = async (
     providerId: CoreProvider | "openrouter" | "fal",
     apiKey: string | "internal",
     options?: {
         googleAuthMode?: GoogleAuthMode
+        modelId?: string
     }
 ): Promise<Omit<ProviderV1, "textEmbeddingModel">> => {
     if (apiKey !== "internal" && (!apiKey || apiKey.trim() === "")) {
@@ -73,12 +79,21 @@ const createProviderInternal = async (
         case "google":
             if (getGoogleAuthMode(apiKey, options?.googleAuthMode) === "vertex") {
                 const vertexConfig = getGoogleVertexConfig(apiKey)
-                const { createVertex } = await import("@ai-sdk/google-vertex")
+                const location = shouldUseGlobalVertexLocation(options?.modelId)
+                    ? "global"
+                    : vertexConfig.location
+                const baseURL =
+                    location === "global"
+                        ? `https://aiplatform.googleapis.com/v1/projects/${vertexConfig.project}/locations/global/publishers/google`
+                        : undefined
                 return createVertex({
                     project: vertexConfig.project,
-                    location: vertexConfig.location,
-                    googleAuthOptions: {
-                        credentials: vertexConfig.credentials
+                    location,
+                    ...(baseURL ? { baseURL } : {}),
+                    googleCredentials: {
+                        clientEmail: vertexConfig.credentials.client_email,
+                        privateKey: vertexConfig.credentials.private_key,
+                        privateKeyId: vertexConfig.credentials.private_key_id
                     }
                 })
             }

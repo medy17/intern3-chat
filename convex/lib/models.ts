@@ -15,6 +15,23 @@ export type BaseResolution = `${number}x${number}`
 export type AllAspects = (BaseAspects | `${BaseAspects}-hd`) & {}
 export type ImageSize = (AllAspects | BaseResolution) & {}
 
+export type ReasoningEffortTier = "off" | "low" | "medium" | "high"
+type EffortTierMap<T> = Partial<Record<ReasoningEffortTier, T>>
+
+export type ModelReasoningProfiles = {
+    google?: EffortTierMap<{
+        thinkingBudget: number
+        includeThoughts?: boolean
+    }>
+    openai?: EffortTierMap<{
+        reasoningEffort: Exclude<ReasoningEffortTier, "off">
+        reasoningSummary?: "auto" | "concise" | "detailed"
+    }>
+    anthropic?: EffortTierMap<{
+        budgetTokens: number
+    }>
+}
+
 export type SharedModel<Abilities extends ModelAbility[] = ModelAbility[]> = {
     id: string
     name: string
@@ -27,6 +44,7 @@ export type SharedModel<Abilities extends ModelAbility[] = ModelAbility[]> = {
     supportedImageSizes?: ImageSize[]
     customIcon?: "stability-ai" | "openai" | "bflabs" | "google" | "meta" | "xai"
     supportsDisablingReasoning?: boolean
+    reasoningProfiles?: ModelReasoningProfiles
 }
 
 export const MODELS_SHARED: SharedModel[] = [

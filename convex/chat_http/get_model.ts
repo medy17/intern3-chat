@@ -34,7 +34,10 @@ const createPatchedOpenAIImageModel = (
             signal: abortSignal
         })
 
-        const responseHeaders = Object.fromEntries(response.headers.entries())
+        const responseHeaders: Record<string, string> = {}
+        response.headers.forEach((value, key) => {
+            responseHeaders[key] = value
+        })
         const responseBody = (await response.json().catch(() => undefined)) as
             | {
                   data?: Array<{
@@ -90,7 +93,8 @@ const getGoogleImageModel = async (
     googleAuthMode?: "ai-studio" | "vertex"
 ) => {
     const sdkProvider = await createProvider("google", apiKey, {
-        googleAuthMode
+        googleAuthMode,
+        modelId: providerSpecificModelId
     })
 
     if (sdkProvider.imageModel) {
@@ -140,7 +144,9 @@ export const getModel = async (ctx: ActionCtx, modelId: string) => {
         const providerSpecificModelId = model.customProviderId ? model.id : adapter.split(":")[1]
         if (providerIdRaw.startsWith("i3-")) {
             const providerId = providerIdRaw.slice(3) as CoreProvider
-            const sdk_provider = await createProvider(providerId, "internal")
+            const sdk_provider = await createProvider(providerId, "internal", {
+                modelId: providerSpecificModelId
+            })
 
             //last check that this model actually is in MODELS_SHARED
             if (
@@ -218,7 +224,8 @@ export const getModel = async (ctx: ActionCtx, modelId: string) => {
                     providerIdRaw as CoreProvider,
                     provider.key,
                     {
-                        googleAuthMode: provider.authMode
+                        googleAuthMode: provider.authMode,
+                        modelId: providerSpecificModelId
                     }
                 )
                 if (!sdk_provider.imageModel) {
@@ -231,7 +238,8 @@ export const getModel = async (ctx: ActionCtx, modelId: string) => {
                     providerIdRaw as CoreProvider,
                     provider.key,
                     {
-                        googleAuthMode: provider.authMode
+                        googleAuthMode: provider.authMode,
+                        modelId: providerSpecificModelId
                     }
                 )
                 if (providerIdRaw === "openai") {
