@@ -137,6 +137,14 @@ export const ThreadItem = memo(
                                         <DropdownMenuTrigger asChild>
                                             <button
                                                 type="button"
+                                                onClick={(event) => {
+                                                    event.preventDefault()
+                                                    event.stopPropagation()
+                                                }}
+                                                onPointerDown={(event) => {
+                                                    event.preventDefault()
+                                                    event.stopPropagation()
+                                                }}
                                                 className={cn(
                                                     "rounded p-1 transition-opacity",
                                                     isMenuOpen ||
