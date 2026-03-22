@@ -1,4 +1,10 @@
 import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuTrigger
+} from "@/components/ui/context-menu"
+import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -60,60 +66,96 @@ export const ThreadItem = memo(
             onOpenDeleteDialog?.(thread)
         }
 
+        const menuItems = (
+            <>
+                <DropdownMenuItem onClick={handleRename}>
+                    <Edit3 className="h-4 w-4" />
+                    Rename
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleTogglePin}>
+                    <Pin className="h-4 w-4" />
+                    {thread.pinned ? "Unpin" : "Pin"}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleMove}>
+                    <FolderOpen className="h-4 w-4" />
+                    Move to folder
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleDelete} variant="destructive">
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                </DropdownMenuItem>
+            </>
+        )
+
+        const contextMenuItems = (
+            <>
+                <ContextMenuItem onClick={handleRename}>
+                    <Edit3 className="h-4 w-4" />
+                    Rename
+                </ContextMenuItem>
+                <ContextMenuItem onClick={handleTogglePin}>
+                    <Pin className="h-4 w-4" />
+                    {thread.pinned ? "Unpin" : "Pin"}
+                </ContextMenuItem>
+                <ContextMenuItem onClick={handleMove}>
+                    <FolderOpen className="h-4 w-4" />
+                    Move to folder
+                </ContextMenuItem>
+                <ContextMenuItem onClick={handleDelete} variant="destructive">
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                </ContextMenuItem>
+            </>
+        )
+
         return (
             <SidebarMenuItem className={isInFolder ? "pl-6" : ""}>
-                <div
-                    className={cn(
-                        "group/item flex w-full items-center rounded-sm hover:bg-accent/50",
-                        isMenuOpen && "bg-accent/50",
-                        isActive && "bg-accent/60"
-                    )}
-                >
-                    <SidebarMenuButton
-                        asChild
-                        className={cn("flex-1 hover:bg-transparent", isActive && "text-foreground")}
-                    >
-                        <Link
-                            to="/thread/$threadId"
-                            params={{ threadId: thread._id }}
-                            className="flex items-center justify-between"
+                <ContextMenu onOpenChange={setIsMenuOpen}>
+                    <ContextMenuTrigger asChild>
+                        <div
+                            className={cn(
+                                "group/item flex w-full items-center rounded-sm hover:bg-accent/50",
+                                isMenuOpen && "bg-accent/50",
+                                isActive && "bg-accent/60"
+                            )}
                         >
-                            <span className="truncate">{thread.title}</span>
+                            <SidebarMenuButton
+                                asChild
+                                className={cn(
+                                    "flex-1 hover:bg-transparent",
+                                    isActive && "text-foreground"
+                                )}
+                            >
+                                <Link
+                                    to="/thread/$threadId"
+                                    params={{ threadId: thread._id }}
+                                    className="flex items-center justify-between"
+                                >
+                                    <span className="truncate">{thread.title}</span>
 
-                            <DropdownMenu onOpenChange={setIsMenuOpen}>
-                                <DropdownMenuTrigger asChild>
-                                    <button
-                                        type="button"
-                                        className={cn(
-                                            "rounded p-1 transition-opacity",
-                                            isMenuOpen || "opacity-0 group-hover/item:opacity-100"
-                                        )}
-                                    >
-                                        <MoreHorizontal className="mr-1 h-4 w-4" />
-                                    </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={handleRename}>
-                                        <Edit3 className="h-4 w-4" />
-                                        Rename
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={handleTogglePin}>
-                                        <Pin className="h-4 w-4" />
-                                        {thread.pinned ? "Unpin" : "Pin"}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={handleMove}>
-                                        <FolderOpen className="h-4 w-4" />
-                                        Move to folder
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={handleDelete} variant="destructive">
-                                        <Trash2 className="h-4 w-4" />
-                                        Delete
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        </Link>
-                    </SidebarMenuButton>
-                </div>
+                                    <DropdownMenu onOpenChange={setIsMenuOpen}>
+                                        <DropdownMenuTrigger asChild>
+                                            <button
+                                                type="button"
+                                                className={cn(
+                                                    "rounded p-1 transition-opacity",
+                                                    isMenuOpen ||
+                                                        "opacity-0 group-hover/item:opacity-100"
+                                                )}
+                                            >
+                                                <MoreHorizontal className="mr-1 h-4 w-4" />
+                                            </button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            {menuItems}
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </Link>
+                            </SidebarMenuButton>
+                        </div>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent>{contextMenuItems}</ContextMenuContent>
+                </ContextMenu>
             </SidebarMenuItem>
         )
     },
