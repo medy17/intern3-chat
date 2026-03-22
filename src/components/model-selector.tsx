@@ -35,7 +35,15 @@ import {
 import { useSharedModels } from "@/lib/shared-models"
 import { cn } from "@/lib/utils"
 import { useConvexAuth } from "@convex-dev/react-query"
-import { Check, ChevronDown, Globe, Image, Search } from "lucide-react"
+import {
+    AudioLines,
+    Check,
+    ChevronDown,
+    Globe,
+    Image,
+    MessageSquareText,
+    Search
+} from "lucide-react"
 import * as React from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip"
 
@@ -92,9 +100,44 @@ type ProviderSection = {
     icon: React.ReactNode
 }
 
+type SelectorCategory = "text" | "image" | "audio"
+
 const PROVIDER_ORDER = ["openai", "anthropic", "google", "xai", "groq", "fal", "openrouter"]
 const getModelReleaseOrder = (model: DisplayModel) =>
     "isCustom" in model && model.isCustom ? 0 : ((model as SharedModel).releaseOrder ?? 0)
+
+const SELECTOR_CATEGORIES: Array<{
+    id: SelectorCategory
+    label: string
+    compactLabel: string
+    icon: React.ReactNode
+}> = [
+    {
+        id: "text",
+        label: "Text",
+        compactLabel: "Text",
+        icon: <MessageSquareText className="size-4" />
+    },
+    {
+        id: "image",
+        label: "Image",
+        compactLabel: "Image",
+        icon: <Image className="size-4" />
+    },
+    {
+        id: "audio",
+        label: "Audio",
+        compactLabel: "Audio",
+        icon: <AudioLines className="size-4" />
+    }
+]
+
+const getSelectorCategory = (model?: DisplayModel): SelectorCategory => {
+    if (!model) return "text"
+    if (model.mode === "image") return "image"
+    if (model.mode === "speech-to-text") return "audio"
+    return "text"
+}
 
 const normalizeProviderId = (providerId: string) =>
     providerId.startsWith("i3-") ? providerId.slice(3) : providerId
@@ -353,32 +396,23 @@ export function ModelSelector({
             })
     }, [availableModels, currentProviders])
 
-    const selectedProviderId = React.useMemo(
-        () =>
-            providerSections.find((section) =>
-                section.models.some((model) => model.id === selectedModel)
-            )?.id,
-        [providerSections, selectedModel]
+    const selectedModelData = React.useMemo(
+        () => availableModels.find((model) => model.id === selectedModel),
+        [availableModels, selectedModel]
     )
 
-    const [activeProvider, setActiveProvider] = React.useState<string | null>(
-        selectedProviderId ?? null
+    const selectedCategoryId = React.useMemo(
+        () => getSelectorCategory(selectedModelData),
+        [selectedModelData]
     )
+
+    const [activeCategory, setActiveCategory] = React.useState<SelectorCategory>(selectedCategoryId)
+
+    const [activeProvider, setActiveProvider] = React.useState<string | null>(null)
 
     React.useEffect(() => {
-        if (providerSections.length === 0) {
-            if (activeProvider !== null) {
-                setActiveProvider(null)
-            }
-            return
-        }
-
-        if (activeProvider && providerSections.some((section) => section.id === activeProvider)) {
-            return
-        }
-
-        setActiveProvider(selectedProviderId ?? providerSections[0].id)
-    }, [activeProvider, providerSections, selectedProviderId])
+        setActiveCategory(selectedCategoryId)
+    }, [selectedCategoryId])
 
     React.useEffect(() => {
         if (!open) {
@@ -432,9 +466,18 @@ export function ModelSelector({
 
     const filteredSections = React.useMemo(() => {
         const query = searchValue.trim().toLowerCase()
-        if (!query) return providerSections
+        const categorySections = providerSections
+            .map((section) => ({
+                ...section,
+                models: section.models.filter(
+                    (model) => getSelectorCategory(model) === activeCategory
+                )
+            }))
+            .filter((section) => section.models.length > 0)
 
-        return providerSections
+        if (!query) return categorySections
+
+        return categorySections
             .map((section) => ({
                 ...section,
                 models: section.models.filter((model) => {
@@ -451,17 +494,35 @@ export function ModelSelector({
                 })
             }))
             .filter((section) => section.models.length > 0)
-    }, [providerSections, searchValue])
+    }, [activeCategory, providerSections, searchValue])
+
+    const selectedProviderId = React.useMemo(
+        () =>
+            filteredSections.find((section) =>
+                section.models.some((model) => model.id === selectedModel)
+            )?.id,
+        [filteredSections, selectedModel]
+    )
+
+    React.useEffect(() => {
+        if (filteredSections.length === 0) {
+            if (activeProvider !== null) {
+                setActiveProvider(null)
+            }
+            return
+        }
+
+        if (activeProvider && filteredSections.some((section) => section.id === activeProvider)) {
+            return
+        }
+
+        setActiveProvider(selectedProviderId ?? filteredSections[0].id)
+    }, [activeProvider, filteredSections, selectedProviderId])
 
     const visibleSection =
         filteredSections.find((section) => section.id === activeProvider) ??
         filteredSections[0] ??
         null
-
-    const selectedModelData = React.useMemo(
-        () => availableModels.find((model) => model.id === selectedModel),
-        [availableModels, selectedModel]
-    )
 
     const selectedModelIcon = React.useMemo(() => {
         if (!selectedModelData) return null
@@ -522,6 +583,28 @@ export function ModelSelector({
                             placeholder="Search models..."
                             className="h-10 border-0 bg-secondary/60 pl-9 shadow-none focus-visible:ring-2"
                         />
+                    </div>
+                    <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                        {SELECTOR_CATEGORIES.map((category) => {
+                            const isActive = category.id === activeCategory
+
+                            return (
+                                <button
+                                    key={category.id}
+                                    type="button"
+                                    onClick={() => setActiveCategory(category.id)}
+                                    className={cn(
+                                        "inline-flex min-w-fit items-center gap-2 rounded-full border px-3 py-1.5 font-medium text-xs transition-colors sm:text-sm",
+                                        "hover:border-accent hover:bg-accent/10",
+                                        isActive && "border-accent bg-accent/10 text-foreground"
+                                    )}
+                                >
+                                    {category.icon}
+                                    <span className="sm:hidden">{category.compactLabel}</span>
+                                    <span className="hidden sm:inline">{category.label}</span>
+                                </button>
+                            )
+                        })}
                     </div>
                 </div>
 

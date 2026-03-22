@@ -60,88 +60,41 @@ export type SharedModel<Abilities extends ModelAbility[] = ModelAbility[]> = {
     reasoningProfiles?: ModelReasoningProfiles
 }
 
+const openAiTextAdapters = (modelId: string): RegistryKey[] => [
+    `i3-openai:${modelId}`,
+    `openai:${modelId}`,
+    `openrouter:openai/${modelId}`
+]
+
+const openAiImageAdapters = (modelId: string): RegistryKey[] => [
+    `i3-openai:${modelId}`,
+    `openai:${modelId}`
+]
+
+const googleTextAdapters = (modelId: string): RegistryKey[] => [
+    `i3-google:${modelId}`,
+    `google:${modelId}`,
+    `openrouter:google/${modelId}`
+]
+
+const googleImageAdapters = (modelId: string): RegistryKey[] => [
+    `i3-google:${modelId}`,
+    `google:${modelId}`
+]
+
+const anthropicTextAdapters = (modelId: string): RegistryKey[] => [
+    `i3-anthropic:${modelId}`,
+    `anthropic:${modelId}`,
+    `openrouter:anthropic/${modelId}`
+]
+
 export const MODELS_SHARED: SharedModel[] = [
     {
-        id: "gpt-4o",
-        name: "GPT 4o",
-        shortName: "4o",
-        releaseOrder: 20240513,
-        adapters: ["openai:gpt-4o", "openrouter:openai/gpt-4o"],
-        abilities: ["vision", "function_calling", "pdf"]
-    },
-    {
-        id: "gpt-4o-mini",
-        name: "GPT 4o mini",
-        shortName: "4o mini",
-        releaseOrder: 20240718,
-        adapters: ["i3-openai:gpt-4o-mini", "openai:gpt-4o-mini", "openrouter:openai/gpt-4o-mini"],
-        abilities: ["vision", "function_calling", "pdf"]
-    },
-    {
-        id: "o3-mini",
-        name: "o3 mini",
-        releaseOrder: 20250131,
-        adapters: ["openai:o3-mini", "openrouter:openai/o3-mini"],
-        abilities: ["reasoning", "function_calling", "effort_control"]
-    },
-    {
-        id: "o4-mini",
-        name: "o4 mini",
-        releaseOrder: 20250415,
-        adapters: ["openai:o4-mini", "openrouter:openai/o4-mini"],
-        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"]
-    },
-    {
-        id: "o3",
-        name: "o3",
-        releaseOrder: 20250416,
-        adapters: ["openai:o3", "openrouter:openai/o3"],
-        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"]
-    },
-    {
-        id: "o3-pro",
-        name: "o3 pro",
-        releaseOrder: 20250610,
-        adapters: ["openai:o3-pro", "openrouter:openai/o3-pro"],
-        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"]
-    },
-    {
-        id: "gpt-4.1",
-        name: "GPT 4.1",
-        releaseOrder: 20250414,
-        adapters: ["openai:gpt-4.1", "openrouter:openai/gpt-4.1"],
-        abilities: ["vision", "function_calling", "pdf"]
-    },
-    {
-        id: "gpt-4.1-mini",
-        name: "GPT 4.1 mini",
-        shortName: "4.1 mini",
-        releaseOrder: 20250413,
-        adapters: [
-            "i3-openai:gpt-4.1-mini",
-            "openai:gpt-4.1-mini",
-            "openrouter:openai/gpt-4.1-mini"
-        ],
-        abilities: ["vision", "function_calling", "pdf"]
-    },
-    {
-        id: "gpt-4.1-nano",
-        name: "GPT 4.1 nano",
-        shortName: "4.1 nano",
-        releaseOrder: 20250412,
-        adapters: [
-            "i3-openai:gpt-4.1-nano",
-            "openai:gpt-4.1-nano",
-            "openrouter:openai/gpt-4.1-nano"
-        ],
-        abilities: ["vision", "function_calling", "pdf"]
-    },
-    {
-        id: "gpt-5.4",
-        name: "GPT 5.4",
-        shortName: "5.4",
-        releaseOrder: 20250801,
-        adapters: ["i3-openai:gpt-5.4", "openai:gpt-5.4"],
+        id: "gpt-5.4-nano",
+        name: "GPT 5.4 nano",
+        shortName: "5.4 nano",
+        releaseOrder: 20261022,
+        adapters: openAiTextAdapters("gpt-5.4-nano"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
         supportsDisablingReasoning: true
     },
@@ -149,17 +102,237 @@ export const MODELS_SHARED: SharedModel[] = [
         id: "gpt-5.4-mini",
         name: "GPT 5.4 mini",
         shortName: "5.4 mini",
-        releaseOrder: 20250800,
-        adapters: ["i3-openai:gpt-5.4-mini", "openai:gpt-5.4-mini"],
+        releaseOrder: 20261021,
+        adapters: openAiTextAdapters("gpt-5.4-mini"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
         supportsDisablingReasoning: true
     },
     {
-        id: "gpt-5.4-nano",
-        name: "GPT 5.4 nano",
-        shortName: "5.4 nano",
-        releaseOrder: 20250799,
-        adapters: ["i3-openai:gpt-5.4-nano", "openai:gpt-5.4-nano"],
+        id: "gpt-5.4",
+        name: "GPT 5.4",
+        shortName: "5.4",
+        releaseOrder: 20261020,
+        adapters: openAiTextAdapters("gpt-5.4"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "gpt-5.3",
+        name: "GPT 5.3",
+        shortName: "5.3",
+        releaseOrder: 20261019,
+        adapters: openAiTextAdapters("gpt-5.3"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "gpt-5.2",
+        name: "GPT 5.2",
+        shortName: "5.2",
+        releaseOrder: 20261018,
+        adapters: openAiTextAdapters("gpt-5.2"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "gpt-5.1",
+        name: "GPT 5.1",
+        shortName: "5.1",
+        releaseOrder: 20261017,
+        adapters: openAiTextAdapters("gpt-5.1"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "gpt-5-image-mini",
+        name: "GPT 5 Image Mini",
+        shortName: "5 Image Mini",
+        releaseOrder: 20261016,
+        adapters: openAiImageAdapters("gpt-5-image-mini"),
+        abilities: [],
+        mode: "image",
+        customIcon: "openai",
+        supportedImageSizes: ["1024x1024", "1536x1024", "1024x1536"]
+    },
+    {
+        id: "gpt-5-image",
+        name: "GPT 5 Image",
+        shortName: "5 Image",
+        releaseOrder: 20261015,
+        adapters: openAiImageAdapters("gpt-5-image"),
+        abilities: [],
+        mode: "image",
+        customIcon: "openai",
+        supportedImageSizes: ["1024x1024", "1536x1024", "1024x1536"]
+    },
+    {
+        id: "gpt-5",
+        name: "GPT 5",
+        shortName: "5",
+        releaseOrder: 20261014,
+        adapters: openAiTextAdapters("gpt-5"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "gpt-5-mini",
+        name: "GPT 5 mini",
+        shortName: "5 mini",
+        releaseOrder: 20261013,
+        adapters: openAiTextAdapters("gpt-5-mini"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "gpt-5-nano",
+        name: "GPT 5 nano",
+        shortName: "5 nano",
+        releaseOrder: 20261012,
+        adapters: openAiTextAdapters("gpt-5-nano"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "o4-mini-high",
+        name: "o4 mini high",
+        shortName: "o4 mini high",
+        releaseOrder: 20261011,
+        adapters: openAiTextAdapters("o4-mini-high"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf"]
+    },
+    {
+        id: "o3",
+        name: "o3",
+        shortName: "o3",
+        releaseOrder: 20261010,
+        adapters: openAiTextAdapters("o3"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "o4-mini",
+        name: "o4 mini",
+        shortName: "o4 mini",
+        releaseOrder: 20261009,
+        adapters: openAiTextAdapters("o4-mini"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "gpt-4.1",
+        name: "GPT 4.1",
+        shortName: "4.1",
+        releaseOrder: 20261008,
+        adapters: openAiTextAdapters("gpt-4.1"),
+        abilities: ["vision", "function_calling", "pdf"]
+    },
+    {
+        id: "gpt-4.1-mini",
+        name: "GPT 4.1 mini",
+        shortName: "4.1 mini",
+        releaseOrder: 20261007,
+        adapters: openAiTextAdapters("gpt-4.1-mini"),
+        abilities: ["vision", "function_calling", "pdf"]
+    },
+    {
+        id: "gpt-4.1-nano",
+        name: "GPT 4.1 nano",
+        shortName: "4.1 nano",
+        releaseOrder: 20261006,
+        adapters: openAiTextAdapters("gpt-4.1-nano"),
+        abilities: ["vision", "function_calling", "pdf"]
+    },
+    {
+        id: "gpt-4.5-preview",
+        name: "GPT 4.5 Preview",
+        shortName: "4.5 Preview",
+        releaseOrder: 20261005,
+        adapters: openAiTextAdapters("gpt-4.5-preview"),
+        abilities: ["vision", "function_calling", "pdf"]
+    },
+    {
+        id: "o3-mini-high",
+        name: "o3 mini high",
+        shortName: "o3 mini high",
+        releaseOrder: 20261004,
+        adapters: openAiTextAdapters("o3-mini-high"),
+        abilities: ["reasoning", "function_calling"]
+    },
+    {
+        id: "o3-mini",
+        name: "o3 mini",
+        shortName: "o3 mini",
+        releaseOrder: 20261003,
+        adapters: openAiTextAdapters("o3-mini"),
+        abilities: ["reasoning", "function_calling", "effort_control"]
+    },
+    {
+        id: "gpt-4o",
+        name: "GPT 4o",
+        shortName: "4o",
+        releaseOrder: 20261001,
+        adapters: openAiTextAdapters("gpt-4o"),
+        abilities: ["vision", "function_calling", "pdf"]
+    },
+    {
+        id: "gpt-4o-mini",
+        name: "GPT 4o mini",
+        shortName: "4o mini",
+        releaseOrder: 20261002,
+        adapters: openAiTextAdapters("gpt-4o-mini"),
+        abilities: ["vision", "function_calling", "pdf"]
+    },
+    {
+        id: "claude-sonnet-4.6",
+        name: "Claude Sonnet 4.6",
+        shortName: "Sonnet 4.6",
+        releaseOrder: 20260930,
+        adapters: anthropicTextAdapters("claude-sonnet-4.6"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "claude-opus-4.6",
+        name: "Claude Opus 4.6",
+        shortName: "Opus 4.6",
+        releaseOrder: 20260929,
+        adapters: anthropicTextAdapters("claude-opus-4.6"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "claude-opus-4.5",
+        name: "Claude Opus 4.5",
+        shortName: "Opus 4.5",
+        releaseOrder: 20260928,
+        adapters: anthropicTextAdapters("claude-opus-4.5"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "claude-haiku-4.5",
+        name: "Claude Haiku 4.5",
+        shortName: "Haiku 4.5",
+        releaseOrder: 20260927,
+        adapters: anthropicTextAdapters("claude-haiku-4.5"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "claude-sonnet-4.5",
+        name: "Claude Sonnet 4.5",
+        shortName: "Sonnet 4.5",
+        releaseOrder: 20260926,
+        adapters: anthropicTextAdapters("claude-sonnet-4.5"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "claude-opus-4.1",
+        name: "Claude Opus 4.1",
+        shortName: "Opus 4.1",
+        releaseOrder: 20260925,
+        adapters: anthropicTextAdapters("claude-opus-4.1"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
         supportsDisablingReasoning: true
     },
@@ -167,8 +340,8 @@ export const MODELS_SHARED: SharedModel[] = [
         id: "claude-opus-4",
         name: "Claude Opus 4",
         shortName: "Opus 4",
-        releaseOrder: 20250522,
-        adapters: ["anthropic:claude-opus-4-0", "openrouter:anthropic/claude-opus-4"],
+        releaseOrder: 20260924,
+        adapters: anthropicTextAdapters("claude-opus-4"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
         supportsDisablingReasoning: true
     },
@@ -176,92 +349,8 @@ export const MODELS_SHARED: SharedModel[] = [
         id: "claude-sonnet-4",
         name: "Claude Sonnet 4",
         shortName: "Sonnet 4",
-        releaseOrder: 20250522,
-        adapters: ["anthropic:claude-sonnet-4-0", "openrouter:anthropic/claude-sonnet-4"],
-        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
-        supportsDisablingReasoning: true
-    },
-    {
-        id: "claude-3-7-sonnet",
-        name: "Claude Sonnet 3.7",
-        shortName: "Sonnet 3.7",
-        releaseOrder: 20250224,
-        adapters: ["anthropic:claude-3-7-sonnet", "openrouter:anthropic/claude-3.7-sonnet"],
-        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
-        supportsDisablingReasoning: true
-    },
-    {
-        id: "claude-3-5-sonnet",
-        name: "Claude Sonnet 3.5",
-        shortName: "Sonnet 3.5",
-        releaseOrder: 20240620,
-        adapters: ["anthropic:claude-3-5-sonnet", "openrouter:anthropic/claude-3.5-sonnet"],
-        abilities: ["vision", "function_calling", "pdf"]
-    },
-    {
-        id: "gemini-2.0-flash-lite",
-        name: "Gemini 2.0 Flash Lite",
-        shortName: "2.0 Flash Lite",
-        releaseOrder: 20241209,
-        adapters: [
-            "i3-google:gemini-2.0-flash-lite",
-            "google:gemini-2.0-flash-lite",
-            "openrouter:google/gemini-2.0-flash-lite-001"
-        ],
-        abilities: ["vision", "function_calling", "pdf"]
-    },
-    {
-        id: "gemini-2.0-flash-image-generation",
-        name: "Gemini 2.0 Flash Imagen",
-        shortName: "2.0 Flash Imagen",
-        releaseOrder: 20241211,
-        adapters: ["i3-google:gemini-2.0-flash-exp", "google:gemini-2.0-flash-exp"],
-        abilities: ["vision"]
-    },
-    {
-        id: "gemini-2.5-flash",
-        name: "Gemini 2.5 Flash",
-        shortName: "2.5 Flash",
-        releaseOrder: 20250417,
-        adapters: [
-            "i3-google:gemini-2.5-flash",
-            "google:gemini-2.5-flash",
-            "openrouter:google/gemini-2.5-flash"
-        ],
-        abilities: ["vision", "function_calling", "reasoning", "pdf", "effort_control"],
-        supportsDisablingReasoning: true
-    },
-    {
-        id: "gemini-2.5-flash-lite",
-        name: "Gemini 2.5 Flash Lite",
-        shortName: "2.5 Flash Lite",
-        releaseOrder: 20250617,
-        adapters: [
-            "i3-google:gemini-2.5-flash-lite-preview-06-17",
-            "google:gemini-2.5-flash-lite-preview-06-17",
-            "openrouter:google/gemini-2.5-flash-lite-preview-06-17"
-        ],
-        abilities: ["vision", "function_calling", "reasoning", "pdf", "effort_control"],
-        supportsDisablingReasoning: true
-    },
-    {
-        id: "gemini-2.0-flash",
-        name: "Gemini 2.0 Flash",
-        shortName: "2.0 Flash",
-        releaseOrder: 20241210,
-        adapters: [
-            "i3-google:gemini-2.0-flash",
-            "google:gemini-2.0-flash",
-            "openrouter:google/gemini-2.0-flash-001"
-        ],
-        abilities: ["vision", "function_calling", "pdf"]
-    },
-    {
-        id: "gemini-2.5-pro",
-        name: "Gemini 2.5 Pro",
-        shortName: "2.5 Pro",
-        releaseOrder: 20250506,
-        adapters: ["google:gemini-2.5-pro", "openrouter:google/gemini-2.5-pro"],
+        releaseOrder: 20260923,
+        adapters: anthropicTextAdapters("claude-sonnet-4"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
         supportsDisablingReasoning: true
     },
@@ -269,8 +358,17 @@ export const MODELS_SHARED: SharedModel[] = [
         id: "gemini-3-flash-preview",
         name: "Gemini 3 Flash Preview",
         shortName: "3 Flash",
-        releaseOrder: 20260301,
-        adapters: ["i3-google:gemini-3-flash-preview", "google:gemini-3-flash-preview"],
+        releaseOrder: 20260922,
+        adapters: googleTextAdapters("gemini-3-flash-preview"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "gemini-3.1-flash-lite-preview",
+        name: "Gemini 3.1 Flash Lite Preview",
+        shortName: "3.1 Flash Lite",
+        releaseOrder: 20260921,
+        adapters: googleTextAdapters("gemini-3.1-flash-lite-preview"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
         supportsDisablingReasoning: true
     },
@@ -278,180 +376,74 @@ export const MODELS_SHARED: SharedModel[] = [
         id: "gemini-3.1-pro-preview",
         name: "Gemini 3.1 Pro Preview",
         shortName: "3.1 Pro",
-        releaseOrder: 20260317,
-        adapters: ["i3-google:gemini-3.1-pro-preview", "google:gemini-3.1-pro-preview"],
-        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"]
-    },
-    {
-        id: "gemini-3.1-flash-lite-preview",
-        name: "Gemini 3.1 Flash Lite Preview",
-        shortName: "3.1 Flash Lite",
-        releaseOrder: 20260318,
-        adapters: [
-            "i3-google:gemini-3.1-flash-lite-preview",
-            "google:gemini-3.1-flash-lite-preview"
-        ],
+        releaseOrder: 20260920,
+        adapters: googleTextAdapters("gemini-3.1-pro-preview"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
         supportsDisablingReasoning: true
     },
     {
-        id: "gemini-3.1-flash-image-preview",
-        name: "Gemini 3.1 Flash Image Preview",
-        shortName: "3.1 Flash Image",
-        releaseOrder: 20260319,
-        adapters: [
-            "i3-google:gemini-3.1-flash-image-preview",
-            "google:gemini-3.1-flash-image-preview"
-        ],
-        abilities: ["reasoning", "vision", "effort_control"],
+        id: "gemini-2.5-flash",
+        name: "Gemini 2.5 Flash",
+        shortName: "2.5 Flash",
+        releaseOrder: 20260919,
+        adapters: googleTextAdapters("gemini-2.5-flash"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "gemini-2.5-flash-lite",
+        name: "Gemini 2.5 Flash Lite",
+        shortName: "2.5 Flash Lite",
+        releaseOrder: 20260918,
+        adapters: googleTextAdapters("gemini-2.5-flash-lite"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "gemini-2.5-pro",
+        name: "Gemini 2.5 Pro",
+        shortName: "2.5 Pro",
+        releaseOrder: 20260917,
+        adapters: googleTextAdapters("gemini-2.5-pro"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "gemini-2.0-flash",
+        name: "Gemini 2.0 Flash",
+        shortName: "2.0 Flash",
+        releaseOrder: 20260916,
+        adapters: googleTextAdapters("gemini-2.0-flash"),
+        abilities: ["vision", "function_calling", "pdf"]
+    },
+    {
+        id: "gemini-2.0-flash-lite",
+        name: "Gemini 2.0 Flash Lite",
+        shortName: "2.0 Flash Lite",
+        releaseOrder: 20260915,
+        adapters: googleTextAdapters("gemini-2.0-flash-lite"),
+        abilities: ["vision", "function_calling", "pdf"]
+    },
+    {
+        id: "gemini-3-pro-preview",
+        name: "Gemini 3 Pro Preview",
+        shortName: "3 Pro",
+        releaseOrder: 20260914,
+        adapters: googleTextAdapters("gemini-3-pro-preview"),
+        abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "gemini-2.5-flash-image",
+        name: "Gemini 2.5 Flash Image",
+        shortName: "2.5 Flash Image",
+        releaseOrder: 20260913,
+        adapters: googleImageAdapters("gemini-2.5-flash-image"),
+        abilities: [],
+        mode: "image",
+        customIcon: "google",
         supportedImageSizes: ["1:1", "3:2", "2:3", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9"],
-        supportedImageResolutions: ["1K", "2K", "4K"],
-        supportsDisablingReasoning: true
-    },
-    {
-        id: "gemini-3-pro-image-preview",
-        name: "Gemini 3 Pro Image Preview",
-        shortName: "3 Pro Image",
-        releaseOrder: 20260320,
-        adapters: ["i3-google:gemini-3-pro-image-preview", "google:gemini-3-pro-image-preview"],
-        abilities: ["reasoning", "vision", "effort_control"],
-        supportedImageSizes: [
-            "1:1",
-            "3:2",
-            "2:3",
-            "3:4",
-            "4:3",
-            "4:5",
-            "5:4",
-            "9:16",
-            "16:9",
-            "21:9"
-        ],
-        supportedImageResolutions: ["1K", "2K", "4K"],
-        supportsDisablingReasoning: true
-    },
-    // Image Generation Models
-    {
-        id: "gpt-image-1",
-        name: "GPT Image 1",
-        releaseOrder: 20250423,
-        adapters: ["openai:gpt-image-1"],
-        abilities: [],
-        mode: "image",
-        supportedImageSizes: ["1024x1024", "1536x1024", "1024x1536"]
-    },
-    {
-        id: "gpt-image-1.5-2025-12-16",
-        name: "GPT Image 1.5",
-        shortName: "Image 1.5",
-        releaseOrder: 20251216,
-        adapters: ["i3-openai:gpt-image-1.5-2025-12-16", "openai:gpt-image-1.5-2025-12-16"],
-        abilities: [],
-        mode: "image",
-        customIcon: "openai",
-        supportedImageSizes: ["1024x1024", "1536x1024", "1024x1536"]
-    },
-    {
-        id: "sdxl-lightning",
-        name: "SDXL Lightning",
-        shortName: "SDXL",
-        releaseOrder: 20240222,
-        adapters: ["i3-fal:fal-ai/fast-lightning-sdxl", "fal:fal-ai/fast-lightning-sdxl"],
-        abilities: [],
-        mode: "image",
-        customIcon: "stability-ai",
-        supportedImageSizes: ["1:1", "1:1-hd", "3:4", "4:3", "9:16", "16:9"]
-    },
-    {
-        id: "flux-schnell",
-        name: "FLUX.1 [schnell]",
-        shortName: "flux.schnell",
-        releaseOrder: 20240800,
-        adapters: ["i3-fal:fal-ai/flux/schnell", "fal:fal-ai/flux/schnell"],
-        abilities: [],
-        mode: "image",
-        customIcon: "bflabs",
-        supportedImageSizes: ["1:1", "1:1-hd", "3:4", "4:3", "9:16", "16:9"]
-    },
-    {
-        id: "flux-dev",
-        name: "FLUX.1 [dev]",
-        shortName: "flux.dev",
-        releaseOrder: 20240801,
-        adapters: ["fal:fal-ai/flux/dev"],
-        abilities: [],
-        mode: "image",
-        customIcon: "bflabs",
-        supportedImageSizes: ["1:1", "1:1-hd", "3:4", "4:3", "9:16", "16:9"]
-    },
-    {
-        id: "google-imagen-3-fast",
-        name: "Google Imagen 3 (Fast)",
-        shortName: "Imagen 3 (Fast)",
-        releaseOrder: 20250131,
-        adapters: ["fal:fal-ai/imagen3/fast"],
-        abilities: [],
-        mode: "image",
-        customIcon: "google",
-        supportedImageSizes: ["1:1-hd", "16:9-hd", "9:16-hd", "3:4-hd", "4:3-hd"]
-    },
-    {
-        id: "google-imagen-3",
-        name: "Google Imagen 3",
-        shortName: "Imagen 3",
-        releaseOrder: 20250201,
-        adapters: ["fal:fal-ai/imagen3"],
-        abilities: [],
-        mode: "image",
-        customIcon: "google",
-        supportedImageSizes: ["1:1-hd", "16:9-hd", "9:16-hd", "3:4-hd", "4:3-hd"]
-    },
-    {
-        id: "google-imagen-4",
-        name: "Google Imagen 4",
-        shortName: "Imagen 4",
-        releaseOrder: 20250520,
-        adapters: ["fal:fal-ai/imagen4/preview"],
-        abilities: [],
-        mode: "image",
-        customIcon: "google",
-        supportedImageSizes: ["1:1-hd", "16:9-hd", "9:16-hd", "3:4-hd", "4:3-hd"]
-    },
-    {
-        id: "imagen-4.0-generate-001",
-        name: "Imagen 4 Standard",
-        shortName: "Imagen 4",
-        releaseOrder: 20260218,
-        adapters: ["i3-google:imagen-4.0-generate-001", "google:imagen-4.0-generate-001"],
-        abilities: [],
-        mode: "image",
-        customIcon: "google",
-        supportedImageSizes: ["1:1", "3:4", "4:3", "9:16", "16:9"]
-    },
-    {
-        id: "imagen-4.0-ultra-generate-001",
-        name: "Imagen 4 Ultra",
-        shortName: "Imagen 4 Ultra",
-        releaseOrder: 20260219,
-        adapters: [
-            "i3-google:imagen-4.0-ultra-generate-001",
-            "google:imagen-4.0-ultra-generate-001"
-        ],
-        abilities: [],
-        mode: "image",
-        customIcon: "google",
-        supportedImageSizes: ["1:1", "3:4", "4:3", "9:16", "16:9"]
-    },
-    {
-        id: "imagen-4.0-fast-generate-001",
-        name: "Imagen 4 Fast",
-        shortName: "Imagen 4 Fast",
-        releaseOrder: 20260220,
-        adapters: ["i3-google:imagen-4.0-fast-generate-001", "google:imagen-4.0-fast-generate-001"],
-        abilities: [],
-        mode: "image",
-        customIcon: "google",
-        supportedImageSizes: ["1:1", "3:4", "4:3", "9:16", "16:9"]
+        supportedImageResolutions: ["1K", "2K", "4K"]
     },
     {
         id: "llama-4-scout-17b-16e-instruct",
