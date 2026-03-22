@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select"
 import { VoiceRecorder } from "@/components/voice-recorder"
 import { api } from "@/convex/_generated/api"
-import { type ImageSize, MODELS_SHARED } from "@/convex/lib/models"
+import { type ImageResolution, type ImageSize, MODELS_SHARED } from "@/convex/lib/models"
 import { DefaultSettings } from "@/convex/settings"
 import { useSession, useToken } from "@/hooks/auth-hooks"
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder"
@@ -116,6 +116,50 @@ const AspectRatioSelector = ({ selectedModel }: { selectedModel: string | null }
                     {supportedImageSizes.map((size) => (
                         <SelectItem key={size} value={size} className="text-xs sm:text-sm">
                             {formatImageSizeForDisplay(size)}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </PromptInputAction>
+    )
+}
+
+const ImageResolutionSelector = ({ selectedModel }: { selectedModel: string | null }) => {
+    const { selectedImageResolution, setSelectedImageResolution } = useModelStore()
+
+    const supportedImageResolutions = useMemo(() => {
+        if (!selectedModel) return []
+        const model = MODELS_SHARED.find((m) => m.id === selectedModel)
+        return model?.supportedImageResolutions || []
+    }, [selectedModel])
+
+    useEffect(() => {
+        if (supportedImageResolutions.length === 0) return
+        if (!supportedImageResolutions.includes(selectedImageResolution)) {
+            setSelectedImageResolution(
+                (supportedImageResolutions.includes("1K" as ImageResolution)
+                    ? "1K"
+                    : supportedImageResolutions[0]) as ImageResolution
+            )
+        }
+    }, [selectedImageResolution, setSelectedImageResolution, supportedImageResolutions])
+
+    if (supportedImageResolutions.length === 0) return null
+
+    return (
+        <PromptInputAction tooltip="Select output resolution">
+            <Select value={selectedImageResolution} onValueChange={setSelectedImageResolution}>
+                <SelectTrigger className="!h-8 w-auto min-w-[76px] border bg-secondary/70 font-normal text-xs backdrop-blur-lg hover:bg-secondary/80 sm:text-sm">
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    {supportedImageResolutions.map((resolution) => (
+                        <SelectItem
+                            key={resolution}
+                            value={resolution}
+                            className="text-xs sm:text-sm"
+                        >
+                            {resolution}
                         </SelectItem>
                     ))}
                 </SelectContent>
@@ -245,15 +289,19 @@ export function MultimodalInput({
         modelSupportsVision,
         modelSupportsFunctionCalling,
         _modelSupportsReasoning,
-        isImageModel
+        isImageModel,
+        modelSupportsImageSizing,
+        modelSupportsImageResolution
     ] = useMemo(() => {
-        if (!selectedModel) return [false, false, false, false]
+        if (!selectedModel) return [false, false, false, false, false, false]
         const model = MODELS_SHARED.find((m) => m.id === selectedModel)
         return [
             model?.abilities.includes("vision") ?? false,
             model?.abilities.includes("function_calling") ?? false,
             model?.abilities.includes("reasoning") ?? false,
-            model?.mode === "image"
+            model?.mode === "image",
+            (model?.supportedImageSizes?.length ?? 0) > 0,
+            (model?.supportedImageResolutions?.length ?? 0) > 0
         ]
     }, [selectedModel])
 
@@ -729,9 +777,15 @@ export function MultimodalInput({
                                 />
                             )}
 
-                            {isImageModel ? (
+                            {modelSupportsImageSizing && (
                                 <AspectRatioSelector selectedModel={selectedModel} />
-                            ) : (
+                            )}
+
+                            {modelSupportsImageResolution && (
+                                <ImageResolutionSelector selectedModel={selectedModel} />
+                            )}
+
+                            {isImageModel ? null : (
                                 <>
                                     <PromptInputAction tooltip="Attach files">
                                         <Button

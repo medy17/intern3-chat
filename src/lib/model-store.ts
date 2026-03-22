@@ -1,4 +1,4 @@
-import type { ImageSize } from "@/convex/lib/models"
+import type { ImageResolution, ImageSize } from "@/convex/lib/models"
 import type { AbilityId } from "@/convex/lib/toolkit"
 import { type AIConfig, loadAIConfig, saveAIConfig } from "@/lib/persistence"
 import { create } from "zustand"
@@ -15,6 +15,9 @@ export type ModelStore = {
 
     selectedImageSize: ImageSize
     setSelectedImageSize: (imageSize: ImageSize) => void
+
+    selectedImageResolution: ImageResolution
+    setSelectedImageResolution: (imageResolution: ImageResolution) => void
 
     reasoningEffort: ReasoningEffort
     setReasoningEffort: (effort: ReasoningEffort) => void
@@ -35,9 +38,16 @@ const persistConfig = (
     selectedModel: string | null,
     enabledTools: AbilityId[],
     selectedImageSize: ImageSize,
+    selectedImageResolution: ImageResolution,
     reasoningEffort: ReasoningEffort
 ) => {
-    const config: AIConfig = { selectedModel, enabledTools, selectedImageSize, reasoningEffort }
+    const config: AIConfig = {
+        selectedModel,
+        enabledTools,
+        selectedImageSize,
+        selectedImageResolution,
+        reasoningEffort
+    }
     saveAIConfig(config)
 }
 
@@ -47,6 +57,7 @@ export const useModelStore = create<ModelStore>()(
             selectedModel: initialConfig.selectedModel,
             enabledTools: initialConfig.enabledTools as AbilityId[],
             selectedImageSize: initialConfig.selectedImageSize as ImageSize,
+            selectedImageResolution: initialConfig.selectedImageResolution as ImageResolution,
             reasoningEffort: initialConfig.reasoningEffort as ReasoningEffort,
             mcpOverrides: {},
             defaultMcpOverrides: {},
@@ -58,6 +69,7 @@ export const useModelStore = create<ModelStore>()(
                         model,
                         currentState.enabledTools,
                         currentState.selectedImageSize,
+                        currentState.selectedImageResolution,
                         currentState.reasoningEffort
                     )
                 }
@@ -74,6 +86,7 @@ export const useModelStore = create<ModelStore>()(
                         currentState.selectedModel,
                         tools,
                         currentState.selectedImageSize,
+                        currentState.selectedImageResolution,
                         currentState.reasoningEffort
                     )
                 }
@@ -86,6 +99,20 @@ export const useModelStore = create<ModelStore>()(
                         currentState.selectedModel,
                         currentState.enabledTools,
                         imageSize,
+                        currentState.selectedImageResolution,
+                        currentState.reasoningEffort
+                    )
+                }
+            },
+            setSelectedImageResolution: (imageResolution) => {
+                const currentState = get()
+                if (currentState.selectedImageResolution !== imageResolution) {
+                    set({ selectedImageResolution: imageResolution })
+                    persistConfig(
+                        currentState.selectedModel,
+                        currentState.enabledTools,
+                        currentState.selectedImageSize,
+                        imageResolution,
                         currentState.reasoningEffort
                     )
                 }
@@ -98,6 +125,7 @@ export const useModelStore = create<ModelStore>()(
                         currentState.selectedModel,
                         currentState.enabledTools,
                         currentState.selectedImageSize,
+                        currentState.selectedImageResolution,
                         effort
                     )
                 }

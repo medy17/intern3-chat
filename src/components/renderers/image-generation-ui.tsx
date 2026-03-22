@@ -1,20 +1,24 @@
 import { ImageSkeleton } from "@/components/ui/image-skeleton"
 import { MODELS_SHARED } from "@/convex/lib/models"
 import { browserEnv } from "@/lib/browser-env"
-import type { ToolInvocation } from "ai"
+import type { UIToolInvocation } from "ai"
 import { AlertCircle } from "lucide-react"
 import { memo, useMemo, useState } from "react"
 
 export const ImageGenerationToolRenderer = memo(
-    ({ toolInvocation }: { toolInvocation: ToolInvocation }) => {
-        if (toolInvocation.toolName !== "image_generation") return null
-
-        const isLoading = toolInvocation.state === "partial-call" || toolInvocation.state === "call"
-        const hasResult = toolInvocation.state === "result" && toolInvocation.result
-        const hasError = hasResult && "error" in toolInvocation.result
+    ({ toolInvocation }: { toolInvocation: UIToolInvocation<any> }) => {
+        const isLoading =
+            toolInvocation.state === "input-streaming" || toolInvocation.state === "input-available"
+        const hasResult = toolInvocation.state === "output-available" && toolInvocation.output
+        const hasError =
+            hasResult &&
+            typeof toolInvocation.output === "object" &&
+            toolInvocation.output !== null &&
+            "error" in toolInvocation.output
 
         // Extract aspect ratio from args to determine container dimensions
-        const aspectRatio = toolInvocation.args?.imageSize || "1:1"
+        const aspectRatio =
+            (toolInvocation.input as { imageSize?: string } | undefined)?.imageSize ?? "1:1"
 
         // Convert aspect ratio to CSS aspect-ratio value
         const cssAspectRatio = useMemo(() => {
@@ -84,19 +88,35 @@ export const ImageGenerationToolRenderer = memo(
                 >
                     <AlertCircle className="mx-auto mb-2 size-8 text-destructive/70" />
                     <p className="text-destructive text-sm">
-                        {toolInvocation.result.error || "Failed to generate image"}
+                        {String(
+                            (toolInvocation.output as { error?: string }).error ||
+                                "Failed to generate image"
+                        )}
                     </p>
                 </div>
             )
         }
 
-        if (hasResult && toolInvocation.result.assets) {
-            const assets = toolInvocation.result.assets
-            const prompt = toolInvocation.result.prompt || toolInvocation.args?.prompt
+        if (
+            hasResult &&
+            typeof toolInvocation.output === "object" &&
+            toolInvocation.output !== null &&
+            "assets" in toolInvocation.output &&
+            Array.isArray(toolInvocation.output.assets)
+        ) {
+            const output = toolInvocation.output as {
+                assets: any[]
+                prompt?: string
+                modelId?: string
+            }
+            const assets = output.assets
+            const prompt =
+                output.prompt ||
+                ((toolInvocation.input as { prompt?: string } | undefined)?.prompt ?? "")
 
-            const modelName = toolInvocation.result.modelId
-                ? MODELS_SHARED.find((m) => m.id === toolInvocation.result.modelId)?.name
-                : toolInvocation.result.modelId
+            const modelName = output.modelId
+                ? MODELS_SHARED.find((m) => m.id === output.modelId)?.name
+                : output.modelId
 
             return assets.map((asset, index) => (
                 <ImageWithErrorHandler
@@ -121,7 +141,7 @@ const ImageWithErrorHandler = memo(
         prompt,
         modelName,
         cssAspectRatio
-    }: { asset: any; prompt: string; modelName: string; cssAspectRatio: string }) => {
+    }: { asset: any; prompt: string; modelName?: string; cssAspectRatio: string }) => {
         const [isError, setIsError] = useState(false)
 
         if (isError) {

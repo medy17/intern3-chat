@@ -4,7 +4,7 @@ import { useChatStore } from "@/lib/chat-store"
 import { getChatWidthClass, useChatWidthStore } from "@/lib/chat-width-store"
 import { getFileTypeInfo } from "@/lib/file_constants"
 import { cn } from "@/lib/utils"
-import type { UIMessage } from "ai"
+import type { UIMessage, UIToolInvocation } from "ai"
 import { Code, FileType, FileType2, Image as ImageIcon, RotateCcw } from "lucide-react"
 import { memo, useState } from "react"
 import type { useStickToBottom } from "use-stick-to-bottom"
@@ -19,13 +19,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog"
 import { Loader } from "./ui/loader"
 import { Textarea } from "./ui/textarea"
 
-const extractFileName = (data: string) => {
-    const _extract = data.startsWith("attachments/") ? (data.split("/").pop() ?? "") : ""
-    return _extract.length > 51 ? _extract.slice(51) : _extract
+const extractFileName = (url: string) => {
+    if (url.startsWith("data:")) return "Inline file"
+
+    const match = url.match(/[?&]key=([^&]+)/)
+    const key = match?.[1] ? decodeURIComponent(match[1]) : url
+    const extracted = key.startsWith("attachments/")
+        ? (key.split("/").pop() ?? "")
+        : (key.split("/").pop() ?? "")
+    return extracted.length > 51 ? extracted.slice(51) : extracted
 }
 
-const getFileIcon = (part: { data: string; filename?: string; mimeType?: string }) => {
-    const { isImage, isCode, isPdf } = getFileTypeInfo(extractFileName(part.data), part.mimeType)
+const getFileIcon = (part: { url: string; filename?: string; mediaType?: string }) => {
+    const { isImage, isCode, isPdf } = getFileTypeInfo(extractFileName(part.url), part.mediaType)
 
     if (isImage) return <ImageIcon className="size-4 text-blue-500" />
     if (isCode) return <Code className="size-4 text-green-500" />
@@ -38,12 +44,12 @@ const FileAttachment = memo(
         part,
         onPreview
     }: {
-        part: { data: string; filename?: string; mimeType?: string }
+        part: { url: string; filename?: string; mediaType?: string }
         onPreview?: () => void
     }) => {
-        const { isImage } = getFileTypeInfo(extractFileName(part.data), part.mimeType)
+        const { isImage } = getFileTypeInfo(extractFileName(part.url), part.mediaType)
 
-        const extractedFileName = extractFileName(part.data)
+        const extractedFileName = extractFileName(part.url)
 
         const fileName = part.filename || extractedFileName
         const [imageError, setImageError] = useState(false)
@@ -87,7 +93,11 @@ const FileAttachment = memo(
 
             return (
                 <img
-                    src={`${browserEnv("VITE_CONVEX_API_URL")}/r2?key=${part.data}`}
+                    src={
+                        part.url.startsWith("http") || part.url.startsWith("data:")
+                            ? part.url
+                            : `${browserEnv("VITE_CONVEX_API_URL")}${part.url}`
+                    }
                     alt={fileName}
                     className="w-full max-w-md cursor-pointer rounded-lg object-contain transition-opacity hover:opacity-90"
                     onClick={handleInteraction}
@@ -131,7 +141,7 @@ const PartsRenderer = memo(
         part: UIMessage["parts"][number]
         markdown: boolean
         id: string
-        onFilePreview?: (part: { data: string; filename?: string; mimeType?: string }) => void
+        onFilePreview?: (part: { url: string; filename?: string; mediaType?: string }) => void
         isStreaming?: boolean
     }) => {
         switch (part.type) {
@@ -146,9 +156,8 @@ const PartsRenderer = memo(
                     </div>
                 )
             case "reasoning": {
-                const hasReasoningContent = part.reasoning && part.reasoning.trim() !== ""
-                const isReasoningStreaming =
-                    isStreaming && (!hasReasoningContent || part.reasoning.endsWith(""))
+                const hasReasoningContent = part.text && part.text.trim() !== ""
+                const isReasoningStreaming = isStreaming && part.state !== "done"
 
                 return (
                     <Reasoning className="mb-6" isStreaming={isReasoningStreaming}>
@@ -158,19 +167,22 @@ const PartsRenderer = memo(
                             className="rounded-lg border bg-muted/50"
                             contentClassName="prose prose-p:my-0 prose-pre:my-2 prose-ul:my-2 prose-li:mt-1 prose-li:mb-0 max-w-none prose-pre:bg-transparent p-4 prose-pre:p-0 font-claude-message prose-headings:font-semibold prose-strong:font-medium prose-pre:text-foreground leading-[1.65rem] [&>div>div>:is(p,blockquote,h1,h2,h3,h4,h5,h6)]:pl-2 [&>div>div>:is(p,blockquote,ul,ol,h1,h2,h3,h4,h5,h6)]:pr-8 [&_.ignore-pre-bg>div]:bg-transparent [&_pre>div]:border-0.5 [&_pre>div]:border-border [&_pre>div]:bg-background"
                         >
-                            {hasReasoningContent ? part.reasoning : ""}
+                            {hasReasoningContent ? part.text : ""}
                         </ReasoningContent>
                     </Reasoning>
                 )
             }
-            case "tool-invocation":
-                if (part.toolInvocation.toolName === "web_search")
-                    return <WebSearchToolRenderer toolInvocation={part.toolInvocation} />
-
-                if (part.toolInvocation.toolName === "image_generation")
-                    return <ImageGenerationToolRenderer toolInvocation={part.toolInvocation} />
-
-                return <GenericToolRenderer toolInvocation={part.toolInvocation} />
+            case "tool-web_search":
+                return <WebSearchToolRenderer toolInvocation={part} />
+            case "tool-image_generation":
+                return <ImageGenerationToolRenderer toolInvocation={part} />
+            case "dynamic-tool":
+                return (
+                    <GenericToolRenderer
+                        toolInvocation={part as UIToolInvocation<any>}
+                        toolName={part.toolName}
+                    />
+                )
             case "file":
                 return <FileAttachment part={part} onPreview={() => onFilePreview?.(part)} />
         }
@@ -263,9 +275,9 @@ export function Messages({
 
     const [previewDialogOpen, setPreviewDialogOpen] = useState(false)
     const [previewFile, setPreviewFile] = useState<{
-        data: string
+        url: string
         filename?: string
-        mimeType?: string
+        mediaType?: string
     } | null>(null)
 
     const handleEdit = (message: UIMessage) => {
@@ -286,23 +298,28 @@ export function Messages({
         setTargetMode("normal")
     }
 
-    const handleFilePreview = (part: { data: string; filename?: string; mimeType?: string }) => {
+    const handleFilePreview = (part: { url: string; filename?: string; mediaType?: string }) => {
         setPreviewFile(part)
         setPreviewDialogOpen(true)
     }
 
-    const fileName = previewFile?.filename || extractFileName(previewFile?.data || "")
+    const fileName = previewFile?.filename || extractFileName(previewFile?.url || "")
 
     const renderFilePreview = () => {
         if (!previewFile) return null
 
-        const { isImage, isText, isPdf } = getFileTypeInfo(fileName, previewFile.mimeType)
+        const { isImage, isText, isPdf } = getFileTypeInfo(fileName, previewFile.mediaType)
 
         return (
             <div className="max-h-full overflow-auto">
                 {isImage && (
                     <img
-                        src={`${browserEnv("VITE_CONVEX_API_URL")}/r2?key=${previewFile.data}`}
+                        src={
+                            previewFile.url.startsWith("http") ||
+                            previewFile.url.startsWith("data:")
+                                ? previewFile.url
+                                : `${browserEnv("VITE_CONVEX_API_URL")}${previewFile.url}`
+                        }
                         alt={fileName}
                         className="h-auto w-full rounded object-contain"
                         onError={(e) => {
@@ -316,7 +333,12 @@ export function Messages({
 
                 {(isText || isPdf) && (
                     <iframe
-                        src={`${browserEnv("VITE_CONVEX_API_URL")}/r2?key=${previewFile.data}`}
+                        src={
+                            previewFile.url.startsWith("http") ||
+                            previewFile.url.startsWith("data:")
+                                ? previewFile.url
+                                : `${browserEnv("VITE_CONVEX_API_URL")}${previewFile.url}`
+                        }
                         className="h-[69dvh] w-full rounded border-0"
                         title={fileName}
                     />
@@ -334,7 +356,7 @@ export function Messages({
             lastMessage.parts.every(
                 (part) =>
                     (part.type === "text" && (!part.text || part.text.trim() === "")) ||
-                    (part.type === "reasoning" && (!part.reasoning || part.reasoning.trim() === ""))
+                    (part.type === "reasoning" && (!part.text || part.text.trim() === ""))
             ))
 
     const showTypingLoader = status === "submitted" || isStreamingWithoutContent

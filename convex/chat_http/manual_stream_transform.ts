@@ -1,33 +1,52 @@
-import type {
-    DataStreamString,
-    FileUIPart,
-    ReasoningUIPart,
-    TextUIPart,
-    ToolInvocationUIPart
-} from "@ai-sdk/ui-utils"
-
-import { DelayedPromise } from "@/lib/delayed-promise"
-import { type TextStreamPart, type ToolCall, formatDataStreamPart } from "ai"
+import type { TextStreamPart, UIMessageChunk } from "ai"
 import type { GenericActionCtx } from "convex/server"
 import type { Infer } from "convex/values"
 import type { DataModel } from "../_generated/dataModel"
 import { r2 } from "../attachments"
 import type { ErrorUIPart } from "../schema/parts"
 
+type StoredPart =
+    | {
+          type: "text"
+          text: string
+      }
+    | {
+          type: "reasoning"
+          reasoning: string
+          duration?: number
+          details?: Array<{
+              type: "text" | "redacted"
+              text?: string
+              data?: string
+              signature?: string
+          }>
+      }
+    | {
+          type: "tool-invocation"
+          toolInvocation: {
+              state: "call" | "result" | "partial-call"
+              args?: unknown
+              result?: unknown
+              toolCallId: string
+              toolName: string
+              step?: number
+          }
+      }
+    | {
+          type: "file"
+          data: string
+          filename?: string
+          mimeType?: string
+      }
+    | Infer<typeof ErrorUIPart>
+
 export const manualStreamTransform = (
-    parts: Array<
-        | TextUIPart
-        | (ReasoningUIPart & { duration?: number })
-        | ToolInvocationUIPart
-        | FileUIPart
-        | Infer<typeof ErrorUIPart>
-    >,
+    parts: StoredPart[],
     totalTokenUsage: {
         promptTokens: number
         completionTokens: number
         reasoningTokens: number
     },
-    assistantMessageId: string,
     uploadPromises: Promise<void>[],
     userId: string,
     actionCtx: GenericActionCtx<DataModel>
@@ -35,278 +54,239 @@ export const manualStreamTransform = (
     let reasoningStartedAt = -1
 
     const appendTextPart = (text: string, type: "text" | "reasoning") => {
-        if (parts.length > 0 && parts[parts.length - 1]?.type === type) {
-            if (type === "text") {
-                ;(parts[parts.length - 1] as TextUIPart).text += text
-            } else if (type === "reasoning") {
-                ;(parts[parts.length - 1] as ReasoningUIPart).reasoning += text
-                ;(
-                    parts[parts.length - 1] as ReasoningUIPart & {
-                        duration?: number
-                    }
-                ).duration = Date.now() - reasoningStartedAt
-            }
-        } else {
-            if (type === "text") {
-                parts.push({
-                    type: "text",
-                    text
-                })
-            } else if (type === "reasoning") {
-                if (reasoningStartedAt === -1) {
-                    reasoningStartedAt = Date.now()
-                }
-                parts.push({
-                    type: "reasoning",
-                    reasoning: text,
-                    details: []
-                })
-            }
+        const lastPart = parts[parts.length - 1]
+
+        if (type === "text" && lastPart?.type === "text") {
+            lastPart.text += text
+            return
         }
+
+        if (type === "reasoning" && lastPart?.type === "reasoning") {
+            lastPart.reasoning += text
+            lastPart.duration = Date.now() - reasoningStartedAt
+            return
+        }
+
+        if (type === "text") {
+            parts.push({
+                type: "text",
+                text
+            })
+            return
+        }
+
+        if (reasoningStartedAt === -1) {
+            reasoningStartedAt = Date.now()
+        }
+
+        parts.push({
+            type: "reasoning",
+            reasoning: text,
+            details: []
+        })
     }
 
-    return new TransformStream<TextStreamPart<any>, DataStreamString>({
+    return new TransformStream<TextStreamPart<any>, UIMessageChunk>({
         transform: async (chunk, controller) => {
-            const chunkType = chunk.type
-            switch (chunkType) {
-                case "text-delta": {
-                    controller.enqueue(formatDataStreamPart("text", chunk.textDelta))
-                    appendTextPart(chunk.textDelta, "text")
+            switch (chunk.type) {
+                case "text-start":
+                    controller.enqueue({ type: "text-start", id: chunk.id })
                     break
-                }
-
-                case "reasoning": {
-                    controller.enqueue(formatDataStreamPart("reasoning", chunk.textDelta))
-                    appendTextPart(chunk.textDelta, "reasoning")
+                case "text-delta":
+                    controller.enqueue({ type: "text-delta", id: chunk.id, delta: chunk.text })
+                    appendTextPart(chunk.text, "text")
                     break
-                }
-
-                case "redacted-reasoning": {
-                    controller.enqueue(
-                        formatDataStreamPart("redacted_reasoning", {
-                            data: chunk.data
-                        })
-                    )
-                    appendTextPart(chunk.data, "reasoning")
+                case "text-end":
+                    controller.enqueue({ type: "text-end", id: chunk.id })
                     break
-                }
-
-                case "reasoning-signature": {
-                    controller.enqueue(
-                        formatDataStreamPart("reasoning_signature", {
-                            signature: chunk.signature
-                        })
-                    )
+                case "reasoning-start":
+                    controller.enqueue({ type: "reasoning-start", id: chunk.id })
+                    if (reasoningStartedAt === -1) reasoningStartedAt = Date.now()
                     break
-                }
-
+                case "reasoning-delta":
+                    controller.enqueue({
+                        type: "reasoning-delta",
+                        id: chunk.id,
+                        delta: chunk.text
+                    })
+                    appendTextPart(chunk.text, "reasoning")
+                    break
+                case "reasoning-end":
+                    controller.enqueue({ type: "reasoning-end", id: chunk.id })
+                    break
                 case "file": {
-                    if (chunk.mimeType.startsWith("image/")) {
-                        const promise = new DelayedPromise<void>()
-                        uploadPromises.push(promise.value)
-                        try {
-                            const fileExtension = chunk.mimeType.split("/")[1] || "png"
+                    const mediaType = chunk.file.mediaType
+
+                    if (mediaType.startsWith("image/")) {
+                        const upload = (async () => {
+                            const fileExtension = mediaType.split("/")[1] || "png"
                             const key = `generations/${userId}/${Date.now()}-${crypto.randomUUID()}-gen.${fileExtension}`
 
-                            // Use the SDK-generated binary payload directly instead of re-decoding
-                            // the base64 representation. This is safer across provider backends.
-                            const storedKey = await r2.store(actionCtx, chunk.uint8Array, {
+                            const storedKey = await r2.store(actionCtx, chunk.file.uint8Array, {
                                 authorId: userId,
                                 key,
-                                type: chunk.mimeType
+                                type: mediaType
                             })
-
-                            console.log("Stored model-generated image to R2:", storedKey)
 
                             parts.push({
                                 type: "file",
-                                mimeType: chunk.mimeType,
+                                mimeType: mediaType,
                                 data: storedKey
                             })
 
-                            controller.enqueue(
-                                formatDataStreamPart("file", {
-                                    mimeType: chunk.mimeType,
-                                    data: storedKey
-                                })
-                            )
-                        } catch (error) {
-                            console.error(
-                                "[cvx][chat][stream] Failed to persist model-generated image:",
-                                error
-                            )
-
-                            const fallbackMessage =
-                                "The model generated an image, but saving it failed. Please retry."
-
-                            parts.push({
-                                type: "text",
-                                text: fallbackMessage
+                            controller.enqueue({
+                                type: "file",
+                                mediaType,
+                                url: `/r2?key=${storedKey}`
                             })
+                        })()
 
-                            controller.enqueue(formatDataStreamPart("text", fallbackMessage))
-                        } finally {
-                            promise.resolve()
-                        }
+                        uploadPromises.push(upload)
+                        await upload
+                        break
+                    }
+
+                    const dataUrl = `data:${mediaType};base64,${chunk.file.base64}`
+                    parts.push({
+                        type: "file",
+                        mimeType: mediaType,
+                        data: dataUrl
+                    })
+                    controller.enqueue({
+                        type: "file",
+                        mediaType,
+                        url: dataUrl
+                    })
+                    break
+                }
+                case "source":
+                    if (chunk.sourceType === "url") {
+                        controller.enqueue({
+                            type: "source-url",
+                            sourceId: chunk.id,
+                            url: chunk.url,
+                            title: chunk.title
+                        })
                     } else {
-                        controller.enqueue(
-                            formatDataStreamPart("file", {
-                                mimeType: chunk.mimeType,
-                                data: chunk.base64
-                            })
-                        )
+                        controller.enqueue({
+                            type: "source-document",
+                            sourceId: chunk.id,
+                            mediaType: chunk.mediaType,
+                            title: chunk.title,
+                            filename: chunk.filename
+                        })
                     }
                     break
-                }
-
-                case "source": {
-                    controller.enqueue(formatDataStreamPart("source", chunk.source))
+                case "tool-input-start":
+                    controller.enqueue({
+                        type: "tool-input-start",
+                        toolCallId: chunk.id,
+                        toolName: chunk.toolName
+                    })
                     break
-                }
-
-                case "tool-call-streaming-start": {
-                    controller.enqueue(
-                        formatDataStreamPart("tool_call_streaming_start", {
-                            toolCallId: chunk.toolCallId,
-                            toolName: chunk.toolName
-                        })
-                    )
+                case "tool-input-delta":
+                    controller.enqueue({
+                        type: "tool-input-delta",
+                        toolCallId: chunk.id,
+                        inputTextDelta: chunk.delta
+                    })
                     break
-                }
-
-                case "tool-call-delta": {
-                    controller.enqueue(
-                        formatDataStreamPart("tool_call_delta", {
-                            toolCallId: chunk.toolCallId,
-                            argsTextDelta: chunk.argsTextDelta
-                        })
-                    )
-                    break
-                }
-
-                case "tool-call": {
-                    controller.enqueue(
-                        formatDataStreamPart("tool_call", {
-                            toolCallId: chunk.toolCallId,
-                            toolName: chunk.toolName,
-                            args: chunk.args
-                        } as ToolCall<string, any>)
-                    )
-
+                case "tool-call":
                     parts.push({
                         type: "tool-invocation",
                         toolInvocation: {
                             state: "call",
-                            args: chunk.args,
+                            args: chunk.input,
                             toolCallId: chunk.toolCallId,
                             toolName: chunk.toolName
                         }
                     })
+                    controller.enqueue({
+                        type: "tool-input-available",
+                        toolCallId: chunk.toolCallId,
+                        toolName: chunk.toolName,
+                        input: chunk.input
+                    })
                     break
-                }
-
                 case "tool-result": {
-                    controller.enqueue(
-                        formatDataStreamPart("tool_result", {
-                            toolCallId: chunk.toolCallId,
-                            result: chunk.result
-                        })
+                    const found = parts.findIndex(
+                        (part) =>
+                            part.type === "tool-invocation" &&
+                            part.toolInvocation.toolCallId === chunk.toolCallId
                     )
 
-                    const found = parts.findIndex(
-                        (p) =>
-                            p.type === "tool-invocation" &&
-                            p.toolInvocation.toolCallId === chunk.toolCallId
-                    )
                     if (found !== -1) {
-                        const _part = parts[found] as ToolInvocationUIPart
-                        _part.toolInvocation.state = "result"
-                        ;(_part.toolInvocation as any).result = chunk.result
+                        const part = parts[found] as Extract<
+                            StoredPart,
+                            { type: "tool-invocation" }
+                        >
+                        part.toolInvocation.state = "result"
+                        part.toolInvocation.result = chunk.output
                     }
 
+                    controller.enqueue({
+                        type: "tool-output-available",
+                        toolCallId: chunk.toolCallId,
+                        output: chunk.output
+                    })
                     break
                 }
-
+                case "tool-error":
+                    controller.enqueue({
+                        type: "tool-output-error",
+                        toolCallId: chunk.toolCallId,
+                        errorText: String(chunk.error)
+                    })
+                    break
                 case "error": {
-                    console.log("chunk.error", chunk.error)
-                    console.error(`[cvx][chat][stream] Error: ${chunk.error}`)
-                    let error_message = "An error occurred"
-                    if (typeof chunk.error === "string") {
-                        error_message = chunk.error
-                    } else if (chunk.error instanceof Error) {
-                        error_message = chunk.error.message
-                    } else if ("error" in (chunk.error as any)) {
-                        if ((chunk.error as { error: Error }).error instanceof Error) {
-                            error_message = (chunk.error as { error: Error }).error.message
-                        } else {
-                            error_message = (
-                                chunk.error as { error: { error: any } }
-                            ).error.error.toString()
-                        }
-                    }
+                    const errorText =
+                        chunk.error instanceof Error
+                            ? chunk.error.message
+                            : typeof chunk.error === "string"
+                              ? chunk.error
+                              : "An error occurred"
 
                     parts.push({
                         type: "error",
                         error: {
                             code: "unknown",
-                            message: error_message
+                            message: errorText
                         }
                     })
-                    controller.enqueue(formatDataStreamPart("error", error_message))
+                    controller.enqueue({
+                        type: "error",
+                        errorText
+                    })
                     break
                 }
-
-                case "step-start": {
-                    controller.enqueue(
-                        formatDataStreamPart("start_step", {
-                            messageId: assistantMessageId
-                        })
-                    )
+                case "start-step":
+                    controller.enqueue({ type: "start-step" })
                     break
-                }
+                case "finish-step":
+                    totalTokenUsage.promptTokens += chunk.usage.inputTokens || 0
+                    totalTokenUsage.completionTokens += chunk.usage.outputTokens || 0
+                    totalTokenUsage.reasoningTokens +=
+                        chunk.usage.outputTokenDetails.reasoningTokens ||
+                        chunk.usage.reasoningTokens ||
+                        0
 
-                case "step-finish": {
-                    controller.enqueue(
-                        formatDataStreamPart("finish_step", {
-                            finishReason: chunk.finishReason,
-                            usage: {
-                                promptTokens: chunk.usage.promptTokens,
-                                completionTokens: chunk.usage.completionTokens
-                            },
-                            isContinued: chunk.isContinued
-                        })
-                    )
                     console.log("[cvx][chat][stream] step-finish", {
                         finishReason: chunk.finishReason,
-                        usage: chunk.usage,
-                        isContinued: chunk.isContinued
+                        usage: chunk.usage
                     })
-                    totalTokenUsage.promptTokens += chunk.usage.promptTokens || 0
-                    totalTokenUsage.completionTokens += chunk.usage.completionTokens || 0
-
-                    console.log(
-                        "chunk.providerMetadata",
-                        chunk.providerMetadata,
-                        "totalTokenUsage",
-                        totalTokenUsage
-                    )
-                    if (
-                        chunk.providerMetadata?.openai?.reasoningTokens &&
-                        typeof chunk.providerMetadata.openai.reasoningTokens === "number"
-                    ) {
-                        totalTokenUsage.reasoningTokens +=
-                            chunk.providerMetadata.openai.reasoningTokens
-                    }
+                    controller.enqueue({ type: "finish-step" })
                     break
-                }
-
-                case "finish": {
+                case "tool-input-end":
+                case "tool-output-denied":
+                case "tool-approval-request":
+                case "start":
+                case "finish":
+                case "abort":
+                case "raw":
                     break
-                }
-
                 default: {
-                    const exhaustiveCheck: never = chunkType
-                    throw new Error(`Unknown chunk type: ${exhaustiveCheck}`)
+                    const exhaustiveCheck: never = chunk
+                    console.log("[cvx][chat][stream] ignored chunk", exhaustiveCheck)
                 }
             }
         }

@@ -6,7 +6,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import { createVertex } from "@ai-sdk/google-vertex/edge"
 import { createGroq } from "@ai-sdk/groq"
 import { createOpenAI } from "@ai-sdk/openai"
-import type { ProviderV1 } from "@ai-sdk/provider"
+import type { ProviderV3 } from "@ai-sdk/provider"
 import { createOpenRouter } from "@openrouter/ai-sdk-provider"
 
 import type { GoogleAuthMode } from "../schema/settings"
@@ -35,7 +35,6 @@ export const createGoogleOpenAICompatibleProvider = (
     return createOpenAI({
         apiKey: resolvedApiKey,
         baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
-        compatibility: "compatible",
         name: "google"
     })
 }
@@ -47,7 +46,7 @@ export const createProvider = (
         googleAuthMode?: GoogleAuthMode
         modelId?: string
     }
-): Promise<Omit<ProviderV1, "textEmbeddingModel">> => {
+): Promise<ProviderV3> => {
     return createProviderInternal(providerId, apiKey, options)
 }
 
@@ -61,7 +60,7 @@ const createProviderInternal = async (
         googleAuthMode?: GoogleAuthMode
         modelId?: string
     }
-): Promise<Omit<ProviderV1, "textEmbeddingModel">> => {
+): Promise<ProviderV3> => {
     if (apiKey !== "internal" && (!apiKey || apiKey.trim() === "")) {
         throw new Error("API key is required for non-internal providers")
     }
@@ -69,8 +68,7 @@ const createProviderInternal = async (
     switch (providerId) {
         case "openai":
             return createOpenAI({
-                apiKey: apiKey === "internal" ? process.env.OPENAI_API_KEY : apiKey,
-                compatibility: "strict"
+                apiKey: apiKey === "internal" ? process.env.OPENAI_API_KEY : apiKey
             })
         case "anthropic":
             return createAnthropic({
@@ -110,7 +108,6 @@ const createProviderInternal = async (
             return createOpenAI({
                 apiKey: resolvedApiKey,
                 baseURL: "https://api.x.ai/v1",
-                compatibility: "compatible",
                 name: "xai"
             })
         }
@@ -121,7 +118,7 @@ const createProviderInternal = async (
         case "openrouter":
             return createOpenRouter({
                 apiKey
-            })
+            }) as unknown as ProviderV3
         case "fal":
             return createFal({
                 apiKey: apiKey === "internal" ? process.env.FAL_API_KEY : apiKey

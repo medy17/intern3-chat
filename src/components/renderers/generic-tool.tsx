@@ -1,17 +1,18 @@
 import { cn } from "@/lib/utils"
-import type { ToolInvocation } from "ai"
+import type { UIToolInvocation } from "ai"
 import { ChevronDown, Loader2, Wrench } from "lucide-react"
 import { memo, useEffect, useRef, useState } from "react"
 import { Codeblock } from "../codeblock"
 
 export const GenericToolRenderer = memo(
-    ({ toolInvocation }: { toolInvocation: ToolInvocation }) => {
+    ({ toolInvocation, toolName }: { toolInvocation: UIToolInvocation<any>; toolName: string }) => {
         const [isExpanded, setIsExpanded] = useState(false)
         const contentRef = useRef<HTMLDivElement>(null)
         const innerRef = useRef<HTMLDivElement>(null)
 
-        const isLoading = toolInvocation.state === "partial-call" || toolInvocation.state === "call"
-        const hasResults = toolInvocation.state === "result" && toolInvocation.result
+        const isLoading =
+            toolInvocation.state === "input-streaming" || toolInvocation.state === "input-available"
+        const hasResults = toolInvocation.state === "output-available" && toolInvocation.output
 
         useEffect(() => {
             if (!contentRef.current || !innerRef.current) return
@@ -45,7 +46,7 @@ export const GenericToolRenderer = memo(
                         ) : (
                             <Wrench className="size-4 text-primary" />
                         )}
-                        <span className="font-medium text-primary">{toolInvocation.toolName}</span>
+                        <span className="font-medium text-primary">{toolName}</span>
 
                         {!isLoading && hasResults && (
                             <div
@@ -82,26 +83,27 @@ export const GenericToolRenderer = memo(
                                         disable={{ expand: true }}
                                         default={{ wrap: true }}
                                     >
-                                        {JSON.stringify(toolInvocation.args, null, 2)}
+                                        {JSON.stringify(toolInvocation.input, null, 2)}
                                     </Codeblock>
                                 </div>
 
-                                {toolInvocation.result && (
-                                    <>
-                                        <span className="font-medium text-foreground text-sm">
-                                            Result
-                                        </span>
-                                        <div className="mt-2 mb-3">
-                                            <Codeblock
-                                                className="language-json"
-                                                disable={{ expand: true }}
-                                                default={{ wrap: true }}
-                                            >
-                                                {JSON.stringify(toolInvocation.result, null, 2)}
-                                            </Codeblock>
-                                        </div>
-                                    </>
-                                )}
+                                {toolInvocation.state === "output-available" &&
+                                    toolInvocation.output && (
+                                        <>
+                                            <span className="font-medium text-foreground text-sm">
+                                                Result
+                                            </span>
+                                            <div className="mt-2 mb-3">
+                                                <Codeblock
+                                                    className="language-json"
+                                                    disable={{ expand: true }}
+                                                    default={{ wrap: true }}
+                                                >
+                                                    {JSON.stringify(toolInvocation.output, null, 2)}
+                                                </Codeblock>
+                                            </div>
+                                        </>
+                                    )}
                             </div>
                         )}
                     </div>

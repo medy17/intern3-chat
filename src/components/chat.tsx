@@ -56,7 +56,7 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
     const project =
         "error" in projects ? null : projects?.find((project) => project._id === folderId)
 
-    const { status, data, messages, ...chatHelpers } = useChatIntegration({
+    const { status, messages, ...chatHelpers } = useChatIntegration({
         threadId,
         folderId
     })
@@ -66,7 +66,7 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
         folderId
     })
 
-    useChatDataProcessor({ data, messages })
+    useChatDataProcessor({ messages })
 
     const handleInputSubmitWithScroll = (inputValue?: string, fileValues?: UploadedFile[]) => {
         handleInputSubmit(inputValue, fileValues)
@@ -87,7 +87,6 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
 
     const resetAll = () => {
         console.log("[chat] resetAll")
-        chatHelpers.setData([])
         chatHelpers.setMessages([])
         resetChat()
     }

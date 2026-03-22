@@ -1,5 +1,5 @@
-import type { ImageModelV1 } from "@ai-sdk/provider"
-import { experimental_generateImage } from "ai"
+import type { ImageModelV3 } from "@ai-sdk/provider"
+import { generateImage } from "ai"
 import type { GenericActionCtx } from "convex/server"
 import type { DataModel, Id } from "../_generated/dataModel"
 import { r2 } from "../attachments"
@@ -26,7 +26,7 @@ export async function generateAndStoreImage({
 }: {
     prompt: string
     imageSize: ImageSize
-    imageModel: ImageModelV1
+    imageModel: ImageModelV3
     modelId: string
     userId: string
     threadId: Id<"threads">
@@ -79,7 +79,7 @@ export async function generateAndStoreImage({
         // standard aspectRatio path instead of the OpenAI-compatible payload shape.
         const isGoogleOpenAIImageModel = imageModel.provider === "google.image"
 
-        const { images } = await experimental_generateImage({
+        const { images } = await generateImage({
             model: imageModel,
             prompt,
             ...(isGoogleOpenAIImageModel
@@ -107,13 +107,13 @@ export async function generateAndStoreImage({
         const assets: ImageGenerationResult["assets"] = []
 
         for (const image of images) {
-            const fileExtension = image.mimeType.split("/")[1] || "png"
+            const fileExtension = image.mediaType.split("/")[1] || "png"
             const key = `generations/${userId}/${Date.now()}-${crypto.randomUUID()}-gen.${fileExtension}`
 
             const storedKey = await r2.store(actionCtx, image.uint8Array, {
                 authorId: userId,
                 key,
-                type: image.mimeType
+                type: image.mediaType
             })
 
             console.log("[cvx][image_generation] Image stored to R2:", storedKey)
@@ -121,7 +121,7 @@ export async function generateAndStoreImage({
             assets.push({
                 imageUrl: key,
                 imageSize: requestedImageSize,
-                mimeType: image.mimeType
+                mimeType: image.mediaType
             })
         }
 

@@ -1,11 +1,12 @@
+import type { UserModelMessage } from "@ai-sdk/provider-utils"
 import { R2 } from "@convex-dev/r2"
 import type {
     AssistantContent,
-    CoreAssistantMessage,
-    CoreToolMessage,
-    CoreUserMessage,
+    AssistantModelMessage,
+    ModelMessage,
     ToolCallPart,
     ToolContent,
+    ToolModelMessage,
     UserContent
 } from "ai"
 import type { Infer } from "convex/values"
@@ -14,7 +15,7 @@ import type { Message } from "../schema/message"
 import type { ModelAbility } from "../schema/settings"
 import { getFileTypeInfo, isImageMimeType } from "./file_constants"
 
-export type CoreMessage = (CoreAssistantMessage | CoreToolMessage | CoreUserMessage) & {
+export type CoreMessage = ModelMessage & {
     messageId: string
 }
 const r2 = new R2(components.r2)
@@ -25,9 +26,7 @@ export const dbMessagesToCore = async (
 ): Promise<CoreMessage[]> => {
     const mapped_messages: CoreMessage[] = []
     for await (const message of messages) {
-        const to_commit_messages: ((CoreAssistantMessage | CoreToolMessage | CoreUserMessage) & {
-            messageId: string
-        })[] = []
+        const to_commit_messages: CoreMessage[] = []
         if (message.role === "user") {
             const mapped_content: UserContent = []
 
@@ -100,7 +99,7 @@ export const dbMessagesToCore = async (
                                 const blob = await data.blob()
                                 mapped_content.push({
                                     type: "file",
-                                    mimeType: "application/pdf",
+                                    mediaType: "application/pdf",
                                     filename: filename,
                                     data: await blob.arrayBuffer()
                                 })
@@ -142,7 +141,7 @@ export const dbMessagesToCore = async (
                     role: "user",
                     messageId: message.messageId,
                     content: mapped_content
-                })
+                } satisfies UserModelMessage & { messageId: string })
             }
         } else if (message.role === "assistant") {
             const mapped_content: AssistantContent = []
@@ -160,14 +159,14 @@ export const dbMessagesToCore = async (
                         const blob = await data.blob()
                         mapped_content.push({
                             type: "file",
-                            mimeType: p.mimeType || "image/png",
+                            mediaType: p.mimeType || "image/png",
                             filename: p.filename || "",
                             data: await blob.arrayBuffer()
                         })
                     } else {
                         mapped_content.push({
                             type: "file",
-                            mimeType: p.mimeType || "application/octet-stream",
+                            mediaType: p.mimeType || "application/octet-stream",
                             filename: p.filename || "",
                             data: p.data || ""
                         })
@@ -177,14 +176,17 @@ export const dbMessagesToCore = async (
                         type: "tool-call",
                         toolCallId: p.toolInvocation.toolCallId,
                         toolName: p.toolInvocation.toolName,
-                        args: p.toolInvocation.args
+                        input: p.toolInvocation.args
                     })
                     // Collect tool results separately
                     tool_results.push({
                         type: "tool-result",
                         toolCallId: p.toolInvocation.toolCallId,
                         toolName: p.toolInvocation.toolName,
-                        result: p.toolInvocation.result
+                        output: {
+                            type: "json",
+                            value: p.toolInvocation.result ?? null
+                        }
                     })
                 } else if (p.type === "reasoning") {
                     mapped_content.push({
@@ -215,12 +217,12 @@ export const dbMessagesToCore = async (
                         role: "assistant",
                         messageId: `${message.messageId}-tool-call`,
                         content: tool_calls
-                    })
+                    } satisfies AssistantModelMessage & { messageId: string })
                     to_commit_messages.unshift({
                         role: "tool",
                         messageId: `${message.messageId}-tool-result`,
                         content: tool_results
-                    })
+                    } satisfies ToolModelMessage & { messageId: string })
                 }
 
                 // Create new assistant message
@@ -228,7 +230,7 @@ export const dbMessagesToCore = async (
                     role: "assistant",
                     messageId: message.messageId,
                     content: mapped_content
-                })
+                } satisfies AssistantModelMessage & { messageId: string })
             }
         }
 

@@ -27,39 +27,28 @@ export const ChatActions = memo(
                 const casted = message.metadata as { modelName?: string }
                 if (casted.modelName) return casted.modelName
             }
-            const found = message.annotations?.find(
-                (annotation) =>
-                    annotation &&
-                    typeof annotation === "object" &&
-                    "type" in annotation &&
-                    annotation.type === "model_name"
-            )
-            if (found && typeof found === "object" && "content" in found) {
-                return found.content?.toString()
-            }
             return undefined
-        }, [
-            message.annotations?.length,
-            (message as { metadata?: { modelName?: string } }).metadata
-        ])
+        }, [(message as { metadata?: { modelName?: string } }).metadata])
 
         const imageGenerationAssets = useMemo(() => {
             const assets: string[] = []
-            message.parts
-                .filter((part) => part.type === "tool-invocation")
-                .forEach((part) => {
-                    if (
-                        part.toolInvocation.toolName === "image_generation" &&
-                        part.toolInvocation.state === "result" &&
-                        part.toolInvocation.result?.assets
-                    ) {
-                        part.toolInvocation.result.assets.forEach((asset: any) => {
-                            if (asset.imageUrl) {
-                                assets.push(asset.imageUrl)
-                            }
-                        })
-                    }
-                })
+            ;(
+                message.parts.filter((part) => part.type === "tool-image_generation") as Array<any>
+            ).forEach((part) => {
+                if (
+                    part.state === "output-available" &&
+                    part.output &&
+                    typeof part.output === "object" &&
+                    "assets" in part.output &&
+                    Array.isArray(part.output.assets)
+                ) {
+                    part.output.assets.forEach((asset: any) => {
+                        if (asset.imageUrl) {
+                            assets.push(asset.imageUrl)
+                        }
+                    })
+                }
+            })
             return assets
         }, [message.parts])
 

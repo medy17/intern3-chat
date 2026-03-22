@@ -1,68 +1,43 @@
 import { useChatStore } from "@/lib/chat-store"
-import type { UseChatHelpers } from "@ai-sdk/react"
+import type { UIMessage } from "ai"
 import { useEffect } from "react"
 
 interface UseChatDataProcessorProps {
-    data: UseChatHelpers["data"]
-    messages: UseChatHelpers["messages"]
+    messages: UIMessage<{
+        threadId?: string
+        streamId?: string
+    }>[]
 }
 
-export function useChatDataProcessor({ data, messages }: UseChatDataProcessorProps) {
-    const {
-        skipNextDataCheck,
-        lastProcessedDataIndex,
-        setThreadId,
-        setShouldUpdateQuery,
-        setLastProcessedDataIndex,
-        setSkipNextDataCheck,
-        setAttachedStreamId,
-        threadId,
-        setPendingStream
-    } = useChatStore()
+export function useChatDataProcessor({ messages }: UseChatDataProcessorProps) {
+    const { setThreadId, setShouldUpdateQuery, setAttachedStreamId, threadId, setPendingStream } =
+        useChatStore()
 
     useEffect(() => {
-        if (skipNextDataCheck) {
-            setSkipNextDataCheck(false)
-            return
+        const latestAssistant = [...messages]
+            .reverse()
+            .find((message) => message.role === "assistant")
+        if (!latestAssistant?.metadata) return
+
+        if (latestAssistant.metadata.threadId) {
+            setThreadId(latestAssistant.metadata.threadId)
+            if (typeof window !== "undefined") {
+                window.history.replaceState({}, "", `/thread/${latestAssistant.metadata.threadId}`)
+            }
+            setShouldUpdateQuery(true)
         }
 
-        if (!data || data.length === 0 || messages.length < 0) return
-
-        for (const _item of data?.slice(lastProcessedDataIndex + 1) ?? []) {
-            if (!_item) continue
-            const item = _item as { type: string; content: string }
-
-            if (item.type === "thread_id") {
-                setThreadId(item.content)
-                if (typeof window !== "undefined") {
-                    window.history.replaceState({}, "", `/thread/${item.content}`)
-                }
-                setShouldUpdateQuery(true)
-                console.log("[CDP:thread_id]", { t: item.content })
-            }
-
-            if (item.type === "stream_id") {
-                if (threadId) {
-                    setAttachedStreamId(threadId, item.content)
-                    setPendingStream(threadId, false)
-                    console.log("[CDP:stream_id]", {
-                        t: threadId,
-                        sid: item.content.slice(0, 5)
-                    })
-                }
+        if (latestAssistant.metadata.streamId) {
+            const effectiveThreadId = latestAssistant.metadata.threadId ?? threadId
+            if (effectiveThreadId) {
+                setAttachedStreamId(effectiveThreadId, latestAssistant.metadata.streamId)
+                setPendingStream(effectiveThreadId, false)
             }
         }
-
-        setLastProcessedDataIndex((data?.length ?? 0) - 1)
     }, [
-        data,
-        messages.length,
-        skipNextDataCheck,
-        lastProcessedDataIndex,
+        messages,
         setThreadId,
         setShouldUpdateQuery,
-        setLastProcessedDataIndex,
-        setSkipNextDataCheck,
         setAttachedStreamId,
         threadId,
         setPendingStream

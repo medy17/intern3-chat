@@ -1,7 +1,7 @@
 "use node"
 
 import { ChatError } from "@/lib/errors"
-import { type CoreMessage, generateText } from "ai"
+import { type ModelMessage, generateText } from "ai"
 import type { GenericActionCtx } from "convex/server"
 import type { Infer } from "convex/values"
 import { internal } from "../_generated/api"
@@ -19,7 +19,7 @@ const TITLE_MODEL_FALLBACKS = [
     "gemini-2.0-flash"
 ] as const
 
-const contentToText = (content: CoreMessage["content"]): string => {
+const contentToText = (content: ModelMessage["content"]): string => {
     if (typeof content === "string") {
         return content
     }
@@ -61,7 +61,7 @@ const normalizeTitle = (title: string) =>
         .trim()
         .slice(0, 100)
 
-const fallbackTitleFromMessages = (messages: CoreMessage[]) => {
+const fallbackTitleFromMessages = (messages: ModelMessage[]) => {
     const firstUserMessage = messages.find((message) => message.role === "user")
     const rawTitle = normalizeTitle(contentToText(firstUserMessage?.content ?? ""))
 
@@ -91,7 +91,7 @@ const getAvailableTitleModelId = async (
 export const generateThreadName = async (
     ctx: GenericActionCtx<DataModel>,
     threadId: Id<"threads">,
-    messages: CoreMessage[],
+    messages: ModelMessage[],
     userId: string,
     settings: Infer<typeof UserSettings>
 ) => {

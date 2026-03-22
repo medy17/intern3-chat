@@ -7,7 +7,8 @@ import { useAutoResume } from "@/hooks/use-auto-resume"
 import { browserEnv } from "@/lib/browser-env"
 import { useChatStore } from "@/lib/chat-store"
 import { useModelStore } from "@/lib/model-store"
-import { type Message, useChat } from "@ai-sdk/react"
+import { useChat } from "@ai-sdk/react"
+import { DefaultChatTransport, type UIMessage } from "ai"
 import { useQuery as useConvexQuery } from "convex-helpers/react/cache"
 import type { Infer } from "convex/values"
 import { nanoid } from "nanoid"
@@ -29,6 +30,7 @@ export function useChatIntegration<IsShared extends boolean>({
         selectedModel,
         enabledTools,
         selectedImageSize,
+        selectedImageResolution,
         reasoningEffort,
         getEffectiveMcpOverrides
     } = useModelStore()
@@ -55,7 +57,18 @@ export function useChatIntegration<IsShared extends boolean>({
         !isShared && threadId ? { threadId: threadId as Id<"threads"> } : "skip"
     )
 
-    const initialMessages = useMemo(() => {
+    type ChatMessage = UIMessage<{
+        modelId?: string
+        modelName?: string
+        promptTokens?: number
+        completionTokens?: number
+        reasoningTokens?: number
+        serverDurationMs?: number
+        threadId?: string
+        streamId?: string
+    }>
+
+    const initialMessages = useMemo<ChatMessage[]>(() => {
         if (isShared) {
             if (!sharedThread?.messages) return []
             // Shared thread messages need threadId for compatibility
@@ -77,53 +90,59 @@ export function useChatIntegration<IsShared extends boolean>({
             : threadId === undefined
               ? `new_chat_${rerenderTrigger}`
               : threadId,
-        headers: isShared
-            ? {}
-            : {
-                  authorization: `Bearer ${tokenData.token}`
-              },
         experimental_throttle: 50,
-        experimental_prepareRequestBody(body) {
-            // Skip request preparation for shared threads since they're read-only
-            if (isShared) return null
+        transport: isShared
+            ? undefined
+            : new DefaultChatTransport<ChatMessage>({
+                  api: `${browserEnv("VITE_CONVEX_API_URL")}/chat`,
+                  headers: {
+                      authorization: `Bearer ${tokenData.token}`
+                  },
+                  prepareSendMessagesRequest(body) {
+                      if (threadId) {
+                          useChatStore.getState().setPendingStream(threadId, true)
+                      }
 
-            if (threadId) {
-                useChatStore.getState().setPendingStream(threadId, true)
-            }
-            const proposedNewAssistantId = nanoid()
-            seededNextId.current = proposedNewAssistantId
+                      const proposedNewAssistantId = nanoid()
+                      seededNextId.current = proposedNewAssistantId
 
-            const messages = body.messages as Message[]
-            const message = messages[messages.length - 1]
+                      const message = body.messages[body.messages.length - 1]
+                      const mcpOverrides = getEffectiveMcpOverrides(threadId)
 
-            // Get effective MCP overrides (includes defaults for new chats)
-            const mcpOverrides = getEffectiveMcpOverrides(threadId)
-
-            return {
-                ...body.requestBody,
-                id: threadId,
-                proposedNewAssistantId,
-                model: selectedModel,
-                message: {
-                    parts: message?.parts,
-                    role: message?.role,
-                    messageId: message?.id
-                },
-                enabledTools,
-                imageSize: selectedImageSize,
-                folderId,
-                reasoningEffort,
-                mcpOverrides
-            }
-        },
-        initialMessages,
+                      return {
+                          body: {
+                              id: threadId,
+                              proposedNewAssistantId,
+                              model: selectedModel,
+                              message: {
+                                  parts: message?.parts,
+                                  role: message?.role,
+                                  messageId: message?.id
+                              },
+                              enabledTools,
+                              imageSize: selectedImageSize,
+                              imageResolution: selectedImageResolution,
+                              folderId,
+                              reasoningEffort,
+                              mcpOverrides
+                          }
+                      }
+                  },
+                  prepareReconnectToStreamRequest() {
+                      return {
+                          headers: {
+                              authorization: `Bearer ${tokenData.token}`
+                          }
+                      }
+                  }
+              }),
+        messages: initialMessages,
         onFinish: () => {
             if (!isShared && shouldUpdateQuery) {
                 setShouldUpdateQuery(false)
                 triggerRerender()
             }
         },
-        api: isShared ? undefined : `${browserEnv("VITE_CONVEX_API_URL")}/chat`,
         generateId: () => {
             if (seededNextId.current) {
                 const id = seededNextId.current
@@ -147,10 +166,10 @@ export function useChatIntegration<IsShared extends boolean>({
             console.log("[UCI:messages_restored]", { count: initialMessages.length })
         }
 
-        chatHelpers.experimental_resume()
+        void chatHelpers.resumeStream()
     }, [
         chatHelpers.setMessages,
-        chatHelpers.experimental_resume,
+        chatHelpers.resumeStream,
         initialMessages,
         threadMessages,
         threadId,

@@ -2,7 +2,7 @@
 
 import { ChatError } from "@/lib/errors"
 import { type OpenAIProvider, createOpenAI } from "@ai-sdk/openai"
-import type { ImageModelV1, LanguageModelV1 } from "@ai-sdk/provider"
+import type { ImageModelV3, LanguageModelV3 } from "@ai-sdk/provider"
 import { internal } from "../_generated/api"
 import type { ActionCtx } from "../_generated/server"
 import { getUserIdentity } from "../lib/identity"
@@ -32,95 +32,10 @@ const GOOGLE_MINIMUM_SAFETY_SETTINGS = [
     }
 ] as const
 
-const getGoogleLanguageModel = (
-    provider: Awaited<ReturnType<typeof createProvider>>,
-    providerSpecificModelId: string
-) =>
-    // The installed Google AI SDK exposes per-category thresholds here, but not the
-    // harm block method. Use the least restrictive threshold available in the SDK.
-    (
-        provider as { languageModel: (modelId: string, settings?: unknown) => LanguageModelV1 }
-    ).languageModel(providerSpecificModelId, {
-        safetySettings: GOOGLE_MINIMUM_SAFETY_SETTINGS
-    })
-
-const createPatchedOpenAIImageModel = (
-    providerSpecificModelId: string,
-    apiKey: string
-): ImageModelV1 => ({
-    specificationVersion: "v1",
-    provider: "openai",
-    modelId: providerSpecificModelId,
-    maxImagesPerCall: 1,
-    doGenerate: async ({ prompt, n, size, headers, abortSignal }) => {
-        const response = await fetch("https://api.openai.com/v1/images/generations", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${apiKey}`,
-                ...headers
-            },
-            body: JSON.stringify({
-                model: providerSpecificModelId,
-                prompt,
-                n,
-                size
-            }),
-            signal: abortSignal
-        })
-
-        const responseHeaders: Record<string, string> = {}
-        response.headers.forEach((value, key) => {
-            responseHeaders[key] = value
-        })
-        const responseBody = (await response.json().catch(() => undefined)) as
-            | {
-                  data?: Array<{
-                      b64_json?: string
-                  }>
-                  error?: {
-                      message?: string
-                  }
-              }
-            | undefined
-
-        if (!response.ok) {
-            throw new Error(
-                responseBody?.error?.message ||
-                    `OpenAI image generation failed with status ${response.status}`
-            )
-        }
-
-        const images = responseBody?.data?.flatMap((item) => (item.b64_json ? [item.b64_json] : []))
-
-        if (!images?.length) {
-            throw new Error("OpenAI image generation returned no image data")
-        }
-
-        return {
-            images,
-            warnings: [],
-            response: {
-                timestamp: new Date(),
-                modelId: providerSpecificModelId,
-                headers: responseHeaders
-            }
-        }
-    }
-})
-
-const getOpenAIImageModel = (providerSpecificModelId: string, apiKey: string): ImageModelV1 => {
-    if (providerSpecificModelId === "gpt-image-1.5-2025-12-16") {
-        return createPatchedOpenAIImageModel(providerSpecificModelId, apiKey)
-    }
-
-    const provider = createOpenAI({
-        apiKey,
-        compatibility: "strict"
-    })
-
-    return provider.imageModel(providerSpecificModelId)
-}
+const getOpenAIImageModel = (providerSpecificModelId: string, apiKey: string): ImageModelV3 =>
+    createOpenAI({
+        apiKey
+    }).imageModel(providerSpecificModelId)
 
 const getGoogleImageModel = async (
     providerSpecificModelId: string,
@@ -172,7 +87,7 @@ export const getModel = async (ctx: ActionCtx, modelId: string) => {
     })
 
     console.log("[getModel] model", model, "sortedAdapters", sortedAdapters)
-    let finalModel: LanguageModelV1 | ImageModelV1 | undefined = undefined
+    let finalModel: LanguageModelV3 | ImageModelV3 | undefined = undefined
 
     for (const adapter of sortedAdapters) {
         const providerIdRaw = model.customProviderId ?? adapter.split(":")[0]
@@ -219,7 +134,7 @@ export const getModel = async (ctx: ActionCtx, modelId: string) => {
                 if (providerId === "openai") {
                     finalModel = (sdk_provider as OpenAIProvider).responses(providerSpecificModelId)
                 } else if (providerId === "google") {
-                    finalModel = getGoogleLanguageModel(sdk_provider, providerSpecificModelId)
+                    finalModel = sdk_provider.languageModel(providerSpecificModelId)
                 } else {
                     finalModel = sdk_provider.languageModel(providerSpecificModelId)
                 }
@@ -282,7 +197,7 @@ export const getModel = async (ctx: ActionCtx, modelId: string) => {
                 if (providerIdRaw === "openai") {
                     finalModel = (sdk_provider as OpenAIProvider).responses(providerSpecificModelId)
                 } else if (providerIdRaw === "google") {
-                    finalModel = getGoogleLanguageModel(sdk_provider, providerSpecificModelId)
+                    finalModel = sdk_provider.languageModel(providerSpecificModelId)
                 } else {
                     finalModel = sdk_provider.languageModel(providerSpecificModelId)
                 }
@@ -298,7 +213,6 @@ export const getModel = async (ctx: ActionCtx, modelId: string) => {
         const sdk_provider = createOpenAI({
             baseURL: provider.endpoint,
             apiKey: provider.key,
-            compatibility: "compatible",
             name: provider.name
         })
         if (model.mode === "image") {
@@ -321,8 +235,8 @@ export const getModel = async (ctx: ActionCtx, modelId: string) => {
 
     return {
         model: finalModel as
-            | (LanguageModelV1 & { modelType: "text" })
-            | (ImageModelV1 & { modelType: "image" }),
+            | (LanguageModelV3 & { modelType: "text" })
+            | (ImageModelV3 & { modelType: "image" }),
         abilities: model.abilities,
         registry,
         modelId: model.id,

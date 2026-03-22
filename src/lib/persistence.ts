@@ -7,6 +7,7 @@ const AIConfigSchema = z.object({
         .array(z.enum(ABILITIES as readonly ["web_search", "supermemory", "mcp"]))
         .default(["web_search"]),
     selectedImageSize: z.string().optional().default("1:1"),
+    selectedImageResolution: z.string().optional().default("1K"),
     reasoningEffort: z.enum(["off", "low", "medium", "high"]).default("medium")
 })
 
@@ -28,6 +29,7 @@ export const loadAIConfig = (): AIConfig => {
             selectedModel: null,
             enabledTools: ["web_search"],
             selectedImageSize: "1:1",
+            selectedImageResolution: "1K",
             reasoningEffort: "medium"
         }
     const stored = localStorage.getItem(AI_CONFIG_KEY)
@@ -36,6 +38,7 @@ export const loadAIConfig = (): AIConfig => {
             selectedModel: null,
             enabledTools: ["web_search"],
             selectedImageSize: "1:1",
+            selectedImageResolution: "1K",
             reasoningEffort: "medium"
         }
     }
@@ -59,6 +62,7 @@ export const loadAIConfig = (): AIConfig => {
             selectedModel: null,
             enabledTools: ["web_search"],
             selectedImageSize: "1:1",
+            selectedImageResolution: "1K",
             reasoningEffort: "medium"
         }
     }

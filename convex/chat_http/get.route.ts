@@ -1,5 +1,5 @@
 import { ChatError } from "@/lib/errors"
-import { createDataStream } from "ai"
+import { JsonToSseTransformStream, UI_MESSAGE_STREAM_HEADERS, createUIMessageStream } from "ai"
 import type { Infer } from "convex/values"
 import { differenceInSeconds } from "date-fns"
 import { internal } from "../_generated/api"
@@ -8,8 +8,6 @@ import { httpAction } from "../_generated/server"
 import { getUserIdentity } from "../lib/identity"
 import { getResumableStreamContext } from "../lib/resumable_stream_context"
 import type { Thread } from "../schema"
-import { RESPONSE_OPTS } from "./shared"
-
 export const chatGET = httpAction(async (ctx, req) => {
     const streamContext = getResumableStreamContext()
     const resumeRequestedAt = new Date()
@@ -50,11 +48,12 @@ export const chatGET = httpAction(async (ctx, req) => {
 
     if (!recentStreamId) return new ChatError("not_found:stream").toResponse()
 
-    const emptyDataStream = createDataStream({
-        execute: () => {}
-    })
+    const createEmptyStream = () =>
+        createUIMessageStream({
+            execute: () => {}
+        }).pipeThrough(new JsonToSseTransformStream())
 
-    const stream = await streamContext.resumableStream(recentStreamId._id, () => emptyDataStream)
+    const stream = await streamContext.resumableStream(recentStreamId._id, createEmptyStream)
 
     /*
      * For when the generation is streaming during SSR
@@ -67,30 +66,30 @@ export const chatGET = httpAction(async (ctx, req) => {
         const mostRecentMessage = messages.at(-1)
 
         if (!mostRecentMessage) {
-            return new Response(emptyDataStream.pipeThrough(new TextEncoderStream()), RESPONSE_OPTS)
+            return new Response(createEmptyStream().pipeThrough(new TextEncoderStream()), {
+                headers: UI_MESSAGE_STREAM_HEADERS
+            })
         }
 
         if (mostRecentMessage.role !== "assistant") {
-            return new Response(emptyDataStream.pipeThrough(new TextEncoderStream()), RESPONSE_OPTS)
+            return new Response(createEmptyStream().pipeThrough(new TextEncoderStream()), {
+                headers: UI_MESSAGE_STREAM_HEADERS
+            })
         }
 
         const messageCreatedAt = new Date(mostRecentMessage.createdAt)
 
         if (differenceInSeconds(resumeRequestedAt, messageCreatedAt) > 15) {
-            return new Response(emptyDataStream.pipeThrough(new TextEncoderStream()), RESPONSE_OPTS)
+            return new Response(createEmptyStream().pipeThrough(new TextEncoderStream()), {
+                headers: UI_MESSAGE_STREAM_HEADERS
+            })
         }
-
-        const restoredStream = createDataStream({
-            execute: (buffer) => {
-                buffer.writeData({
-                    type: "append-message",
-                    message: JSON.stringify(mostRecentMessage)
-                })
-            }
+        return new Response(createEmptyStream().pipeThrough(new TextEncoderStream()), {
+            headers: UI_MESSAGE_STREAM_HEADERS
         })
-
-        return new Response(restoredStream.pipeThrough(new TextEncoderStream()), RESPONSE_OPTS)
     }
 
-    return new Response(stream.pipeThrough(new TextEncoderStream()), RESPONSE_OPTS)
+    return new Response(stream.pipeThrough(new TextEncoderStream()), {
+        headers: UI_MESSAGE_STREAM_HEADERS
+    })
 })
