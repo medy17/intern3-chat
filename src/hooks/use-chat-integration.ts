@@ -67,16 +67,18 @@ export function useChatIntegration<IsShared extends boolean>({
     folderId?: Id<"projects">
 }) {
     const tokenData = useToken()
-    const {
-        selectedModel,
-        enabledTools,
-        selectedImageSize,
-        selectedImageResolution,
-        reasoningEffort,
-        getEffectiveMcpOverrides
-    } = useModelStore()
     const { rerenderTrigger, shouldUpdateQuery, setShouldUpdateQuery } = useChatStore()
     const seededNextId = useRef<string | null>(null)
+    const latestRequestContextRef = useRef({
+        folderId,
+        threadId,
+        token: tokenData.token
+    })
+    latestRequestContextRef.current = {
+        folderId,
+        threadId,
+        token: tokenData.token
+    }
 
     // For regular threads, use getThreadMessages
     const threadMessages = useConvexQuery(
@@ -131,28 +133,38 @@ export function useChatIntegration<IsShared extends boolean>({
             ? undefined
             : new DefaultChatTransport<ChatMessage>({
                   api: `${browserEnv("VITE_CONVEX_API_URL")}/chat`,
-                  async prepareSendMessagesRequest(body) {
-                      const jwt = await resolveJwtToken(tokenData.token)
+                  async prepareSendMessagesRequest({ body, messages }) {
+                      const currentContext = latestRequestContextRef.current
+                      const {
+                          selectedModel,
+                          enabledTools,
+                          selectedImageSize,
+                          selectedImageResolution,
+                          reasoningEffort,
+                          getEffectiveMcpOverrides
+                      } = useModelStore.getState()
+                      const jwt = await resolveJwtToken(currentContext.token)
                       if (!jwt) {
                           throw new Error("Authentication token unavailable")
                       }
 
-                      if (threadId) {
-                          useChatStore.getState().setPendingStream(threadId, true)
+                      if (currentContext.threadId) {
+                          useChatStore.getState().setPendingStream(currentContext.threadId, true)
                       }
 
                       const proposedNewAssistantId = nanoid()
                       seededNextId.current = proposedNewAssistantId
 
-                      const message = body.messages[body.messages.length - 1]
-                      const mcpOverrides = getEffectiveMcpOverrides(threadId)
+                      const message = messages[messages.length - 1]
+                      const mcpOverrides = getEffectiveMcpOverrides(currentContext.threadId)
 
                       return {
                           headers: {
                               authorization: `Bearer ${jwt}`
                           },
                           body: {
-                              id: threadId,
+                              ...body,
+                              id: currentContext.threadId,
                               proposedNewAssistantId,
                               model: selectedModel,
                               message: {
@@ -163,19 +175,20 @@ export function useChatIntegration<IsShared extends boolean>({
                               enabledTools,
                               imageSize: selectedImageSize,
                               imageResolution: selectedImageResolution,
-                              folderId,
+                              folderId: currentContext.folderId,
                               reasoningEffort,
                               mcpOverrides
                           }
                       }
                   },
                   async prepareReconnectToStreamRequest({ api, id }) {
-                      const jwt = await resolveJwtToken(tokenData.token)
+                      const currentContext = latestRequestContextRef.current
+                      const jwt = await resolveJwtToken(currentContext.token)
                       if (!jwt) {
                           throw new Error("Authentication token unavailable")
                       }
 
-                      const reconnectThreadId = threadId ?? id
+                      const reconnectThreadId = currentContext.threadId ?? id
 
                       return {
                           api: `${api}?chatId=${encodeURIComponent(reconnectThreadId)}`,
