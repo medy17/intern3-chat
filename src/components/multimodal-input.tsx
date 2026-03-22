@@ -134,21 +134,22 @@ const ReasoningEffortSelector = ({ selectedModel }: { selectedModel: string | nu
         ]
     }, [selectedModel])
 
-    if (!modelSupportsEffortControl) return null
-
     const allowedEfforts: ReasoningEffort[] = modelSupportsDisablingReasoning
         ? ["off", "low", "medium", "high"]
         : ["low", "medium", "high"]
 
     useEffect(() => {
+        if (!modelSupportsEffortControl) return
         if (!allowedEfforts.includes(reasoningEffort)) {
             setReasoningEffort("medium")
         }
-    }, [allowedEfforts, reasoningEffort, setReasoningEffort])
+    }, [allowedEfforts, modelSupportsEffortControl, reasoningEffort, setReasoningEffort])
 
     const formatEffortForDisplay = (effort: ReasoningEffort) => {
         return effort.charAt(0).toUpperCase() + effort.slice(1)
     }
+
+    if (!modelSupportsEffortControl) return null
 
     return (
         <PromptInputAction tooltip="Select reasoning effort">

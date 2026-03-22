@@ -9,6 +9,41 @@ import { getUserIdentity } from "../lib/identity"
 import { type CoreProvider, CoreProviders, MODELS_SHARED } from "../lib/models"
 import { createGoogleOpenAICompatibleProvider, createProvider } from "../lib/provider_factory"
 
+const GOOGLE_MINIMUM_SAFETY_SETTINGS = [
+    {
+        category: "HARM_CATEGORY_HATE_SPEECH",
+        threshold: "OFF"
+    },
+    {
+        category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+        threshold: "OFF"
+    },
+    {
+        category: "HARM_CATEGORY_HARASSMENT",
+        threshold: "OFF"
+    },
+    {
+        category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+        threshold: "OFF"
+    },
+    {
+        category: "HARM_CATEGORY_CIVIC_INTEGRITY",
+        threshold: "OFF"
+    }
+] as const
+
+const getGoogleLanguageModel = (
+    provider: Awaited<ReturnType<typeof createProvider>>,
+    providerSpecificModelId: string
+) =>
+    // The installed Google AI SDK exposes per-category thresholds here, but not the
+    // harm block method. Use the least restrictive threshold available in the SDK.
+    (
+        provider as { languageModel: (modelId: string, settings?: unknown) => LanguageModelV1 }
+    ).languageModel(providerSpecificModelId, {
+        safetySettings: GOOGLE_MINIMUM_SAFETY_SETTINGS
+    })
+
 const createPatchedOpenAIImageModel = (
     providerSpecificModelId: string,
     apiKey: string
@@ -183,6 +218,8 @@ export const getModel = async (ctx: ActionCtx, modelId: string) => {
             } else {
                 if (providerId === "openai") {
                     finalModel = (sdk_provider as OpenAIProvider).responses(providerSpecificModelId)
+                } else if (providerId === "google") {
+                    finalModel = getGoogleLanguageModel(sdk_provider, providerSpecificModelId)
                 } else {
                     finalModel = sdk_provider.languageModel(providerSpecificModelId)
                 }
@@ -244,6 +281,8 @@ export const getModel = async (ctx: ActionCtx, modelId: string) => {
                 )
                 if (providerIdRaw === "openai") {
                     finalModel = (sdk_provider as OpenAIProvider).responses(providerSpecificModelId)
+                } else if (providerIdRaw === "google") {
+                    finalModel = getGoogleLanguageModel(sdk_provider, providerSpecificModelId)
                 } else {
                     finalModel = sdk_provider.languageModel(providerSpecificModelId)
                 }
