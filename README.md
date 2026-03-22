@@ -1,6 +1,6 @@
-# Intern3 Chat
+# SilkChat
 
-Intern3 Chat is a TanStack Start + Convex chat app with Better Auth, Postgres-backed auth data, internal provider credits, BYOK support, file uploads, web search, artifacts, and image generation.
+SilkChat is a TanStack Start + Convex chat app with Better Auth, Postgres-backed auth data, internal provider credits, BYOK support, file uploads, web search, artifacts, and image generation.
 
 This repository is the source of truth for setup and model/provider changes. The old hosted docs were lagging behind the actual code.
 

@@ -311,7 +311,7 @@ export function ThreadsSidebar() {
                     <SidebarGroupLabel className="pr-0">
                         Folders
                         <div className="flex-grow" />
-                        <NewFolderButton onClick={() => setOpenMobile(false)} />
+                        <NewFolderButton />
                     </SidebarGroupLabel>
                     <SidebarGroupContent>
                         <SidebarMenu>

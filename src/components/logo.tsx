@@ -1,4 +1,4 @@
-import chatLogoUrl from "@/assets/chat.dropsilk.svg?url"
+import chatLogoUrl from "@/assets/silkchat.svg?url"
 import { useThemeStore } from "@/lib/theme-store"
 import { cn } from "@/lib/utils"
 

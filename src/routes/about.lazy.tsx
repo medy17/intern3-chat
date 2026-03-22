@@ -1,6 +1,5 @@
 import { MagicCard } from "@/components/magic-cards"
 import { Button } from "@/components/ui/button"
-import { GitHubIcon, XIcon } from "@daveyplate/better-auth-ui"
 import { Link, createLazyFileRoute } from "@tanstack/react-router"
 import { ArrowLeft } from "lucide-react"
 
@@ -9,36 +8,56 @@ export const Route = createLazyFileRoute("/about")({
 })
 
 function RouteComponent() {
-    const developers = [
+    const projects = [
         {
-            name: "Vrishank Agarwal",
-            role: "100X vibe coder",
-            imageUrl:
-                "https://pbs.twimg.com/profile_images/1390432487571136518/5WU8q3YM_400x400.jpg",
-            gradientFrom: "#6366f1",
-            gradientTo: "#8b5cf6",
-            twitterUrl: "https://x.com/vishyfishy2",
-            githubUrl: "https://github.com/f1shy-dev"
+            title: "Speaktrum",
+            image: "/projects/speaktrum/speaktrum.webp",
+            blurb: "ML-powered companion platform for Parkinson's voice-marker research."
         },
         {
-            name: "Sahaj Jain",
-            role: "infamous themes guy",
-            imageUrl:
-                "https://pbs.twimg.com/profile_images/1875562084924014592/Ir1CkasE_400x400.jpg",
-            gradientFrom: "#ec4899",
-            gradientTo: "#f97316",
-            twitterUrl: "https://x.com/iamsahaj_xyz",
-            githubUrl: "https://github.com/jnsahaj"
+            title: "DropSilk",
+            image: "/projects/dropsilk/SSIV2.webp",
+            blurb: "Peer-to-peer file transfer with a privacy-first, direct-device workflow."
         },
         {
-            name: "Lakshay Bhushan",
-            role: "the design guy",
-            imageUrl:
-                "https://pbs.twimg.com/profile_images/1927471704000884736/0SetyuRy_400x400.jpg",
-            gradientFrom: "#10b981",
-            gradientTo: "#06b6d4",
-            twitterUrl: "https://x.com/blakssh",
-            githubUrl: "https://github.com/lakshaybhushan"
+            title: "QBitWebUI",
+            image: "/projects/qbitwebui/qbitwebui_logo.webp",
+            blurb: "Modern interface for managing qBittorrent instances across environments."
+        },
+        {
+            title: "Spyder-Scribe",
+            image: "/projects/ss/ss.webp",
+            blurb: "In-place web translation product with SaaS-backed PDF and image support."
+        },
+        {
+            title: "Gossamer",
+            image: "/projects/gossamer/gossamer.webp",
+            blurb: "Story-based telemetry library that groups events into meaningful narratives."
+        },
+        {
+            title: "CloneReaper Prime",
+            image: "/projects/crp/crp-ascii.webp",
+            blurb: "High-performance duplicate file scanner with safe cleanup tooling."
+        },
+        {
+            title: "Imgur Archive Viewer",
+            image: "/projects/iav/iav.webp",
+            blurb: "Desktop utility for recovering media via the Internet Archive."
+        },
+        {
+            title: "Bandar Breakdowns",
+            image: "/projects/tbb/tbb.webp",
+            blurb: "Personal writing and storytelling site about student life and culture."
+        },
+        {
+            title: "Spyder-Scribe Community Edition",
+            image: "/projects/ss-ce/ss.webp",
+            blurb: "Open-source browser extension for high-quality in-page AI translation."
+        },
+        {
+            title: "Sorting Visualizer",
+            image: "/projects/sav/sav.webp",
+            blurb: "Interactive algorithm visualizer with synchronized visual and audio feedback."
         }
     ]
 
@@ -62,91 +81,47 @@ function RouteComponent() {
                 {/* Header Section */}
                 <div className="mb-16 text-center">
                     <h1 className="mb-6 bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text font-bold text-5xl text-transparent lg:text-7xl">
-                        Who tf are we?
+                        About the Author
                     </h1>
                     <p className="mx-auto max-w-3xl text-muted-foreground text-xl leading-relaxed">
-                        ...So, three random guys from the everything app came together because Theo
-                        didn't open source T3 Chat.
+                        A quick intro to the mind behind SilkChat.
                     </p>
                 </div>
 
-                {/* Developer Cards */}
-                <div className="mb-16 grid grid-cols-1 gap-8 rounded-lg lg:grid-cols-3">
-                    {developers.map((dev, index) => (
-                        <MagicCard
-                            key={index}
-                            className="h-full rounded-lg p-0"
-                            gradientFrom={dev.gradientFrom}
-                            gradientTo={dev.gradientTo}
-                            gradientSize={300}
-                            gradientOpacity={0.1}
-                        >
-                            <div className="flex h-full flex-col px-4 py-6">
-                                {/* Profile Image */}
-                                <div className="mb-4 flex justify-center">
-                                    <div className="relative">
-                                        <div
-                                            className="absolute inset-0 rounded-full bg-gradient-to-r p-1"
-                                            style={{
-                                                background: `linear-gradient(135deg, ${dev.gradientFrom}, ${dev.gradientTo})`
-                                            }}
-                                        >
-                                            <div className="h-full w-full rounded-full bg-background" />
-                                        </div>
-                                        <img
-                                            src={dev.imageUrl}
-                                            alt={`${dev.name} profile`}
-                                            className="relative h-24 w-24 rounded-full object-cover"
-                                        />
-                                    </div>
-                                </div>
+                <MagicCard
+                    className="mb-16 rounded-lg p-0"
+                    gradientFrom="#06b6d4"
+                    gradientTo="#3b82f6"
+                    gradientSize={420}
+                    gradientOpacity={0.1}
+                >
+                    <div className="flex flex-col gap-8 p-8 md:flex-row md:items-start md:p-12">
+                        <img
+                            src="/authors/ahmed-arat.webp"
+                            alt="Ahmed Arat"
+                            className="mx-auto h-40 w-40 rounded-2xl object-cover md:mx-0"
+                        />
+                        <div className="space-y-4 text-base text-muted-foreground leading-relaxed md:text-lg">
+                            <p>
+                                I&apos;m Ahmed Arat, a Full-Stack Developer based in Kuala Lumpur.
+                            </p>
+                            <p>I specialise in creating unique and beautiful looking interfaces.</p>
+                            <p>
+                                From translation tools to file transfer platforms, my philosophy
+                                remains the same: make it accessible, performant, and delight the
+                                user.
+                            </p>
+                            <p>
+                                I&apos;m committed to continuous learning and improvement and while
+                                that may at times manifest as my well known affinity for
+                                over-engineered solutions, I believe that&apos;s the spark that
+                                makes a product particularly enticing to users :)
+                            </p>
+                        </div>
+                    </div>
+                </MagicCard>
 
-                                {/* Content */}
-                                <div className="flex-1 text-center">
-                                    <h3 className="mb-2 font-bold text-2xl">{dev.name}</h3>
-
-                                    <h4 className="mb-4 font-semibold text-foreground/90 text-lg">
-                                        {dev.role}
-                                    </h4>
-                                </div>
-
-                                {/* Social Links */}
-                                <div className="flex justify-center gap-4">
-                                    <Button
-                                        type="button"
-                                        onClick={() =>
-                                            window.open(
-                                                dev.twitterUrl,
-                                                "_blank",
-                                                "noopener,noreferrer"
-                                            )
-                                        }
-                                        variant="secondary"
-                                    >
-                                        <XIcon className="h-4 w-4" />
-                                        <span className="font-medium text-sm">Twitter</span>
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        onClick={() =>
-                                            window.open(
-                                                dev.githubUrl,
-                                                "_blank",
-                                                "noopener,noreferrer"
-                                            )
-                                        }
-                                        variant="secondary"
-                                    >
-                                        <GitHubIcon className="h-4 w-4" />
-                                        <span className="font-medium text-sm">GitHub</span>
-                                    </Button>
-                                </div>
-                            </div>
-                        </MagicCard>
-                    ))}
-                </div>
-
-                {/* Project Section */}
+                {/* My Other Projects */}
                 <MagicCard
                     className="mb-8 rounded-lg p-0"
                     gradientFrom="#9E7AFF"
@@ -154,35 +129,39 @@ function RouteComponent() {
                     gradientSize={400}
                     gradientOpacity={0.08}
                 >
-                    <div className="p-12 text-center">
-                        <h2 className="mb-6 font-bold text-3xl lg:text-4xl">
-                            Built with ❤️ and innovation
+                    <div className="p-8 md:p-12">
+                        <h2 className="mb-3 text-center font-bold text-3xl lg:text-4xl">
+                            My Other Projects
                         </h2>
-                        <p className="mx-auto mb-4 max-w-3xl text-lg text-muted-foreground leading-relaxed">
-                            ...and maybe a LOT of Cursor usage. (Claude 4 Sonnet for the win). Just
-                            joking... Even though it was made by interns, that doesn't mean it isn't
-                            the best OSS chat app. We worked relentlessly to design new features,
-                            craft every interaction and ship the best experience we could.
+                        <p className="mx-auto mb-8 max-w-3xl text-center text-lg text-muted-foreground leading-relaxed">
+                            A few things I&apos;ve built across research, open source, SaaS, and
+                            personal experiments.
                         </p>
-                        <p className="mx-auto mb-4 max-w-3xl text-lg text-muted-foreground leading-relaxed">
-                            This project was built as part of the{" "}
-                            <a
-                                href="https://x.com/theo/status/1931515264497254402"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="font-medium text-foreground hover:underline"
-                            >
-                                T3 Chat Cloneathon
-                            </a>
-                            , where developers came together to create open-source alternatives to
-                            T3 Chat.
-                        </p>
-                        <p className="mx-auto max-w-3xl text-lg text-muted-foreground leading-relaxed">
-                            Inspired by the not-open-source T3 Chat and some certain long youtube
-                            videos about database sync, we decided to go with Convex as our main
-                            sync layer. The AI SDK really helped us out with being able to setup
-                            tons of AI models, and features like resumable streams.
-                        </p>
+
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            {projects.map((project) => (
+                                <div
+                                    key={project.title}
+                                    className="rounded-xl border border-border/60 bg-background/40 p-3"
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <img
+                                            src={project.image}
+                                            alt={project.title}
+                                            className="h-12 w-12 rounded-md border border-border/60 object-cover"
+                                        />
+                                        <div className="space-y-1">
+                                            <p className="font-semibold text-sm md:text-base">
+                                                {project.title}
+                                            </p>
+                                            <p className="text-muted-foreground text-xs leading-relaxed md:text-sm">
+                                                {project.blurb}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </MagicCard>
 

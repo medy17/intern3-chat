@@ -24,7 +24,7 @@ function PrivacyPolicyPage() {
                     </Link>
                 </div>
 
-                <h1 className="mb-6 font-bold text-3xl">intern3.chat Privacy Policy</h1>
+                <h1 className="mb-6 font-bold text-3xl">SilkChat Privacy Policy</h1>
                 <p className="mb-8 text-muted-foreground text-sm">Last Updated: 18 Jun 2025</p>
 
                 <section className="mb-8 space-y-4">
@@ -139,9 +139,12 @@ function PrivacyPolicyPage() {
                     <h2 className="font-semibold text-xl">8. Contact Us</h2>
                     <p className="text-muted-foreground">
                         If you have any questions or concerns about this privacy policy, please
-                        reach out at{" "}
-                        <a href="mailto:hi@intern3.chat" className="text-primary hover:underline">
-                            hi@intern3.chat
+                        contact Ahmed Arat at{" "}
+                        <a
+                            href="mailto:aratahmed@gmail.com"
+                            className="text-primary hover:underline"
+                        >
+                            aratahmed@gmail.com
                         </a>
                     </p>
                 </section>

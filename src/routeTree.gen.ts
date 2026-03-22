@@ -25,6 +25,7 @@ import { Route as ChatLibraryRouteImport } from './routes/_chat.library'
 import { Route as ApiPhrSplatRouteImport } from './routes/api/phr/$'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ChatThreadThreadIdRouteImport } from './routes/_chat.thread.$threadId'
+import { Route as ChatFolderFolderIdThreadThreadIdRouteImport } from './routes/_chat.folder.$folderId.thread.$threadId'
 
 const PrivacyPolicyLazyRouteImport = createFileRoute('/privacy-policy')()
 const AboutLazyRouteImport = createFileRoute('/about')()
@@ -146,6 +147,12 @@ const ChatThreadThreadIdRoute = ChatThreadThreadIdRouteImport.update({
   path: '/thread/$threadId',
   getParentRoute: () => ChatRoute,
 } as any)
+const ChatFolderFolderIdThreadThreadIdRoute =
+  ChatFolderFolderIdThreadThreadIdRouteImport.update({
+    id: '/thread/$threadId',
+    path: '/thread/$threadId',
+    getParentRoute: () => ChatFolderFolderIdLazyRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof ChatIndexRoute
@@ -165,8 +172,9 @@ export interface FileRoutesByFullPath {
   '/thread/$threadId': typeof ChatThreadThreadIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/phr/$': typeof ApiPhrSplatRoute
-  '/folder/$folderId': typeof ChatFolderFolderIdLazyRoute
+  '/folder/$folderId': typeof ChatFolderFolderIdLazyRouteWithChildren
   '/s/$sharedThreadId': typeof ChatSSharedThreadIdLazyRoute
+  '/folder/$folderId/thread/$threadId': typeof ChatFolderFolderIdThreadThreadIdRoute
 }
 export interface FileRoutesByTo {
   '/settings': typeof SettingsRouteLazyRouteWithChildren
@@ -186,8 +194,9 @@ export interface FileRoutesByTo {
   '/thread/$threadId': typeof ChatThreadThreadIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/phr/$': typeof ApiPhrSplatRoute
-  '/folder/$folderId': typeof ChatFolderFolderIdLazyRoute
+  '/folder/$folderId': typeof ChatFolderFolderIdLazyRouteWithChildren
   '/s/$sharedThreadId': typeof ChatSSharedThreadIdLazyRoute
+  '/folder/$folderId/thread/$threadId': typeof ChatFolderFolderIdThreadThreadIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -209,8 +218,9 @@ export interface FileRoutesById {
   '/_chat/thread/$threadId': typeof ChatThreadThreadIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/phr/$': typeof ApiPhrSplatRoute
-  '/_chat/folder/$folderId': typeof ChatFolderFolderIdLazyRoute
+  '/_chat/folder/$folderId': typeof ChatFolderFolderIdLazyRouteWithChildren
   '/_chat/s/$sharedThreadId': typeof ChatSSharedThreadIdLazyRoute
+  '/_chat/folder/$folderId/thread/$threadId': typeof ChatFolderFolderIdThreadThreadIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -234,6 +244,7 @@ export interface FileRouteTypes {
     | '/api/phr/$'
     | '/folder/$folderId'
     | '/s/$sharedThreadId'
+    | '/folder/$folderId/thread/$threadId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/settings'
@@ -255,6 +266,7 @@ export interface FileRouteTypes {
     | '/api/phr/$'
     | '/folder/$folderId'
     | '/s/$sharedThreadId'
+    | '/folder/$folderId/thread/$threadId'
   id:
     | '__root__'
     | '/_chat'
@@ -277,6 +289,7 @@ export interface FileRouteTypes {
     | '/api/phr/$'
     | '/_chat/folder/$folderId'
     | '/_chat/s/$sharedThreadId'
+    | '/_chat/folder/$folderId/thread/$threadId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -431,14 +444,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatThreadThreadIdRouteImport
       parentRoute: typeof ChatRoute
     }
+    '/_chat/folder/$folderId/thread/$threadId': {
+      id: '/_chat/folder/$folderId/thread/$threadId'
+      path: '/thread/$threadId'
+      fullPath: '/folder/$folderId/thread/$threadId'
+      preLoaderRoute: typeof ChatFolderFolderIdThreadThreadIdRouteImport
+      parentRoute: typeof ChatFolderFolderIdLazyRoute
+    }
   }
 }
+
+interface ChatFolderFolderIdLazyRouteChildren {
+  ChatFolderFolderIdThreadThreadIdRoute: typeof ChatFolderFolderIdThreadThreadIdRoute
+}
+
+const ChatFolderFolderIdLazyRouteChildren: ChatFolderFolderIdLazyRouteChildren =
+  {
+    ChatFolderFolderIdThreadThreadIdRoute:
+      ChatFolderFolderIdThreadThreadIdRoute,
+  }
+
+const ChatFolderFolderIdLazyRouteWithChildren =
+  ChatFolderFolderIdLazyRoute._addFileChildren(
+    ChatFolderFolderIdLazyRouteChildren,
+  )
 
 interface ChatRouteChildren {
   ChatLibraryRoute: typeof ChatLibraryRoute
   ChatIndexRoute: typeof ChatIndexRoute
   ChatThreadThreadIdRoute: typeof ChatThreadThreadIdRoute
-  ChatFolderFolderIdLazyRoute: typeof ChatFolderFolderIdLazyRoute
+  ChatFolderFolderIdLazyRoute: typeof ChatFolderFolderIdLazyRouteWithChildren
   ChatSSharedThreadIdLazyRoute: typeof ChatSSharedThreadIdLazyRoute
 }
 
@@ -446,7 +481,7 @@ const ChatRouteChildren: ChatRouteChildren = {
   ChatLibraryRoute: ChatLibraryRoute,
   ChatIndexRoute: ChatIndexRoute,
   ChatThreadThreadIdRoute: ChatThreadThreadIdRoute,
-  ChatFolderFolderIdLazyRoute: ChatFolderFolderIdLazyRoute,
+  ChatFolderFolderIdLazyRoute: ChatFolderFolderIdLazyRouteWithChildren,
   ChatSSharedThreadIdLazyRoute: ChatSSharedThreadIdLazyRoute,
 }
 

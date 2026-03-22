@@ -43,7 +43,7 @@ export function AuthCard() {
             <div className="flex w-full max-w-sm flex-col gap-6 md:max-w-md">
                 <Card className="inset-shadow-sm gap-4 overflow-hidden border-2 bg-card pt-3 pb-5">
                     <CardHeader className="flex justify-center border-b-2 [.border-b-2]:pb-2.5">
-                        <CardTitle className="text-xl">Sign In to intern3.chat</CardTitle>
+                        <CardTitle className="text-xl">Sign In to SilkChat</CardTitle>
                     </CardHeader>
                     <CardContent className="grid gap-6">
                         <motion.div

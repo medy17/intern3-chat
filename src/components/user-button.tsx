@@ -12,10 +12,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { authClient } from "@/lib/auth-client"
 import { queryClient } from "@/providers"
-import { GitHubIcon, XIcon } from "@daveyplate/better-auth-ui"
 import { useRouter } from "@tanstack/react-router"
 import {
-    BookText,
+    Instagram,
     Loader2,
     LogOutIcon,
     SettingsIcon,
@@ -106,12 +105,6 @@ export function UserButton() {
                     <SettingsIcon className="h-4 w-4" />
                     <span>Settings</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                    <a href="https://docs.intern3.chat" target="_blank" rel="noopener noreferrer">
-                        <BookText className="h-4 w-4" />
-                        <span>Docs</span>
-                    </a>
-                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => router.navigate({ to: "/about" })}>
                     <Users className="h-4 w-4" />
@@ -119,18 +112,12 @@ export function UserButton() {
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                     <a
-                        href="https://github.com/intern3-chat/intern3-chat"
+                        href="https://instagram.com/_medy__"
                         target="_blank"
                         rel="noopener noreferrer"
                     >
-                        <GitHubIcon className="h-4 w-4" />
-                        <span>GitHub</span>
-                    </a>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                    <a href="https://x.com/intern3chat" target="_blank" rel="noopener noreferrer">
-                        <XIcon className="h-4 w-4" />
-                        <span>Twitter</span>
+                        <Instagram className="h-4 w-4" />
+                        <span>Instagram</span>
                     </a>
                 </DropdownMenuItem>
 

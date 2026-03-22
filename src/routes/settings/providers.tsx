@@ -752,7 +752,7 @@ function ProvidersSettings() {
                                     <Logo />
                                 </div>
                                 <div>
-                                    <h4 className="font-semibold text-sm">intern3.chat Built-in</h4>
+                                    <h4 className="font-semibold text-sm">SilkChat Built-in</h4>
                                     <p className="mt-0.5 text-muted-foreground text-xs">
                                         Access built-in AI models without needing API keys. Rate
                                         limits may apply.

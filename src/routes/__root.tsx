@@ -8,7 +8,7 @@ import globals_css from "@/styles/globals.css?url"
 import { Providers } from "../providers"
 
 // Configurable site metadata
-const SITE_TITLE = "intern3.chat"
+const SITE_TITLE = "SilkChat"
 const SITE_DESCRIPTION = "Powerful AI chatbot. By interns, for interns."
 const SITE_URL = "https://intern3.chat" // Update this to your actual domain
 
