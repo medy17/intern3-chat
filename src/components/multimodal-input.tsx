@@ -65,6 +65,14 @@ interface ExtendedUploadedFile extends UploadedFile {
     file?: File
 }
 
+const IMAGE_COMPRESSION_CUTOFF_BYTES = 25 * 1024 * 1024
+const IMAGE_COMPRESSION_STEPS = [
+    { quality: 0.86, maxDimension: 4096 },
+    { quality: 0.78, maxDimension: 3072 },
+    { quality: 0.68, maxDimension: 2560 },
+    { quality: 0.56, maxDimension: 2048 }
+] as const
+
 const AspectRatioSelector = ({ selectedModel }: { selectedModel: string | null }) => {
     const { selectedImageSize, setSelectedImageSize } = useModelStore()
 
@@ -385,6 +393,71 @@ export function MultimodalInput({
         })
     }, [])
 
+    const compressImageIfNeeded = useCallback(async (file: File): Promise<File> => {
+        const isSvg = isSvgMimeType(file.type) || isSvgExtension(file.name)
+        const isRasterImage = isImageMimeType(file.type) && !isSvg
+
+        if (!isRasterImage || file.size <= MAX_FILE_SIZE) {
+            return file
+        }
+
+        if (file.size > IMAGE_COMPRESSION_CUTOFF_BYTES) {
+            throw new Error(`${file.name}: Image exceeds 25MB limit`)
+        }
+
+        const objectUrl = URL.createObjectURL(file)
+
+        try {
+            const sourceImage = await new Promise<HTMLImageElement>((resolve, reject) => {
+                const image = new Image()
+                image.onload = () => resolve(image)
+                image.onerror = () => reject(new Error("Failed to decode image"))
+                image.src = objectUrl
+            })
+
+            for (const step of IMAGE_COMPRESSION_STEPS) {
+                const largestSide = Math.max(sourceImage.width, sourceImage.height)
+                const scale = Math.min(1, step.maxDimension / largestSide)
+                const targetWidth = Math.max(1, Math.floor(sourceImage.width * scale))
+                const targetHeight = Math.max(1, Math.floor(sourceImage.height * scale))
+
+                const canvas = document.createElement("canvas")
+                canvas.width = targetWidth
+                canvas.height = targetHeight
+
+                const context = canvas.getContext("2d")
+                if (!context) {
+                    throw new Error("Image compression unavailable in this browser")
+                }
+
+                context.clearRect(0, 0, targetWidth, targetHeight)
+                context.drawImage(sourceImage, 0, 0, targetWidth, targetHeight)
+
+                const compressedBlob = await new Promise<Blob | null>((resolve) => {
+                    canvas.toBlob((blob) => resolve(blob), "image/webp", step.quality)
+                })
+
+                if (!compressedBlob) {
+                    continue
+                }
+
+                const compressedName = file.name.replace(/\.[^.]+$/, "") || file.name
+                const compressedFile = new File([compressedBlob], `${compressedName}.webp`, {
+                    type: "image/webp",
+                    lastModified: file.lastModified
+                })
+
+                if (compressedFile.size < MAX_FILE_SIZE) {
+                    return compressedFile
+                }
+            }
+
+            throw new Error(`${file.name}: Could not compress image below 5MB after 4 attempts`)
+        } finally {
+            URL.revokeObjectURL(objectUrl)
+        }
+    }, [])
+
     const uploadFile = useCallback(
         async (file: File): Promise<ExtendedUploadedFile> => {
             const jwt = await resolveJwtToken(token)
@@ -427,12 +500,6 @@ export function MultimodalInput({
             const errors: string[] = []
 
             for (const file of filesToUpload) {
-                // Check file size
-                if (file.size > MAX_FILE_SIZE) {
-                    errors.push(`${file.name}: File size exceeds 5MB limit`)
-                    continue
-                }
-
                 // Check if file type is supported
                 if (!isSupportedFile(file.name, file.type)) {
                     errors.push(`${file.name}: Unsupported file type`)
@@ -440,6 +507,7 @@ export function MultimodalInput({
                 }
 
                 const fileTypeInfo = getFileTypeInfo(file.name, file.type)
+                let fileToUpload = file
 
                 // Raster images require a vision-capable model. SVGs are handled as text.
                 if (fileTypeInfo.isVisionImage && !modelSupportsVision) {
@@ -447,10 +515,29 @@ export function MultimodalInput({
                     continue
                 }
 
+                if (fileTypeInfo.isVisionImage && file.size > MAX_FILE_SIZE) {
+                    try {
+                        fileToUpload = await compressImageIfNeeded(file)
+                    } catch (error) {
+                        errors.push(
+                            error instanceof Error
+                                ? error.message
+                                : `${file.name}: Failed to compress image`
+                        )
+                        continue
+                    }
+                }
+
+                // Regular attachments keep the 5MB limit.
+                if (fileToUpload.size > MAX_FILE_SIZE) {
+                    errors.push(`${file.name}: File size exceeds 5MB limit`)
+                    continue
+                }
+
                 // For text files, check token count
                 if (fileTypeInfo.isText && (!fileTypeInfo.isImage || fileTypeInfo.isSvg)) {
                     try {
-                        const content = await readFileContent(file)
+                        const content = await readFileContent(fileToUpload)
                         const tokenCount = estimateTokenCount(content)
                         if (tokenCount > MAX_TOKENS_PER_FILE) {
                             errors.push(
@@ -464,7 +551,7 @@ export function MultimodalInput({
                     }
                 }
 
-                validFiles.push(file)
+                validFiles.push(fileToUpload)
             }
 
             // Show validation errors
@@ -499,7 +586,14 @@ export function MultimodalInput({
                 setUploading(false)
             }
         },
-        [uploadFile, addUploadedFile, setUploading, readFileContent, modelSupportsVision]
+        [
+            uploadFile,
+            addUploadedFile,
+            setUploading,
+            readFileContent,
+            modelSupportsVision,
+            compressImageIfNeeded
+        ]
     )
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
