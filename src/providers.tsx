@@ -13,6 +13,17 @@ import { browserEnv, optionalBrowserEnv } from "./lib/browser-env"
 
 let convexQueryClientSingleton: ConvexQueryClient | null = null
 
+const defaultQueryOptions = {
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 5
+}
+
+export const queryClient: QueryClient = new QueryClient({
+    defaultOptions: {
+        queries: defaultQueryOptions
+    }
+})
+
 export function getConvexQueryClient() {
     if (typeof window === "undefined") {
         return null
@@ -21,25 +32,17 @@ export function getConvexQueryClient() {
     if (!convexQueryClientSingleton) {
         convexQueryClientSingleton = new ConvexQueryClient(browserEnv("VITE_CONVEX_URL"))
         convexQueryClientSingleton.connect(queryClient)
+        queryClient.setDefaultOptions({
+            queries: {
+                ...defaultQueryOptions,
+                queryKeyHashFn: convexQueryClientSingleton.hashFn(),
+                queryFn: convexQueryClientSingleton.queryFn()
+            }
+        })
     }
 
     return convexQueryClientSingleton
 }
-
-export const queryClient: QueryClient = new QueryClient({
-    defaultOptions: {
-        queries: {
-            staleTime: 1000 * 60 * 5,
-            gcTime: 1000 * 60 * 5,
-            ...(typeof window !== "undefined"
-                ? {
-                      queryKeyHashFn: getConvexQueryClient()?.hashFn(),
-                      queryFn: getConvexQueryClient()?.queryFn()
-                  }
-                : {})
-        }
-    }
-})
 
 export function Providers({ children }: { children: ReactNode }) {
     const router = useRouter()
