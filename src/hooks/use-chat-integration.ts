@@ -128,8 +128,9 @@ export function useChatIntegration<IsShared extends boolean>({
                           }
                       }
                   },
-                  prepareReconnectToStreamRequest() {
+                  prepareReconnectToStreamRequest({ api, id }) {
                       return {
+                          api: `${api}?chatId=${encodeURIComponent(id)}`,
                           headers: {
                               authorization: `Bearer ${tokenData.token}`
                           }

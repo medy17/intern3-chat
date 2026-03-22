@@ -1,4 +1,5 @@
 import { useChatStore } from "@/lib/chat-store"
+import { useNavigate } from "@tanstack/react-router"
 import type { UIMessage } from "ai"
 import { useEffect } from "react"
 
@@ -12,6 +13,7 @@ interface UseChatDataProcessorProps {
 export function useChatDataProcessor({ messages }: UseChatDataProcessorProps) {
     const { setThreadId, setShouldUpdateQuery, setAttachedStreamId, threadId, setPendingStream } =
         useChatStore()
+    const navigate = useNavigate()
 
     useEffect(() => {
         const latestAssistant = [...messages]
@@ -21,8 +23,15 @@ export function useChatDataProcessor({ messages }: UseChatDataProcessorProps) {
 
         if (latestAssistant.metadata.threadId) {
             setThreadId(latestAssistant.metadata.threadId)
-            if (typeof window !== "undefined") {
-                window.history.replaceState({}, "", `/thread/${latestAssistant.metadata.threadId}`)
+            if (
+                typeof window !== "undefined" &&
+                window.location.pathname !== `/thread/${latestAssistant.metadata.threadId}`
+            ) {
+                void navigate({
+                    to: "/thread/$threadId",
+                    params: { threadId: latestAssistant.metadata.threadId },
+                    replace: true
+                })
             }
             setShouldUpdateQuery(true)
         }
@@ -40,6 +49,7 @@ export function useChatDataProcessor({ messages }: UseChatDataProcessorProps) {
         setShouldUpdateQuery,
         setAttachedStreamId,
         threadId,
-        setPendingStream
+        setPendingStream,
+        navigate
     ])
 }
