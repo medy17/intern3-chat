@@ -1,3 +1,5 @@
+"use node"
+
 import { ChatError } from "@/lib/errors"
 import { type CoreMessage, generateText } from "ai"
 import type { GenericActionCtx } from "convex/server"

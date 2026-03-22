@@ -4,9 +4,16 @@ import type { Id } from "./_generated/dataModel"
 import { type QueryCtx, internalQuery, mutation, query } from "./_generated/server"
 import { decryptKey, encryptKey } from "./lib/encryption"
 import { getUserIdentity } from "./lib/identity"
-import { MODELS_SHARED, type RegistryKey, type SharedModel } from "./lib/models"
+import { isInternalProviderConfigured } from "./lib/internal_provider_config"
+import { type CoreProvider, MODELS_SHARED, type RegistryKey, type SharedModel } from "./lib/models"
 import type { UserSettings } from "./schema"
 import { NonSensitiveUserSettings } from "./schema/settings"
+
+const CoreProviderUpdate = v.object({
+    enabled: v.boolean(),
+    newKey: v.optional(v.string()),
+    authMode: v.optional(v.union(v.literal("ai-studio"), v.literal("vertex")))
+})
 
 export const DefaultSettings = (userId: string) =>
     ({
@@ -69,12 +76,21 @@ export const getUserRegistryInternal = internalQuery({
     handler: async (ctx, args) => {
         const settings = await getSettings(ctx, args.userId)
 
-        const providers: Record<string, { key: string; endpoint?: string; name?: string }> = {}
+        const providers: Record<
+            string,
+            {
+                key: string
+                endpoint?: string
+                name?: string
+                authMode?: "ai-studio" | "vertex"
+            }
+        > = {}
         for (const [providerId, provider] of Object.entries(settings.coreAIProviders)) {
             if (!provider.enabled) continue
             providers[providerId] = {
                 key: await decryptKey(provider.encryptedKey),
-                name: providerId
+                name: providerId,
+                authMode: provider.authMode
             }
         }
 
@@ -92,7 +108,11 @@ export const getUserRegistryInternal = internalQuery({
             const available_adapters: RegistryKey[] = []
             for (const adapter of model.adapters) {
                 const provider = adapter.split(":")[0]
-                if (provider in providers || provider.startsWith("i3-")) {
+                if (
+                    provider in providers ||
+                    (provider.startsWith("i3-") &&
+                        isInternalProviderConfigured(provider.slice(3) as CoreProvider))
+                ) {
                     available_adapters.push(adapter)
                 }
             }
@@ -127,13 +147,7 @@ export const updateUserSettings = mutation({
     args: {
         userId: v.string(),
         baseSettings: NonSensitiveUserSettings,
-        coreProviders: v.record(
-            v.string(),
-            v.object({
-                enabled: v.boolean(),
-                newKey: v.optional(v.string())
-            })
-        ),
+        coreProviders: v.record(v.string(), CoreProviderUpdate),
         customProviders: v.record(
             v.string(),
             v.object({
@@ -236,6 +250,7 @@ export const updateUserSettings = mutation({
         for (const [providerId, provider] of Object.entries(args.coreProviders)) {
             newSettings.coreAIProviders[providerId] = {
                 enabled: provider.enabled,
+                authMode: provider.authMode ?? settings.coreAIProviders[providerId]?.authMode,
                 encryptedKey: provider.newKey
                     ? await encryptKey(provider.newKey)
                     : settings.coreAIProviders[providerId]?.encryptedKey || ""
@@ -432,15 +447,7 @@ export const updateUserSettingsPartial = mutation({
         ),
 
         // Provider updates (only pass what's changing)
-        coreProviderUpdates: v.optional(
-            v.record(
-                v.string(),
-                v.object({
-                    enabled: v.boolean(),
-                    newKey: v.optional(v.string())
-                })
-            )
-        ),
+        coreProviderUpdates: v.optional(v.record(v.string(), CoreProviderUpdate)),
         customProviderUpdates: v.optional(
             v.record(
                 v.string(),
@@ -567,6 +574,7 @@ export const updateUserSettingsPartial = mutation({
             for (const [providerId, update] of Object.entries(args.coreProviderUpdates)) {
                 newSettings.coreAIProviders[providerId] = {
                     enabled: update.enabled,
+                    authMode: update.authMode ?? settings.coreAIProviders[providerId]?.authMode,
                     encryptedKey: update.newKey
                         ? await encryptKey(update.newKey)
                         : settings.coreAIProviders[providerId]?.encryptedKey || ""

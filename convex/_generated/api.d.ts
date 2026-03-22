@@ -23,8 +23,11 @@ import type * as lib_backend_to_ui_messages from "../lib/backend_to_ui_messages.
 import type * as lib_db_to_core_messages from "../lib/db_to_core_messages.js";
 import type * as lib_encryption from "../lib/encryption.js";
 import type * as lib_file_constants from "../lib/file_constants.js";
+import type * as lib_google_provider from "../lib/google_provider.js";
 import type * as lib_identity from "../lib/identity.js";
+import type * as lib_internal_provider_config from "../lib/internal_provider_config.js";
 import type * as lib_models from "../lib/models.js";
+import type * as lib_provider_factory from "../lib/provider_factory.js";
 import type * as lib_resumable_stream_context from "../lib/resumable_stream_context.js";
 import type * as lib_toolkit from "../lib/toolkit.js";
 import type * as lib_tools_adapters_brave_search_adapter from "../lib/tools/adapters/brave_search_adapter.js";
@@ -81,8 +84,11 @@ declare const fullApi: ApiFromModules<{
   "lib/db_to_core_messages": typeof lib_db_to_core_messages;
   "lib/encryption": typeof lib_encryption;
   "lib/file_constants": typeof lib_file_constants;
+  "lib/google_provider": typeof lib_google_provider;
   "lib/identity": typeof lib_identity;
+  "lib/internal_provider_config": typeof lib_internal_provider_config;
   "lib/models": typeof lib_models;
+  "lib/provider_factory": typeof lib_provider_factory;
   "lib/resumable_stream_context": typeof lib_resumable_stream_context;
   "lib/toolkit": typeof lib_toolkit;
   "lib/tools/adapters/brave_search_adapter": typeof lib_tools_adapters_brave_search_adapter;

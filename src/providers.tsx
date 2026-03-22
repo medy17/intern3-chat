@@ -9,7 +9,7 @@ import { ConvexQueryCacheProvider } from "convex-helpers/react/cache"
 import { PostHogProvider } from "posthog-js/react"
 import type { ReactNode } from "react"
 import { Toaster } from "sonner"
-import { browserEnv } from "./lib/browser-env"
+import { browserEnv, optionalBrowserEnv } from "./lib/browser-env"
 
 export const convexQueryClient = new ConvexQueryClient(browserEnv("VITE_CONVEX_URL"))
 
@@ -27,34 +27,42 @@ convexQueryClient.connect(queryClient)
 
 export function Providers({ children }: { children: ReactNode }) {
     const router = useRouter()
+    const posthogKey = optionalBrowserEnv("VITE_POSTHOG_KEY")
+
+    const app = (
+        <AuthQueryProvider>
+            <ThemeProvider>
+                <AuthUIProviderTanstack
+                    authClient={authClient}
+                    navigate={(href) => router.navigate({ href })}
+                    replace={(href) => router.navigate({ href, replace: true })}
+                    Link={({ href, ...props }) => <Link to={href} {...props} />}
+                >
+                    {children}
+
+                    <Toaster />
+                </AuthUIProviderTanstack>
+            </ThemeProvider>
+        </AuthQueryProvider>
+    )
 
     return (
         <ClientOnly>
             <ConvexQueryCacheProvider>
                 <QueryClientProvider client={queryClient}>
-                    <PostHogProvider
-                        apiKey={browserEnv("VITE_POSTHOG_KEY")}
-                        options={{
-                            api_host: "/api/phr",
-                            capture_exceptions: true
-                            // debug: import.meta.env.MODE === "development"
-                        }}
-                    >
-                        <AuthQueryProvider>
-                            <ThemeProvider>
-                                <AuthUIProviderTanstack
-                                    authClient={authClient}
-                                    navigate={(href) => router.navigate({ href })}
-                                    replace={(href) => router.navigate({ href, replace: true })}
-                                    Link={({ href, ...props }) => <Link to={href} {...props} />}
-                                >
-                                    {children}
-
-                                    <Toaster />
-                                </AuthUIProviderTanstack>
-                            </ThemeProvider>
-                        </AuthQueryProvider>
-                    </PostHogProvider>
+                    {posthogKey ? (
+                        <PostHogProvider
+                            apiKey={posthogKey}
+                            options={{
+                                api_host: "/api/phr",
+                                capture_exceptions: true
+                            }}
+                        >
+                            {app}
+                        </PostHogProvider>
+                    ) : (
+                        app
+                    )}
                 </QueryClientProvider>
             </ConvexQueryCacheProvider>
         </ClientOnly>

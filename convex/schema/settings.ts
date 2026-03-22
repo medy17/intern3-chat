@@ -8,8 +8,12 @@ const CoreProvidersSchema = v.union(
 
 export const CoreAIProvider = v.object({
     enabled: v.boolean(),
-    encryptedKey: v.string()
+    encryptedKey: v.string(),
+    authMode: v.optional(v.union(v.literal("ai-studio"), v.literal("vertex")))
 })
+
+const GoogleAuthModeSchema = v.union(v.literal("ai-studio"), v.literal("vertex"))
+export type GoogleAuthMode = Infer<typeof GoogleAuthModeSchema>
 
 export const CustomAIProvider = v.object({
     name: v.string(),

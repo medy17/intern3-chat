@@ -1,10 +1,13 @@
+"use node"
+
 import { ChatError } from "@/lib/errors"
 import { type OpenAIProvider, createOpenAI } from "@ai-sdk/openai"
 import type { ImageModelV1, LanguageModelV1 } from "@ai-sdk/provider"
 import { internal } from "../_generated/api"
 import type { ActionCtx } from "../_generated/server"
 import { getUserIdentity } from "../lib/identity"
-import { type CoreProvider, CoreProviders, MODELS_SHARED, createProvider } from "../lib/models"
+import { type CoreProvider, CoreProviders, MODELS_SHARED } from "../lib/models"
+import { createProvider } from "../lib/provider_factory"
 
 export const getModel = async (ctx: ActionCtx, modelId: string) => {
     const user = await getUserIdentity(ctx.auth, { allowAnons: false })
@@ -43,7 +46,7 @@ export const getModel = async (ctx: ActionCtx, modelId: string) => {
         const providerSpecificModelId = model.customProviderId ? model.id : adapter.split(":")[1]
         if (providerIdRaw.startsWith("i3-")) {
             const providerId = providerIdRaw.slice(3) as CoreProvider
-            const sdk_provider = createProvider(providerId, "internal")
+            const sdk_provider = await createProvider(providerId, "internal")
 
             //last check that this model actually is in MODELS_SHARED
             if (
@@ -78,7 +81,9 @@ export const getModel = async (ctx: ActionCtx, modelId: string) => {
         }
 
         if (["openrouter", ...CoreProviders].includes(providerIdRaw)) {
-            const sdk_provider = createProvider(providerIdRaw as CoreProvider, provider.key)
+            const sdk_provider = await createProvider(providerIdRaw as CoreProvider, provider.key, {
+                googleAuthMode: provider.authMode
+            })
             if (model.mode === "image") {
                 if (!sdk_provider.imageModel) {
                     console.error(`Provider ${providerIdRaw} does not support image models`)

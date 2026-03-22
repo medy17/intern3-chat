@@ -5,14 +5,19 @@ import { chatGET } from "./chat_http/get.route"
 import { chatPOST } from "./chat_http/post.route"
 import { transcribeAudio } from "./speech_to_text"
 
+const normalizeOrigin = (value?: string) => {
+    if (!value) return undefined
+    return value.startsWith("http://") || value.startsWith("https://") ? value : `https://${value}`
+}
+
 const http = httpRouter()
 const cors = corsRouter(http, {
     allowedOrigins: [
+        normalizeOrigin(process.env.VITE_BETTER_AUTH_URL),
+        normalizeOrigin(process.env.VERCEL_URL),
         "http://localhost:3000",
-        "https://intern3.vercel.app",
-        "https://intern3.chat",
-        "https://www.intern3.chat"
-    ],
+        "https://localhost:3000"
+    ].filter(Boolean) as string[],
     allowedHeaders: ["Content-Type", "Authorization"],
     allowCredentials: true
 })

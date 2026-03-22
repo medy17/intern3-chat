@@ -1,11 +1,3 @@
-import { createAnthropic } from "@ai-sdk/anthropic"
-import { createFal } from "@ai-sdk/fal"
-import { createGoogleGenerativeAI } from "@ai-sdk/google"
-import { createGroq } from "@ai-sdk/groq"
-import { createOpenAI } from "@ai-sdk/openai"
-import type { ProviderV1 } from "@ai-sdk/provider"
-import { createOpenRouter } from "@openrouter/ai-sdk-provider"
-
 import type { ModelAbility } from "../schema/settings"
 
 export const CoreProviders = ["openai", "anthropic", "google", "groq", "fal"] as const
@@ -300,44 +292,3 @@ export const MODELS_SHARED: SharedModel[] = [
         mode: "speech-to-text"
     }
 ] as const
-
-export const createProvider = (
-    providerId: CoreProvider | "openrouter" | "fal",
-    apiKey: string | "internal"
-): Omit<ProviderV1, "textEmbeddingModel"> => {
-    if (apiKey !== "internal" && (!apiKey || apiKey.trim() === "")) {
-        throw new Error("API key is required for non-internal providers")
-    }
-
-    switch (providerId) {
-        case "openai":
-            return createOpenAI({
-                apiKey: apiKey === "internal" ? process.env.OPENAI_API_KEY : apiKey,
-                compatibility: "strict"
-            })
-        case "anthropic":
-            return createAnthropic({
-                apiKey: apiKey === "internal" ? process.env.ANTHROPIC_API_KEY : apiKey
-            })
-        case "google":
-            return createGoogleGenerativeAI({
-                apiKey: apiKey === "internal" ? process.env.GOOGLE_API_KEY : apiKey
-            })
-        case "groq":
-            return createGroq({
-                apiKey: apiKey === "internal" ? process.env.GROQ_API_KEY : apiKey
-            })
-        case "openrouter":
-            return createOpenRouter({
-                apiKey
-            })
-        case "fal":
-            return createFal({
-                apiKey: apiKey === "internal" ? process.env.FAL_API_KEY : apiKey
-            })
-        default: {
-            const exhaustiveCheck: never = providerId
-            throw new Error(`Unknown provider: ${exhaustiveCheck}`)
-        }
-    }
-}

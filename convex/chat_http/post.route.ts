@@ -1,3 +1,5 @@
+"use node"
+
 import type {
     FileUIPart,
     ReasoningUIPart,

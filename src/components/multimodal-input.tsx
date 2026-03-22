@@ -22,7 +22,7 @@ import { type ImageSize, MODELS_SHARED } from "@/convex/lib/models"
 import { DefaultSettings } from "@/convex/settings"
 import { useSession, useToken } from "@/hooks/auth-hooks"
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder"
-import { browserEnv } from "@/lib/browser-env"
+import { browserEnv, optionalBrowserEnv } from "@/lib/browser-env"
 import { type UploadedFile, useChatStore } from "@/lib/chat-store"
 import { getChatWidthClass, useChatWidthStore } from "@/lib/chat-width-store"
 import { useDiskCachedQuery } from "@/lib/convex-cached-query"
@@ -280,6 +280,7 @@ export function MultimodalInput({
     // Check if input is empty for mic button display
     const [inputValue, setInputValue] = useState("")
     const isInputEmpty = !inputValue.trim()
+    const voiceInputEnabled = optionalBrowserEnv("VITE_ENABLE_VOICE_INPUT") === "true"
 
     // Listen to input changes by checking the prompt input value periodically
     // This is simpler and avoids accessing internal refs
@@ -301,6 +302,8 @@ export function MultimodalInput({
     const handleVoiceButtonClick = () => {
         if (voiceState.isRecording) {
             stopRecording()
+        } else if (!voiceInputEnabled) {
+            handleSubmit()
         } else if (isInputEmpty && !isLoading) {
             startRecording()
         } else {
@@ -656,7 +659,7 @@ export function MultimodalInput({
 
     return (
         <>
-            {(voiceState.isRecording || voiceState.isTranscribing) && (
+            {voiceInputEnabled && (voiceState.isRecording || voiceState.isTranscribing) && (
                 <div className="@container w-full md:px-2">
                     <VoiceRecorder
                         state={voiceState}
@@ -767,7 +770,7 @@ export function MultimodalInput({
 
                         <PromptInputAction
                             tooltip={
-                                isInputEmpty && !isLoading
+                                voiceInputEnabled && isInputEmpty && !isLoading
                                     ? "Voice input"
                                     : isLoading
                                       ? "Stop generation"
@@ -786,7 +789,7 @@ export function MultimodalInput({
                                     <Square className="size-5 fill-current" />
                                 ) : status === "submitted" ? (
                                     <Loader2 className="size-5 animate-spin" />
-                                ) : isInputEmpty ? (
+                                ) : voiceInputEnabled && isInputEmpty ? (
                                     <Mic className="size-5" />
                                 ) : (
                                     <ArrowUp className="size-5" />

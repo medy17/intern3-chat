@@ -7,7 +7,15 @@ if (ENCRYPTION_KEY && ENCRYPTION_KEY.length < 8) {
     throw new Error("ENCRYPTION_KEY must be at least 8 characters long")
 }
 
-const baseKeyBuffer = Uint8Array.from(atob(ENCRYPTION_KEY ?? ""), (c) => c.charCodeAt(0))
+const decodeKeyMaterial = (value: string) => {
+    try {
+        return Uint8Array.from(atob(value), (c) => c.charCodeAt(0))
+    } catch {
+        return new TextEncoder().encode(value)
+    }
+}
+
+const baseKeyBuffer = decodeKeyMaterial(ENCRYPTION_KEY ?? "")
 
 // Repeat the key until we have 32 bytes
 const keyBuffer = new Uint8Array(32)

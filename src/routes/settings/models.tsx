@@ -32,6 +32,7 @@ import {
     getAbilityIcon,
     getAbilityLabel,
     getProviderDisplayName,
+    isInternalProviderEnabled,
     useAvailableModels
 } from "@/lib/models-providers-shared"
 import { cn } from "@/lib/utils"
@@ -107,7 +108,7 @@ const ModelCard = memo(({ model, currentProviders, onEdit, onDelete }: ModelCard
         // Check i3-internal (always available)
         for (const adapter of sharedModel.adapters) {
             const providerId = adapter.split(":")[0]
-            if (providerId.startsWith("i3-")) {
+            if (providerId.startsWith("i3-") && isInternalProviderEnabled(providerId)) {
                 return { name: "Built-in", available: true }
             }
         }

@@ -1,7 +1,6 @@
 import { Messages } from "@/components/messages"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
-import { MODELS_SHARED } from "@/convex/lib/models"
 import { useSession } from "@/hooks/auth-hooks"
 import { useChatActions } from "@/hooks/use-chat-actions"
 import { useChatDataProcessor } from "@/hooks/use-chat-data-processor"
@@ -11,9 +10,10 @@ import { useThreadSync } from "@/hooks/use-thread-sync"
 import { type UploadedFile, useChatStore } from "@/lib/chat-store"
 import { useDiskCachedQuery } from "@/lib/convex-cached-query"
 import { useModelStore } from "@/lib/model-store"
+import { getDefaultModelId } from "@/lib/models-providers-shared"
 import { useThemeStore } from "@/lib/theme-store"
 import { AnimatePresence, motion } from "motion/react"
-import { useEffect, useMemo } from "react"
+import { useEffect } from "react"
 import { useStickToBottom } from "use-stick-to-bottom"
 import { Logo } from "./logo"
 import { MultimodalInput } from "./multimodal-input"
@@ -38,9 +38,10 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
 
     useDynamicTitle({ threadId })
 
-    useMemo(() => {
-        if (!selectedModel && MODELS_SHARED.length > 0) {
-            setSelectedModel(MODELS_SHARED[0].id)
+    useEffect(() => {
+        const defaultModelId = getDefaultModelId()
+        if (!selectedModel && defaultModelId) {
+            setSelectedModel(defaultModelId)
         }
     }, [selectedModel, setSelectedModel])
 

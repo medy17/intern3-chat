@@ -15,8 +15,17 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
+} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { api } from "@/convex/_generated/api"
+import type { GoogleAuthMode } from "@/convex/schema/settings"
 import { useSession } from "@/hooks/auth-hooks"
 import {
     CORE_PROVIDERS,
@@ -51,8 +60,13 @@ export const Route = createFileRoute("/settings/providers")({
 
 type ProviderCardProps = {
     provider: CoreProviderInfo
-    currentProvider?: { enabled: boolean; encryptedKey: string }
-    onSave: (providerId: string, enabled: boolean, newKey?: string) => Promise<void>
+    currentProvider?: { enabled: boolean; encryptedKey: string; authMode?: GoogleAuthMode }
+    onSave: (
+        providerId: string,
+        enabled: boolean,
+        newKey?: string,
+        authMode?: GoogleAuthMode
+    ) => Promise<void>
     loading: boolean
 }
 
@@ -61,13 +75,30 @@ const ProviderCard = memo(({ provider, currentProvider, onSave, loading }: Provi
     const [enabled, setEnabled] = useState(currentProvider?.enabled || false)
     const [newKey, setNewKey] = useState("")
     const [rotatingKey, setRotatingKey] = useState(false)
+    const defaultAuthMode = provider.authModes?.[0]?.value
+    const [authMode, setAuthMode] = useState<GoogleAuthMode | undefined>(
+        currentProvider?.authMode || defaultAuthMode
+    )
 
     const hasExistingKey = Boolean(currentProvider?.encryptedKey)
     const canSave = enabled ? (hasExistingKey && !rotatingKey) || newKey.trim() : true
+    const selectedAuthMode =
+        authMode || currentProvider?.authMode || provider.authModes?.[0]?.value || undefined
+    const selectedAuthConfig = provider.authModes?.find((mode) => mode.value === selectedAuthMode)
+    const keyLabel = selectedAuthMode === "vertex" ? "Credentials JSON" : "API Key"
+    const rotationLabel = selectedAuthMode === "vertex" ? "Rotate credentials" : "Rotate key"
+    const existingKeyLabel =
+        selectedAuthMode === "vertex" ? "Vertex credentials configured" : "API key configured"
+    const requiresMultilineSecret = selectedAuthMode === "vertex"
 
     const handleSave = async () => {
         try {
-            await onSave(provider.id, enabled, rotatingKey || !hasExistingKey ? newKey : undefined)
+            await onSave(
+                provider.id,
+                enabled,
+                rotatingKey || !hasExistingKey ? newKey : undefined,
+                selectedAuthMode
+            )
             setIsEditing(false)
             setNewKey("")
             setRotatingKey(false)
@@ -81,6 +112,7 @@ const ProviderCard = memo(({ provider, currentProvider, onSave, loading }: Provi
         setEnabled(currentProvider?.enabled || false)
         setNewKey("")
         setRotatingKey(false)
+        setAuthMode(currentProvider?.authMode || defaultAuthMode)
     }
 
     const Icon = provider.icon
@@ -126,11 +158,44 @@ const ProviderCard = memo(({ provider, currentProvider, onSave, loading }: Provi
 
                             {enabled && (
                                 <div className="space-y-3">
+                                    {provider.authModes && provider.authModes.length > 0 && (
+                                        <div className="space-y-2">
+                                            <Label htmlFor={`${provider.id}-auth-mode`}>
+                                                Authentication Mode
+                                            </Label>
+                                            <Select
+                                                value={selectedAuthMode}
+                                                onValueChange={(value) =>
+                                                    setAuthMode(value as GoogleAuthMode)
+                                                }
+                                            >
+                                                <SelectTrigger id={`${provider.id}-auth-mode`}>
+                                                    <SelectValue placeholder="Select a mode" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {provider.authModes.map((mode) => (
+                                                        <SelectItem
+                                                            key={mode.value}
+                                                            value={mode.value}
+                                                        >
+                                                            {mode.label}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            {selectedAuthConfig && (
+                                                <p className="text-muted-foreground text-xs">
+                                                    {selectedAuthConfig.description}
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {hasExistingKey && (
                                         <div className="flex items-center justify-between rounded-lg bg-muted/50 p-3">
                                             <div className="flex items-center gap-2">
                                                 <Key className="h-4 w-4 text-green-600" />
-                                                <span className="text-sm">API key configured</span>
+                                                <span className="text-sm">{existingKeyLabel}</span>
                                             </div>
                                             <Button
                                                 variant="ghost"
@@ -138,7 +203,7 @@ const ProviderCard = memo(({ provider, currentProvider, onSave, loading }: Provi
                                                 onClick={() => setRotatingKey(!rotatingKey)}
                                             >
                                                 <RotateCcw className="h-4 w-4" />
-                                                {rotatingKey ? "Keep existing" : "Rotate key"}
+                                                {rotatingKey ? "Keep existing" : rotationLabel}
                                             </Button>
                                         </div>
                                     )}
@@ -146,19 +211,41 @@ const ProviderCard = memo(({ provider, currentProvider, onSave, loading }: Provi
                                     {(!hasExistingKey || rotatingKey) && (
                                         <div className="space-y-2">
                                             <Label htmlFor={`${provider.id}-key`}>
-                                                {rotatingKey ? "New API Key" : "API Key"}
+                                                {rotatingKey ? `New ${keyLabel}` : keyLabel}
                                             </Label>
-                                            <Input
-                                                id={`${provider.id}-key`}
-                                                type="password"
-                                                value={newKey}
-                                                onChange={(e) => setNewKey(e.target.value)}
-                                                placeholder={provider.placeholder}
-                                                className="font-mono"
-                                            />
+                                            {requiresMultilineSecret ? (
+                                                <Textarea
+                                                    id={`${provider.id}-key`}
+                                                    value={newKey}
+                                                    onChange={(e) => setNewKey(e.target.value)}
+                                                    placeholder={
+                                                        selectedAuthConfig?.placeholder ||
+                                                        provider.placeholder
+                                                    }
+                                                    className="min-h-32 font-mono text-xs"
+                                                    spellCheck={false}
+                                                />
+                                            ) : (
+                                                <Input
+                                                    id={`${provider.id}-key`}
+                                                    type="password"
+                                                    value={newKey}
+                                                    onChange={(e) => setNewKey(e.target.value)}
+                                                    placeholder={
+                                                        selectedAuthConfig?.placeholder ||
+                                                        provider.placeholder
+                                                    }
+                                                    className="font-mono"
+                                                />
+                                            )}
+                                            {selectedAuthConfig && (
+                                                <p className="text-muted-foreground text-xs">
+                                                    {selectedAuthConfig.description}
+                                                </p>
+                                            )}
                                             {rotatingKey && (
                                                 <p className="text-muted-foreground text-xs">
-                                                    Leave empty to keep existing key
+                                                    Leave empty to keep the existing secret
                                                 </p>
                                             )}
                                         </div>
@@ -168,7 +255,7 @@ const ProviderCard = memo(({ provider, currentProvider, onSave, loading }: Provi
                                         <div className="flex items-center gap-2 text-amber-600">
                                             <AlertCircle className="h-4 w-4" />
                                             <span className="text-sm">
-                                                API key required to enable provider
+                                                {keyLabel} required to enable provider
                                             </span>
                                         </div>
                                     )}
@@ -517,14 +604,19 @@ function ProvidersSettings() {
         }
     }
 
-    const handleSaveProvider = async (providerId: string, enabled: boolean, newKey?: string) => {
+    const handleSaveProvider = async (
+        providerId: string,
+        enabled: boolean,
+        newKey?: string,
+        authMode?: GoogleAuthMode
+    ) => {
         if (!session.user?.id) return
 
         setLoading(true)
         try {
             await updateSettings({
                 coreProviderUpdates: {
-                    [providerId]: { enabled, newKey }
+                    [providerId]: { enabled, newKey, authMode }
                 }
             })
             toast.success(
@@ -704,7 +796,7 @@ function ProvidersSettings() {
                         </p>
                     </div>
 
-                    {CORE_PROVIDERS.map((provider) => (
+                    {CORE_PROVIDERS.filter((provider) => !provider.hidden).map((provider) => (
                         <ProviderCard
                             key={provider.id}
                             provider={provider}

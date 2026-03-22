@@ -5,7 +5,6 @@ import { SignupMessagePrompt } from "@/components/signup-message-prompt"
 import { StickToBottomButton } from "@/components/stick-to-bottom-button"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
-import { MODELS_SHARED } from "@/convex/lib/models"
 import { useSession } from "@/hooks/auth-hooks"
 import { useChatActions } from "@/hooks/use-chat-actions"
 import { useChatDataProcessor } from "@/hooks/use-chat-data-processor"
@@ -16,6 +15,7 @@ import type { UploadedFile } from "@/lib/chat-store"
 import { getChatWidthClass, useChatWidthStore } from "@/lib/chat-width-store"
 import { useDiskCachedPaginatedQuery, useDiskCachedQuery } from "@/lib/convex-cached-query"
 import { useModelStore } from "@/lib/model-store"
+import { getDefaultModelId } from "@/lib/models-providers-shared"
 import { useThemeStore } from "@/lib/theme-store"
 import { cn } from "@/lib/utils"
 import { Link } from "@tanstack/react-router"
@@ -24,7 +24,7 @@ import { createLazyFileRoute } from "@tanstack/react-router"
 import { format } from "date-fns"
 import { Clock, Pin } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
-import { useEffect, useMemo, useRef } from "react"
+import { useEffect, useRef } from "react"
 import { useStickToBottom } from "use-stick-to-bottom"
 
 interface FolderChatProps {
@@ -45,9 +45,10 @@ const FolderChat = ({ folderId }: FolderChatProps) => {
 
     useDynamicTitle({ threadId })
 
-    useMemo(() => {
-        if (!selectedModel && MODELS_SHARED.length > 0) {
-            setSelectedModel(MODELS_SHARED[0].id)
+    useEffect(() => {
+        const defaultModelId = getDefaultModelId()
+        if (!selectedModel && defaultModelId) {
+            setSelectedModel(defaultModelId)
         }
     }, [selectedModel, setSelectedModel])
 
