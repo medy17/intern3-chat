@@ -147,6 +147,12 @@ export const useDefaultModelId = () => {
     return getDefaultModelId(models)
 }
 
+export const isImageGenerationCapableModel = (model: DisplayModel) => {
+    if (model.mode === "image") return true
+    if (!("supportedImageResolutions" in model)) return false
+    return (model.supportedImageResolutions?.length ?? 0) > 0
+}
+
 export type SearchProviderInfo = {
     id: "firecrawl" | "brave" | "tavily" | "serper"
     name: string

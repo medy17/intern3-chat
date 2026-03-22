@@ -32,6 +32,7 @@ import {
     getAbilityIcon,
     getAbilityLabel,
     getProviderDisplayName,
+    isImageGenerationCapableModel,
     isInternalProviderEnabled,
     useAvailableModels
 } from "@/lib/models-providers-shared"
@@ -137,7 +138,7 @@ const ModelCard = memo(({ model, currentProviders, onEdit, onDelete }: ModelCard
                         )}
                     </div>
                     <div className="mt-1 flex flex-wrap gap-0.75">
-                        {model.mode === "image" && (
+                        {isImageGenerationCapableModel(model) && (
                             <Badge variant="secondary" className="gap-1.5 px-1.5 text-xs">
                                 <Image className="size-3" />
                                 Image generation

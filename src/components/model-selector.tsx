@@ -30,6 +30,7 @@ import {
     getAbilityIcon,
     getAbilityLabel,
     getProviderDisplayName,
+    isImageGenerationCapableModel,
     useAvailableModels
 } from "@/lib/models-providers-shared"
 import { useSharedModels } from "@/lib/shared-models"
@@ -134,7 +135,7 @@ const SELECTOR_CATEGORIES: Array<{
 
 const getSelectorCategory = (model?: DisplayModel): SelectorCategory => {
     if (!model) return "text"
-    if (model.mode === "image") return "image"
+    if (isImageGenerationCapableModel(model)) return "image"
     if (model.mode === "speech-to-text") return "audio"
     return "text"
 }
@@ -241,7 +242,7 @@ const CapabilityPill = ({
 )
 
 const buildModelSubtitle = (model: DisplayModel) => {
-    if (model.mode === "image") {
+    if (isImageGenerationCapableModel(model)) {
         return "Image generation"
     }
 
@@ -270,10 +271,9 @@ const ModelCard = React.memo(function ModelCard({
 }) {
     const isSelected = model.id === selectedModel
     const isCustom = "isCustom" in model && model.isCustom
-    const modelAbilities =
-        model.mode === "image"
-            ? ["image_generation", ...model.abilities]
-            : model.abilities.filter((ability) => ability !== "effort_control")
+    const modelAbilities = isImageGenerationCapableModel(model)
+        ? ["image_generation", ...model.abilities]
+        : model.abilities.filter((ability) => ability !== "effort_control")
 
     return (
         <button

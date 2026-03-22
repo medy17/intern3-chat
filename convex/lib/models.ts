@@ -446,6 +446,53 @@ export const MODELS_SHARED: SharedModel[] = [
         supportedImageResolutions: ["1K", "2K", "4K"]
     },
     {
+        id: "gemini-3.1-flash-image-preview",
+        name: "Gemini 3.1 Flash Image Preview",
+        shortName: "3.1 Flash Image",
+        releaseOrder: 20260912,
+        adapters: [
+            "i3-google:gemini-3.1-flash-image-preview",
+            "google:gemini-3.1-flash-image-preview"
+        ],
+        abilities: ["reasoning", "vision", "effort_control"],
+        supportedImageSizes: ["1:1", "3:2", "2:3", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9"],
+        supportedImageResolutions: ["1K", "2K", "4K"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "gemini-3-pro-image-preview",
+        name: "Gemini 3 Pro Image Preview",
+        shortName: "3 Pro Image",
+        releaseOrder: 20260911,
+        adapters: ["i3-google:gemini-3-pro-image-preview", "google:gemini-3-pro-image-preview"],
+        abilities: ["reasoning", "vision", "effort_control"],
+        supportedImageSizes: [
+            "1:1",
+            "3:2",
+            "2:3",
+            "3:4",
+            "4:3",
+            "4:5",
+            "5:4",
+            "9:16",
+            "16:9",
+            "21:9"
+        ],
+        supportedImageResolutions: ["1K", "2K", "4K"],
+        supportsDisablingReasoning: true
+    },
+    {
+        id: "gpt-image-1.5-2025-12-16",
+        name: "GPT Image 1.5",
+        shortName: "Image 1.5",
+        releaseOrder: 20260910,
+        adapters: ["i3-openai:gpt-image-1.5-2025-12-16", "openai:gpt-image-1.5-2025-12-16"],
+        abilities: [],
+        mode: "image",
+        customIcon: "openai",
+        supportedImageSizes: ["1024x1024", "1536x1024", "1024x1536"]
+    },
+    {
         id: "llama-4-scout-17b-16e-instruct",
         name: "Llama 4 Scout 17B 16E",
         shortName: "Llama 4 Scout 17B",
