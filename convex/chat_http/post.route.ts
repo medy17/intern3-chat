@@ -516,6 +516,17 @@ export const chatPOST = httpAction(async (ctx, req) => {
                     console.log(
                         "[cvx][chat][stream] Using custom Vertex streamGenerateContent for image model"
                     )
+
+                    writer.write({
+                        type: "tool-input-available",
+                        toolCallId: `phantom-${streamId}`,
+                        toolName: "image_generation",
+                        input: {
+                            imageSize: body.imageResolution || body.imageSize || "1:1",
+                            prompt: "Generating inline image..."
+                        }
+                    })
+
                     const vertexStreamPromise = import("./vertex_stream").then((m) =>
                         m.fetchVertexStreamGenerateContent(
                             mapped_messages,
