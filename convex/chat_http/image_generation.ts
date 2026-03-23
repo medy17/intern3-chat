@@ -3,7 +3,35 @@ import { generateImage } from "ai"
 import type { GenericActionCtx } from "convex/server"
 import type { DataModel, Id } from "../_generated/dataModel"
 import { r2 } from "../attachments"
+import { getGoogleAccessToken } from "../lib/google_auth"
+import { getGoogleAuthMode, getGoogleVertexConfig } from "../lib/google_provider"
 import { type ImageSize, MODELS_SHARED } from "../lib/models"
+
+const b64Lookup = new Uint8Array(256).fill(255)
+const b64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+for (let i = 0; i < b64Chars.length; i++) {
+    b64Lookup[b64Chars.charCodeAt(i)] = i
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+    let bufferLength = base64.length * 0.75
+    if (base64[base64.length - 1] === "=") bufferLength--
+    if (base64[base64.length - 2] === "=") bufferLength--
+
+    const bytes = new Uint8Array(bufferLength)
+    let p = 0
+    for (let i = 0; i < base64.length; i += 4) {
+        const encoded1 = b64Lookup[base64.charCodeAt(i)]
+        const encoded2 = b64Lookup[base64.charCodeAt(i + 1)]
+        const encoded3 = b64Lookup[base64.charCodeAt(i + 2)]
+        const encoded4 = b64Lookup[base64.charCodeAt(i + 3)]
+
+        bytes[p++] = (encoded1 << 2) | (encoded2 >> 4)
+        if (encoded3 !== 255) bytes[p++] = ((encoded2 & 15) << 4) | (encoded3 >> 2)
+        if (encoded4 !== 255) bytes[p++] = ((encoded3 & 3) << 6) | (encoded4 & 63)
+    }
+    return bytes
+}
 
 export interface ImageGenerationResult {
     assets: {
@@ -74,39 +102,135 @@ export async function generateAndStoreImage({
             { imageSize, aspectRatio, size }
         )
 
-        // Google's OpenAI-compatible image endpoint uses provider "google.image".
-        // Vertex-native image models use "google.vertex.image" and should use the
-        // standard aspectRatio path instead of the OpenAI-compatible payload shape.
-        const isGoogleOpenAIImageModel = imageModel.provider === "google.image"
+        let imagesData: { mediaType: string; uint8Array: Uint8Array }[] = []
 
-        const { images } = await generateImage({
-            model: imageModel,
-            prompt,
-            ...(isGoogleOpenAIImageModel
-                ? {
-                      ...(size ? { size } : {}),
-                      ...(aspectRatio
-                          ? {
-                                providerOptions: {
-                                    openai: {
-                                        extra_body: {
-                                            google: {
-                                                aspect_ratio: aspectRatio
+        const authMode = getGoogleAuthMode("internal")
+        const isVertex = authMode === "vertex" && imageModel.provider?.includes("google")
+
+        if (isVertex) {
+            console.log("[cvx][image_generation] Using direct Vertex API fetch to avoid ai-sdk OOM")
+            // Fetch directly using REST API
+            const vertexConfig = getGoogleVertexConfig("internal")
+            const token = await getGoogleAccessToken(
+                vertexConfig.credentials.client_email,
+                vertexConfig.credentials.private_key
+            )
+
+            const location = /^gemini-3(\.|-)/.test(modelId) ? "global" : vertexConfig.location
+            const baseUrl =
+                location === "global"
+                    ? "https://aiplatform.googleapis.com"
+                    : `https://${location}-aiplatform.googleapis.com`
+
+            // Gemini models use 'generateContent'
+            const url = `${baseUrl}/v1/projects/${vertexConfig.project}/locations/${location}/publishers/google/models/${modelId}:generateContent`
+
+            const body = {
+                contents: [
+                    {
+                        role: "user",
+                        parts: [
+                            {
+                                text: prompt
+                            }
+                        ]
+                    }
+                ],
+                generationConfig: {
+                    responseModalities: ["IMAGE"]
+                    // We would ideally map aspectRatio here if Vertex supports it in generationConfig
+                    // e.g., imageConfig: { aspectRatio } but for now let's just request the image.
+                }
+            }
+
+            const res = await fetch(url, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(body)
+            })
+
+            if (!res.ok) {
+                const errText = await res.text()
+                throw new Error(`Vertex API error: ${res.status} ${errText}`)
+            }
+
+            // The response for generateContent with images:
+            // { candidates: [ { content: { parts: [ { inlineData: { mimeType: "...", data: "..." } } ] } } ] }
+            const data = (await res.json()) as {
+                candidates?: Array<{
+                    content?: {
+                        parts?: Array<{
+                            inlineData?: {
+                                mimeType?: string
+                                data?: string
+                            }
+                        }>
+                    }
+                }>
+            }
+
+            if (!data.candidates || data.candidates.length === 0) {
+                throw new Error("No candidates returned from Vertex API")
+            }
+
+            for (const candidate of data.candidates) {
+                const parts = candidate.content?.parts || []
+                for (const part of parts) {
+                    if (part.inlineData?.data) {
+                        const b64 = part.inlineData.data
+                        part.inlineData.data = "" // Free AST memory
+
+                        imagesData.push({
+                            mediaType: part.inlineData.mimeType || "image/png",
+                            uint8Array: base64ToUint8Array(b64)
+                        })
+                    }
+                }
+            }
+
+            if (imagesData.length === 0) {
+                throw new Error("No valid images returned from Vertex API")
+            }
+        } else {
+            console.log("[cvx][image_generation] Using ai-sdk generateImage fallback")
+            const isGoogleOpenAIImageModel = imageModel.provider === "google.image"
+
+            const { images } = await generateImage({
+                model: imageModel,
+                prompt,
+                ...(isGoogleOpenAIImageModel
+                    ? {
+                          ...(size ? { size } : {}),
+                          ...(aspectRatio
+                              ? {
+                                    providerOptions: {
+                                        openai: {
+                                            extra_body: {
+                                                google: {
+                                                    aspect_ratio: aspectRatio
+                                                }
                                             }
                                         }
                                     }
                                 }
-                            }
-                          : {})
-                  }
-                : size
-                  ? { size }
-                  : { aspectRatio })
-        })
+                              : {})
+                      }
+                    : size
+                      ? { size }
+                      : { aspectRatio })
+            })
+            imagesData = images.map((img) => ({
+                mediaType: img.mediaType,
+                uint8Array: img.uint8Array
+            }))
+        }
 
         const assets: ImageGenerationResult["assets"] = []
 
-        for (const image of images) {
+        for (const image of imagesData) {
             const fileExtension = image.mediaType.split("/")[1] || "png"
             const key = `generations/${userId}/${Date.now()}-${crypto.randomUUID()}-gen.${fileExtension}`
 

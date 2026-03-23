@@ -20,6 +20,7 @@ import { internal } from "../_generated/api"
 import type { Id } from "../_generated/dataModel"
 import { httpAction } from "../_generated/server"
 import { dbMessagesToCore } from "../lib/db_to_core_messages"
+import { getGoogleAuthMode } from "../lib/google_provider"
 import { getUserIdentity } from "../lib/identity"
 import {
     type ImageResolution,
@@ -505,83 +506,145 @@ export const chatPOST = httpAction(async (ctx, req) => {
                     }
                 }
             } else {
-                // Pass the filtered settings (with MCP overrides applied) to the toolkit
-                const filteredSettings = {
-                    ...settings,
-                    mcpServers: settings.mcpServers?.filter((server) => {
-                        if (server.enabled === false) return false
-                        const overrideValue = body.mcpOverrides?.[server.name]
-                        return overrideValue !== false
-                    })
-                }
-                const shouldDisableSmoothTransform = isGoogleImagePreviewModel(modelData.modelId)
-                const result = streamText({
-                    model: model,
-                    maxOutputTokens: maxTokens,
-                    stopWhen: stepCountIs(100),
-                    abortSignal: remoteCancel.signal,
-                    experimental_transform: shouldDisableSmoothTransform
-                        ? undefined
-                        : smoothStream(),
-                    tools: modelData.abilities.includes("function_calling")
-                        ? await getToolkit(ctx, body.enabledTools, filteredSettings)
-                        : undefined,
-                    messages: [
-                        ...(modelData.modelId !== "gemini-2.0-flash-image-generation"
-                            ? [
-                                  {
-                                      role: "system",
-                                      content: buildPrompt(body.enabledTools, settings)
-                                  } as const
-                              ]
-                            : []),
-                        ...mapped_messages
-                    ],
-                    providerOptions: {
-                        google: buildGoogleProviderOptions(
-                            modelData.modelId,
-                            effectiveReasoningEffort,
-                            modelData.abilities.includes("effort_control"),
-                            reasoningProfiles,
-                            body.imageSize,
-                            body.imageResolution
-                        ),
-                        openai: buildOpenAIProviderOptions(
-                            modelData.modelId,
-                            effectiveReasoningEffort,
-                            modelData.abilities.includes("effort_control"),
-                            reasoningProfiles
-                        ),
-                        anthropic: buildAnthropicProviderOptions(
-                            modelData.modelId,
-                            effectiveReasoningEffort,
-                            reasoningProfiles
-                        )
-                    }
-                })
+                const authMode = getGoogleAuthMode("internal")
+                const isVertexImageModel =
+                    authMode === "vertex" &&
+                    (isGoogleImagePreviewModel(modelData.modelId) ||
+                        modelData.modelId === "gemini-2.0-flash-image-generation")
 
-                writer.merge(
-                    result.fullStream.pipeThrough(
+                if (isVertexImageModel) {
+                    console.log(
+                        "[cvx][chat][stream] Using custom Vertex streamGenerateContent for image model"
+                    )
+                    const vertexStreamPromise = import("./vertex_stream").then((m) =>
+                        m.fetchVertexStreamGenerateContent(
+                            mapped_messages,
+                            modelData.modelId,
+                            body.imageSize,
+                            body.imageResolution,
+                            effectiveReasoningEffort
+                        )
+                    )
+
+                    const resultStream = await vertexStreamPromise
+
+                    const transformedStream = resultStream.pipeThrough(
                         manualStreamTransform(parts, totalTokenUsage, uploadPromises, user.id, ctx)
                     )
-                )
 
-                await Promise.allSettled(uploadPromises)
+                    const [streamForWriter, streamForBlocking] = transformedStream.tee()
 
-                writer.write({
-                    type: "finish",
-                    finishReason: await result.finishReason,
-                    messageMetadata: {
-                        threadId: mutationResult.threadId,
-                        streamId,
-                        modelId: body.model,
-                        modelName,
-                        promptTokens: totalTokenUsage.promptTokens,
-                        completionTokens: totalTokenUsage.completionTokens,
-                        reasoningTokens: totalTokenUsage.reasoningTokens,
-                        serverDurationMs: Date.now() - streamStartTime
+                    writer.merge(streamForWriter)
+
+                    const reader = streamForBlocking.getReader()
+                    while (true) {
+                        const { done } = await reader.read()
+                        if (done) break
                     }
-                })
+
+                    await Promise.allSettled(uploadPromises)
+
+                    writer.write({
+                        type: "finish",
+                        finishReason: "stop",
+                        messageMetadata: {
+                            threadId: mutationResult.threadId,
+                            streamId,
+                            modelId: body.model,
+                            modelName,
+                            promptTokens: totalTokenUsage.promptTokens,
+                            completionTokens: totalTokenUsage.completionTokens,
+                            reasoningTokens: Math.max(0, totalTokenUsage.reasoningTokens),
+                            serverDurationMs: Date.now() - streamStartTime
+                        }
+                    })
+                } else {
+                    // Pass the filtered settings (with MCP overrides applied) to the toolkit
+                    const filteredSettings = {
+                        ...settings,
+                        mcpServers: settings.mcpServers?.filter((server) => {
+                            if (server.enabled === false) return false
+                            const overrideValue = body.mcpOverrides?.[server.name]
+                            return overrideValue !== false
+                        })
+                    }
+                    const shouldDisableSmoothTransform = isGoogleImagePreviewModel(
+                        modelData.modelId
+                    )
+                    const result = streamText({
+                        model: model,
+                        maxOutputTokens: maxTokens,
+                        stopWhen: stepCountIs(100),
+                        abortSignal: remoteCancel.signal,
+                        experimental_transform: shouldDisableSmoothTransform
+                            ? undefined
+                            : smoothStream(),
+                        tools: modelData.abilities.includes("function_calling")
+                            ? await getToolkit(ctx, body.enabledTools, filteredSettings)
+                            : undefined,
+                        messages: [
+                            ...(modelData.modelId !== "gemini-2.0-flash-image-generation"
+                                ? [
+                                      {
+                                          role: "system",
+                                          content: buildPrompt(body.enabledTools, settings)
+                                      } as const
+                                  ]
+                                : []),
+                            ...mapped_messages
+                        ],
+                        providerOptions: {
+                            google: buildGoogleProviderOptions(
+                                modelData.modelId,
+                                effectiveReasoningEffort,
+                                modelData.abilities.includes("effort_control"),
+                                reasoningProfiles,
+                                body.imageSize,
+                                body.imageResolution
+                            ),
+                            openai: buildOpenAIProviderOptions(
+                                modelData.modelId,
+                                effectiveReasoningEffort,
+                                modelData.abilities.includes("effort_control"),
+                                reasoningProfiles
+                            ),
+                            anthropic: buildAnthropicProviderOptions(
+                                modelData.modelId,
+                                effectiveReasoningEffort,
+                                reasoningProfiles
+                            )
+                        }
+                    })
+
+                    writer.merge(
+                        result.fullStream.pipeThrough(
+                            manualStreamTransform(
+                                parts,
+                                totalTokenUsage,
+                                uploadPromises,
+                                user.id,
+                                ctx
+                            )
+                        )
+                    )
+
+                    await Promise.allSettled(uploadPromises)
+
+                    writer.write({
+                        type: "finish",
+                        finishReason: await result.finishReason,
+                        messageMetadata: {
+                            threadId: mutationResult.threadId,
+                            streamId,
+                            modelId: body.model,
+                            modelName,
+                            promptTokens: totalTokenUsage.promptTokens,
+                            completionTokens: totalTokenUsage.completionTokens,
+                            reasoningTokens: totalTokenUsage.reasoningTokens,
+                            serverDurationMs: Date.now() - streamStartTime
+                        }
+                    })
+                }
             }
             remoteCancel.abort()
             console.log()
