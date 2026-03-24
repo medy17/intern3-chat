@@ -9,6 +9,7 @@ import {
 import { ToolSelectorPopover } from "@/components/tool-selector-popover"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
     Select,
     SelectContent,
@@ -53,6 +54,7 @@ import {
     Image as ImageIcon,
     Loader2,
     Mic,
+    MoreHorizontal,
     Paperclip,
     Square,
     Upload,
@@ -872,16 +874,64 @@ export function MultimodalInput({
                                 />
                             )}
 
-                            {modelSupportsImageSizing && (
-                                <AspectRatioSelector selectedModel={selectedModel} />
-                            )}
+                            {/* Desktop: Show everything inline */}
+                            <div className="hidden items-center gap-2 sm:flex">
+                                {modelSupportsImageSizing && (
+                                    <AspectRatioSelector selectedModel={selectedModel} />
+                                )}
 
-                            {modelSupportsImageResolution && (
-                                <ImageResolutionSelector selectedModel={selectedModel} />
-                            )}
+                                {modelSupportsImageResolution && (
+                                    <ImageResolutionSelector selectedModel={selectedModel} />
+                                )}
 
-                            {isImageModel ? null : (
-                                <>
+                                {isImageModel ? null : (
+                                    <>
+                                        <PromptInputAction tooltip="Attach files">
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                onClick={() => uploadInputRef.current?.click()}
+                                                className={cn(
+                                                    "flex size-8 cursor-pointer items-center justify-center gap-1 rounded-md bg-secondary/70 text-foreground backdrop-blur-lg hover:bg-secondary/80"
+                                                )}
+                                            >
+                                                <input
+                                                    type="file"
+                                                    multiple
+                                                    onChange={handleFileChange}
+                                                    className="hidden"
+                                                    ref={uploadInputRef}
+                                                    accept={getFileAcceptAttribute(
+                                                        modelSupportsVision
+                                                    )}
+                                                />
+                                                {uploading ? (
+                                                    <Loader2 className="size-4 animate-spin" />
+                                                ) : (
+                                                    <Paperclip className="-rotate-45 size-4 hover:text-primary" />
+                                                )}
+                                            </Button>
+                                        </PromptInputAction>
+
+                                        <PromptInputAction tooltip="Tools">
+                                            <ToolSelectorPopover
+                                                threadId={threadId}
+                                                enabledTools={enabledTools}
+                                                onEnabledToolsChange={setEnabledTools}
+                                                modelSupportsFunctionCalling={
+                                                    modelSupportsFunctionCalling
+                                                }
+                                            />
+                                        </PromptInputAction>
+
+                                        <ReasoningEffortSelector selectedModel={selectedModel} />
+                                    </>
+                                )}
+                            </div>
+
+                            {/* Mobile: Show attach inline, and ellipsis menu for everything else */}
+                            <div className="flex items-center gap-2 sm:hidden">
+                                {!isImageModel && (
                                     <PromptInputAction tooltip="Attach files">
                                         <Button
                                             type="button"
@@ -906,21 +956,56 @@ export function MultimodalInput({
                                             )}
                                         </Button>
                                     </PromptInputAction>
+                                )}
 
-                                    <PromptInputAction tooltip="Tools">
-                                        <ToolSelectorPopover
-                                            threadId={threadId}
-                                            enabledTools={enabledTools}
-                                            onEnabledToolsChange={setEnabledTools}
-                                            modelSupportsFunctionCalling={
-                                                modelSupportsFunctionCalling
-                                            }
-                                        />
-                                    </PromptInputAction>
-
-                                    <ReasoningEffortSelector selectedModel={selectedModel} />
-                                </>
-                            )}
+                                {(modelSupportsImageSizing ||
+                                    modelSupportsImageResolution ||
+                                    (!isImageModel &&
+                                        (modelSupportsFunctionCalling ||
+                                            _modelSupportsReasoning))) && (
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="size-8 rounded-md bg-secondary/70 text-foreground backdrop-blur-lg hover:bg-secondary/80"
+                                            >
+                                                <MoreHorizontal className="size-4" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent
+                                            align="start"
+                                            className="flex w-auto max-w-[280px] flex-wrap gap-2 p-2"
+                                        >
+                                            {modelSupportsImageSizing && (
+                                                <AspectRatioSelector
+                                                    selectedModel={selectedModel}
+                                                />
+                                            )}
+                                            {modelSupportsImageResolution && (
+                                                <ImageResolutionSelector
+                                                    selectedModel={selectedModel}
+                                                />
+                                            )}
+                                            {!isImageModel && (
+                                                <>
+                                                    <ToolSelectorPopover
+                                                        threadId={threadId}
+                                                        enabledTools={enabledTools}
+                                                        onEnabledToolsChange={setEnabledTools}
+                                                        modelSupportsFunctionCalling={
+                                                            modelSupportsFunctionCalling
+                                                        }
+                                                    />
+                                                    <ReasoningEffortSelector
+                                                        selectedModel={selectedModel}
+                                                    />
+                                                </>
+                                            )}
+                                        </PopoverContent>
+                                    </Popover>
+                                )}
+                            </div>
                         </div>
 
                         <PromptInputAction
