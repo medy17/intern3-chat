@@ -1,12 +1,47 @@
 import * as React from "react"
 import { Drawer as DrawerPrimitive } from "vaul"
 
+import { useIsMobile } from "@/hooks/use-mobile"
+import { useOverlayBackDismiss } from "@/hooks/use-overlay-back-dismiss"
 import { cn } from "@/lib/utils"
 
 function Drawer({
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
-  return <DrawerPrimitive.Root data-slot="drawer" {...props} />
+  const isMobile = useIsMobile()
+  const isControlled = openProp !== undefined
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen)
+
+  const open = isControlled ? openProp : uncontrolledOpen
+
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      if (!isControlled) {
+        setUncontrolledOpen(nextOpen)
+      }
+
+      onOpenChange?.(nextOpen)
+    },
+    [isControlled, onOpenChange]
+  )
+
+  useOverlayBackDismiss({
+    open,
+    enabled: isMobile,
+    onClose: () => handleOpenChange(false),
+  })
+
+  return (
+    <DrawerPrimitive.Root
+      data-slot="drawer"
+      open={open}
+      onOpenChange={handleOpenChange}
+      {...props}
+    />
+  )
 }
 
 function DrawerTrigger({

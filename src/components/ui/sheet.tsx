@@ -2,10 +2,47 @@ import * as React from "react"
 import * as SheetPrimitive from "@radix-ui/react-dialog"
 import { XIcon } from "lucide-react"
 
+import { useIsMobile } from "@/hooks/use-mobile"
+import { useOverlayBackDismiss } from "@/hooks/use-overlay-back-dismiss"
 import { cn } from "@/lib/utils"
 
-function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />
+function Sheet({
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Root>) {
+  const isMobile = useIsMobile()
+  const isControlled = openProp !== undefined
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen)
+
+  const open = isControlled ? openProp : uncontrolledOpen
+
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      if (!isControlled) {
+        setUncontrolledOpen(nextOpen)
+      }
+
+      onOpenChange?.(nextOpen)
+    },
+    [isControlled, onOpenChange]
+  )
+
+  useOverlayBackDismiss({
+    open,
+    enabled: isMobile,
+    onClose: () => handleOpenChange(false),
+  })
+
+  return (
+    <SheetPrimitive.Root
+      data-slot="sheet"
+      open={open}
+      onOpenChange={handleOpenChange}
+      {...props}
+    />
+  )
 }
 
 function SheetTrigger({
