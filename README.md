@@ -22,31 +22,42 @@ bun install
 
 2. Copy `.env.example` to `.env.local` and fill in the values you actually need.
 
-3. Start local infra:
+3. One-time local setup (starts Docker services, pushes auth schema, prompts for local Convex):
 
 ```bash
-docker compose up -d
+bun run local:setup
 ```
 
-4. Push the Better Auth schema into your local Postgres database:
+4. Start local development (Convex local + app on `localhost:3000`):
 
 ```bash
-bun run auth:push
+bun run local:dev
 ```
 
-5. Start Convex:
+If you prefer separate terminals:
 
 ```bash
-bunx convex dev
+bun run local:convex
 ```
 
-6. Start the app:
-
 ```bash
-bun run dev
+bun run local:app
 ```
 
 The app runs at `http://localhost:3000`.
+
+## Push To Cloud Dev
+
+When local iteration is done and you want to push Convex functions to cloud dev
+(`knowing-falcon-519`) without changing your local setup:
+
+```powershell
+$env:CONVEX_DEPLOYMENT="dev:knowing-falcon-519"
+bunx convex dev --once --codegen disable --typecheck disable
+Remove-Item Env:CONVEX_DEPLOYMENT
+```
+
+This only changes deployment target for that shell session.
 
 ## Environment Split
 

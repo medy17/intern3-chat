@@ -1,4 +1,4 @@
-import { ABILITIES } from "@/convex/lib/toolkit"
+import { ABILITIES } from "@/lib/tool-abilities"
 import { z } from "zod"
 
 const AIConfigSchema = z.object({

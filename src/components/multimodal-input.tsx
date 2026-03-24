@@ -20,7 +20,6 @@ import {
 import { VoiceRecorder } from "@/components/voice-recorder"
 import { api } from "@/convex/_generated/api"
 import type { ImageResolution, ImageSize } from "@/convex/lib/models"
-import { DefaultSettings } from "@/convex/settings"
 import { useSession, useToken } from "@/hooks/auth-hooks"
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder"
 import { resolveJwtToken } from "@/lib/auth-token"
@@ -28,6 +27,7 @@ import { browserEnv, optionalBrowserEnv } from "@/lib/browser-env"
 import { type UploadedFile, useChatStore } from "@/lib/chat-store"
 import { getChatWidthClass, useChatWidthStore } from "@/lib/chat-width-store"
 import { useDiskCachedQuery } from "@/lib/convex-cached-query"
+import { DefaultSettings } from "@/lib/default-user-settings"
 import {
     MAX_FILE_SIZE,
     MAX_TOKENS_PER_FILE,

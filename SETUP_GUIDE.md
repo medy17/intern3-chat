@@ -36,30 +36,46 @@ docker compose up -d
 
 1. Copy `.env.example` to `.env.local`.
 2. Fill in the variables you need.
-3. Use local Postgres:
+3. Use local Postgres + local Convex URLs:
 
 ```bash
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/intern3_db
 VITE_BETTER_AUTH_URL=http://localhost:3000
+VITE_CONVEX_URL=http://127.0.0.1:3210
+VITE_CONVEX_API_URL=http://127.0.0.1:3210/http
 ```
 
-4. Push auth tables:
+4. Keep `CONVEX_DEPLOY_KEY` out of `.env.local` for local development to avoid accidentally targeting cloud deployments.
+5. Run one-time local setup:
 
 ```bash
-bun run auth:push
+bun run local:setup
 ```
 
-5. Start Convex:
+6. Start the local dev loop:
 
 ```bash
-bunx convex dev
+bun run local:dev
 ```
 
-6. Start the app:
+If you prefer separate terminals:
 
 ```bash
-bun run dev
+bun run local:convex
+bun run local:app
 ```
+
+### Push local code to cloud dev (`knowing-falcon-519`)
+
+Keep `.env.local` on local deployment and use a temporary override only for the push:
+
+```powershell
+$env:CONVEX_DEPLOYMENT="dev:knowing-falcon-519"
+bunx convex dev --once --codegen disable --typecheck disable
+Remove-Item Env:CONVEX_DEPLOYMENT
+```
+
+This pushes Convex functions to cloud dev but leaves your local default unchanged.
 
 ### Fastest debug loop
 

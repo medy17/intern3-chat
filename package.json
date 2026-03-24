@@ -4,6 +4,13 @@
     "type": "module",
     "scripts": {
         "dev": "vite dev --port 3000",
+        "local:setup": "node scripts/local-setup.mjs",
+        "local:dev": "node scripts/local-dev.mjs",
+        "local:infra:up": "docker compose up -d",
+        "local:infra:down": "docker compose down",
+        "local:convex:configure": "bunx convex dev --configure existing --dev-deployment local --once --codegen disable --typecheck disable",
+        "local:convex": "bunx convex dev --local --tail-logs pause-on-deploy --codegen disable --typecheck disable",
+        "local:app": "vite dev --port 3000",
         "build": "vite build",
         "start": "node .output/server/index.mjs",
         "lint": "biome check --write",

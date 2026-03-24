@@ -21,10 +21,10 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { api } from "@/convex/_generated/api"
 import type { SharedModel } from "@/convex/lib/models"
-import { DefaultSettings } from "@/convex/settings"
 import { useSession } from "@/hooks/auth-hooks"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useDiskCachedQuery } from "@/lib/convex-cached-query"
+import { DefaultSettings } from "@/lib/default-user-settings"
 import {
     type DisplayModel,
     getAbilityIcon,

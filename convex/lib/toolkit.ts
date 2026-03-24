@@ -1,3 +1,4 @@
+import { ABILITIES, type AbilityId } from "@/lib/tool-abilities"
 import type { Tool } from "ai"
 import type { GenericActionCtx } from "convex/server"
 import type { Infer } from "convex/values"
@@ -9,8 +10,8 @@ import { WebSearchAdapter } from "./tools/web_search"
 
 export type ToolAdapter = (params: ConditionalToolParams) => Promise<Partial<Record<string, Tool>>>
 export const TOOL_ADAPTERS = [WebSearchAdapter, SupermemoryAdapter, MCPAdapter]
-export const ABILITIES = ["web_search", "supermemory", "mcp"] as const
-export type AbilityId = (typeof ABILITIES)[number]
+export { ABILITIES }
+export type { AbilityId }
 
 export type ConditionalToolParams = {
     ctx: GenericActionCtx<DataModel>

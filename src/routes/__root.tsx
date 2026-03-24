@@ -47,6 +47,10 @@ export const Route = createRootRouteWithContext<{
                 name: "apple-mobile-web-app-capable",
                 content: "yes"
             },
+            {
+                name: "mobile-web-app-capable",
+                content: "yes"
+            },
             // Open Graph meta tags
             {
                 property: "og:title",

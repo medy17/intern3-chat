@@ -28,13 +28,13 @@ import type * as lib_google_auth from "../lib/google_auth.js";
 import type * as lib_google_provider from "../lib/google_provider.js";
 import type * as lib_identity from "../lib/identity.js";
 import type * as lib_internal_provider_config from "../lib/internal_provider_config.js";
-import type * as lib_models from "../lib/models.js";
 import type * as lib_models_anthropic from "../lib/models/anthropic.js";
 import type * as lib_models_google from "../lib/models/google.js";
 import type * as lib_models_meta from "../lib/models/meta.js";
 import type * as lib_models_openai from "../lib/models/openai.js";
 import type * as lib_models_types from "../lib/models/types.js";
 import type * as lib_models_xai from "../lib/models/xai.js";
+import type * as lib_models from "../lib/models.js";
 import type * as lib_provider_factory from "../lib/provider_factory.js";
 import type * as lib_resumable_stream_context from "../lib/resumable_stream_context.js";
 import type * as lib_toolkit from "../lib/toolkit.js";
@@ -68,6 +68,14 @@ import type {
   FunctionReference,
 } from "convex/server";
 
+/**
+ * A utility for referencing Convex functions in your app's API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 declare const fullApi: ApiFromModules<{
   aggregates: typeof aggregates;
   analytics: typeof analytics;
@@ -89,13 +97,13 @@ declare const fullApi: ApiFromModules<{
   "lib/google_provider": typeof lib_google_provider;
   "lib/identity": typeof lib_identity;
   "lib/internal_provider_config": typeof lib_internal_provider_config;
-  "lib/models": typeof lib_models;
   "lib/models/anthropic": typeof lib_models_anthropic;
   "lib/models/google": typeof lib_models_google;
   "lib/models/meta": typeof lib_models_meta;
   "lib/models/openai": typeof lib_models_openai;
   "lib/models/types": typeof lib_models_types;
   "lib/models/xai": typeof lib_models_xai;
+  "lib/models": typeof lib_models;
   "lib/provider_factory": typeof lib_provider_factory;
   "lib/resumable_stream_context": typeof lib_resumable_stream_context;
   "lib/toolkit": typeof lib_toolkit;
@@ -123,30 +131,14 @@ declare const fullApi: ApiFromModules<{
   streams: typeof streams;
   threads: typeof threads;
 }>;
+declare const fullApiWithMounts: typeof fullApi;
 
-/**
- * A utility for referencing Convex functions in your app's public API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
 export declare const api: FilterApi<
-  typeof fullApi,
+  typeof fullApiWithMounts,
   FunctionReference<any, "public">
 >;
-
-/**
- * A utility for referencing Convex functions in your app's internal API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = internal.myModule.myFunction;
- * ```
- */
 export declare const internal: FilterApi<
-  typeof fullApi,
+  typeof fullApiWithMounts,
   FunctionReference<any, "internal">
 >;
 
@@ -414,17 +406,17 @@ export declare const components: {
         { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
         null
       >;
-      delete_: FunctionReference<
-        "mutation",
-        "internal",
-        { key: any; namespace?: any },
-        null
-      >;
       deleteIfExists: FunctionReference<
         "mutation",
         "internal",
         { key: any; namespace?: any },
         any
+      >;
+      delete_: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; namespace?: any },
+        null
       >;
       init: FunctionReference<
         "mutation",

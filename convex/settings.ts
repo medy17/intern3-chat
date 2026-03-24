@@ -1,3 +1,4 @@
+import { DefaultSettings } from "@/lib/default-user-settings"
 import { ChatError } from "@/lib/errors"
 import { type Infer, v } from "convex/values"
 import type { Id } from "./_generated/dataModel"
@@ -20,28 +21,6 @@ const CoreProviderUpdate = v.object({
     newKey: v.optional(v.string()),
     authMode: v.optional(v.union(v.literal("ai-studio"), v.literal("vertex")))
 })
-
-export const DefaultSettings = (userId: string) =>
-    ({
-        userId,
-        searchProvider: "firecrawl",
-        searchIncludeSourcesByDefault: false,
-        coreAIProviders: {},
-        customAIProviders: {},
-        customModels: {},
-        titleGenerationModel: "gemini-2.0-flash-lite",
-        customThemes: [],
-        mcpServers: [],
-        generalProviders: {
-            supermemory: undefined,
-            firecrawl: undefined,
-            tavily: undefined,
-            brave: undefined,
-            serper: undefined
-        },
-        customization: undefined,
-        onboardingCompleted: false
-    }) satisfies Infer<typeof UserSettings>
 
 const getSettings = async (
     ctx: QueryCtx,
