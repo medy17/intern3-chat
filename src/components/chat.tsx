@@ -13,10 +13,11 @@ import { useModelStore } from "@/lib/model-store"
 import { useDefaultModelId } from "@/lib/models-providers-shared"
 import { useThemeStore } from "@/lib/theme-store"
 import { AnimatePresence, motion } from "motion/react"
-import { useEffect } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { useStickToBottom } from "use-stick-to-bottom"
+import { FullPageDropOverlay } from "./full-page-drop-overlay"
 import { Logo } from "./logo"
-import { MultimodalInput } from "./multimodal-input"
+import { MultimodalInput, type MultimodalInputRef } from "./multimodal-input"
 import { SignupMessagePrompt } from "./signup-message-prompt"
 import { StickToBottomButton } from "./stick-to-bottom-button"
 
@@ -36,6 +37,7 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
     const mode = themeState.currentMode
     const { data: session, isPending } = useSession()
     const defaultModelId = useDefaultModelId()
+    const multimodalInputRef = useRef<MultimodalInputRef>(null)
 
     useDynamicTitle({ threadId })
 
@@ -75,6 +77,10 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
         scrollToBottom({ animation: "smooth" })
     }
 
+    const handleFileDrop = useCallback((files: File[]) => {
+        multimodalInputRef.current?.handleFileUpload(files)
+    }, [])
+
     const isEmpty = messages.length === 0 && !threadId
 
     const userName =
@@ -110,6 +116,8 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
 
     return (
         <div className="relative flex h-[calc(100dvh-64px)] flex-col">
+            <FullPageDropOverlay onDrop={handleFileDrop} />
+
             <Messages
                 messages={messages}
                 onRetry={handleRetry}
@@ -152,6 +160,7 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
                             className="w-full max-w-4xl px-4"
                         >
                             <MultimodalInput
+                                ref={multimodalInputRef}
                                 onSubmit={handleInputSubmitWithScroll}
                                 status={status}
                             />
@@ -170,7 +179,11 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
                             isAtBottom={isAtBottom}
                             scrollToBottom={scrollToBottom}
                         />
-                        <MultimodalInput onSubmit={handleInputSubmitWithScroll} status={status} />
+                        <MultimodalInput
+                            ref={multimodalInputRef}
+                            onSubmit={handleInputSubmitWithScroll}
+                            status={status}
+                        />
                     </motion.div>
                 )}
             </AnimatePresence>

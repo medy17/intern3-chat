@@ -57,11 +57,18 @@ import {
     MoreHorizontal,
     Paperclip,
     Square,
-    Upload,
     X,
     Zap
 } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+    forwardRef,
+    useCallback,
+    useEffect,
+    useImperativeHandle,
+    useMemo,
+    useRef,
+    useState
+} from "react"
 import { toast } from "sonner"
 
 interface ExtendedUploadedFile extends UploadedFile {
@@ -234,13 +241,17 @@ export const ReasoningEffortSelector = ({ selectedModel }: { selectedModel: stri
     )
 }
 
-export function MultimodalInput({
-    onSubmit,
-    status
-}: {
-    onSubmit: (input?: string, files?: UploadedFile[]) => void
-    status: ReturnType<typeof useChat>["status"]
-}) {
+export interface MultimodalInputRef {
+    handleFileUpload: (files: File[]) => Promise<void>
+}
+
+export const MultimodalInput = forwardRef<
+    MultimodalInputRef,
+    {
+        onSubmit: (input?: string, files?: UploadedFile[]) => void
+        status: ReturnType<typeof useChat>["status"]
+    }
+>(function MultimodalInput({ onSubmit, status }, ref) {
     const { token } = useToken()
     const location = useLocation()
     const session = useSession()
@@ -259,7 +270,7 @@ export function MultimodalInput({
     const isLoading = status === "streaming"
     const uploadInputRef = useRef<HTMLInputElement>(null)
     const promptInputRef = useRef<PromptInputRef>(null)
-    const [dragActive, setDragActive] = useState(false)
+
     const [fileContents, setFileContents] = useState<Record<string, string>>({})
     const [dialogFile, setDialogFile] = useState<{
         content: string
@@ -603,6 +614,14 @@ export function MultimodalInput({
         ]
     )
 
+    useImperativeHandle(
+        ref,
+        () => ({
+            handleFileUpload
+        }),
+        [handleFileUpload]
+    )
+
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (event.target.files) {
             const newFiles = Array.from(event.target.files)
@@ -647,32 +666,6 @@ export function MultimodalInput({
         },
         [handleFileUpload]
     )
-
-    const handleDrop = useCallback(
-        (e: React.DragEvent) => {
-            e.preventDefault()
-            e.stopPropagation()
-            setDragActive(false)
-
-            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                const newFiles = Array.from(e.dataTransfer.files)
-                handleFileUpload(newFiles)
-            }
-        },
-        [handleFileUpload]
-    )
-
-    const handleDragOver = useCallback((e: React.DragEvent) => {
-        e.preventDefault()
-        e.stopPropagation()
-        setDragActive(true)
-    }, [])
-
-    const handleDragLeave = useCallback((e: React.DragEvent) => {
-        e.preventDefault()
-        e.stopPropagation()
-        setDragActive(false)
-    }, [])
 
     const formatFileSize = (bytes: number): string => {
         if (bytes === 0) return "0 Bytes"
@@ -829,18 +822,11 @@ export function MultimodalInput({
                     "@container w-full px-1",
                     (voiceState.isRecording || voiceState.isTranscribing) && "hidden"
                 )}
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
             >
                 <PromptInput
                     ref={promptInputRef}
                     onSubmit={handleSubmit}
-                    className={cn(
-                        "mx-auto w-full",
-                        getChatWidthClass(chatWidthState.chatWidth),
-                        dragActive && "rounded-lg ring-2 ring-primary ring-offset-2"
-                    )}
+                    className={cn("mx-auto w-full", getChatWidthClass(chatWidthState.chatWidth))}
                 >
                     {extendedFiles.length > 0 && (
                         <div className="flex flex-wrap gap-2 pb-3">
@@ -857,16 +843,6 @@ export function MultimodalInput({
 
                     <PromptInputActions className="flex items-center justify-between gap-2 pt-2">
                         <div className="flex items-center gap-2">
-                            {dragActive && (
-                                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-primary border-dashed bg-primary/5">
-                                    <div className="text-center">
-                                        <Upload className="mx-auto mb-2 h-8 w-8 text-foreground" />
-                                        <p className="font-medium text-foreground text-sm">
-                                            Drop files here to upload
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
                             {selectedModel && (
                                 <ModelSelector
                                     selectedModel={selectedModel}
@@ -1068,4 +1044,4 @@ export function MultimodalInput({
             </Dialog>
         </>
     )
-}
+})
