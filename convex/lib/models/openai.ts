@@ -223,11 +223,11 @@ export const OPENAI_MODELS: SharedModel[] = [
         legacy: true
     },
     {
-        id: "gpt-image-1.5-2025-12-16",
+        id: "gpt-image-1.5",
         name: "GPT Image 1.5",
         shortName: "Image 1.5",
         releaseOrder: 20260910,
-        adapters: ["i3-openai:gpt-image-1.5-2025-12-16", "openai:gpt-image-1.5-2025-12-16"],
+        adapters: openAiImageAdapters("gpt-image-1.5"),
         abilities: [],
         mode: "image",
         customIcon: "openai",

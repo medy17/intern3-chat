@@ -1,5 +1,6 @@
+import { createOpenAI } from "@ai-sdk/openai"
 import type { ImageModelV3 } from "@ai-sdk/provider"
-import { generateImage } from "ai"
+import { generateImage, generateText } from "ai"
 import type { GenericActionCtx } from "convex/server"
 import type { DataModel, Id } from "../_generated/dataModel"
 import { r2 } from "../attachments"
@@ -193,6 +194,44 @@ export async function generateAndStoreImage({
 
             if (imagesData.length === 0) {
                 throw new Error("No valid images returned from Vertex API")
+            }
+        } else if (imageModel.provider?.includes("openai") && modelId.startsWith("gpt-5-image")) {
+            // GPT-5 image models use the Responses API with the image_generation tool,
+            // NOT the /images/generations endpoint.
+            // OpenAI model names are gpt-5-mini / gpt-5, not gpt-5-image-mini / gpt-5-image.
+            const openaiModelId = modelId.replace("-image", "")
+            console.log(
+                `[cvx][image_generation] Using OpenAI Responses API: ${modelId} → ${openaiModelId}`
+            )
+            const openAiApiKey = process.env.OPENAI_API_KEY
+            if (!openAiApiKey) {
+                throw new Error("Internal OpenAI API key not found for image model")
+            }
+
+            const openai = createOpenAI({ apiKey: openAiApiKey })
+            const result = await generateText({
+                model: openai.responses(openaiModelId),
+                prompt,
+                tools: {
+                    image_generation: openai.tools.imageGeneration({
+                        ...(size
+                            ? { size: size as "1024x1024" | "1024x1536" | "1536x1024" | "auto" }
+                            : {})
+                    })
+                }
+            })
+
+            for (const toolResult of result.staticToolResults) {
+                if (toolResult.toolName === "image_generation" && toolResult.output?.result) {
+                    imagesData.push({
+                        mediaType: "image/png",
+                        uint8Array: base64ToUint8Array(toolResult.output.result)
+                    })
+                }
+            }
+
+            if (imagesData.length === 0) {
+                throw new Error("No images returned from GPT-5 image generation")
             }
         } else {
             console.log("[cvx][image_generation] Using ai-sdk generateImage fallback")

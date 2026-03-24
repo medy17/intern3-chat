@@ -100,31 +100,53 @@ export async function fetchVertexStreamGenerateContent(
 
     const url = `${baseUrl}/v1/projects/${vertexConfig.project}/locations/${location}/publishers/google/models/${modelId}:streamGenerateContent?alt=sse`
 
-    const contents = mappedMessages.map((m) => {
-        // biome-ignore lint/suspicious/noExplicitAny: Vertex payload part
-        const parts: any[] = []
-        if (typeof m.content === "string") {
-            parts.push({ text: m.content })
-        } else if (Array.isArray(m.content)) {
-            for (const c of m.content) {
-                if (c.type === "text") {
-                    parts.push({ text: c.text })
-                } else if (c.type === "image") {
-                    parts.push({
-                        inlineData: {
-                            mimeType: c.mimeType || "image/png",
-                            data:
-                                typeof c.image === "string" ? c.image : uint8ArrayToBase64(c.image)
+    const contents = await Promise.all(
+        mappedMessages.map(async (m) => {
+            // biome-ignore lint/suspicious/noExplicitAny: Vertex payload part
+            const parts: any[] = []
+            if (typeof m.content === "string") {
+                parts.push({ text: m.content })
+            } else if (Array.isArray(m.content)) {
+                for (const c of m.content) {
+                    if (c.type === "text") {
+                        parts.push({ text: c.text })
+                    } else if (c.type === "image") {
+                        let imageData: string
+                        let mimeType = c.mimeType || "image/png"
+                        if (typeof c.image === "string" && c.image.startsWith("http")) {
+                            // Image is a URL — fetch it and convert to base64
+                            const imgResponse = await fetch(c.image)
+                            if (!imgResponse.ok) {
+                                console.error(
+                                    `[cvx][chat][vertex_stream] Failed to fetch image URL: ${imgResponse.status}`
+                                )
+                                parts.push({ text: "[Image could not be loaded]" })
+                                continue
+                            }
+                            const contentType = imgResponse.headers.get("content-type")
+                            if (contentType) mimeType = contentType
+                            const arrayBuffer = await imgResponse.arrayBuffer()
+                            imageData = uint8ArrayToBase64(new Uint8Array(arrayBuffer))
+                        } else if (typeof c.image === "string") {
+                            imageData = c.image
+                        } else {
+                            imageData = uint8ArrayToBase64(c.image)
                         }
-                    })
+                        parts.push({
+                            inlineData: {
+                                mimeType,
+                                data: imageData
+                            }
+                        })
+                    }
                 }
             }
-        }
-        return {
-            role: m.role === "assistant" ? "model" : "user",
-            parts
-        }
-    })
+            return {
+                role: m.role === "assistant" ? "model" : "user",
+                parts
+            }
+        })
+    )
 
     // biome-ignore lint/suspicious/noExplicitAny: Vertex generation config is highly flexible
     const body: any = {
