@@ -1,4 +1,5 @@
 import { ChatError } from "@/lib/errors"
+import { MAX_ATTACHMENTS_PER_THREAD } from "@/lib/file_constants"
 import {
     type FieldPaths,
     type FilterBuilder,
@@ -9,7 +10,14 @@ import { type Infer, v } from "convex/values"
 import { nanoid } from "nanoid"
 import { api, internal } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
-import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server"
+import {
+    type MutationCtx,
+    action,
+    internalMutation,
+    internalQuery,
+    mutation,
+    query
+} from "./_generated/server"
 import { aggregrateThreadsByFolder } from "./aggregates"
 import { getUserIdentity } from "./lib/identity"
 import type { Thread } from "./schema"
@@ -35,6 +43,28 @@ const getInitialThreadTitle = (userMessage: Infer<typeof HTTPAIMessage>) => {
     return normalizeThreadTitle(normalized.split(" ").slice(0, 6).join(" "))
 }
 
+const countMirroredAttachmentsInMessages = (
+    messages: Array<{
+        parts: Array<Infer<typeof MessagePart>>
+    }>
+) =>
+    messages.reduce(
+        (count, message) =>
+            count +
+            message.parts.reduce(
+                (partCount, part) =>
+                    partCount +
+                    (part.type === "file" &&
+                    !part.data.startsWith("http://") &&
+                    !part.data.startsWith("https://") &&
+                    !part.data.startsWith("data:")
+                        ? 1
+                        : 0),
+                0
+            ),
+        0
+    )
+
 const MessageMetadata = v.object({
     modelId: v.optional(v.string()),
     modelName: v.optional(v.string()),
@@ -49,6 +79,115 @@ const ImportedMessage = v.object({
     parts: v.array(MessagePart),
     metadata: v.optional(MessageMetadata)
 })
+
+const normalizeImportedThreadTimestamps = ({
+    sourceCreatedAt,
+    sourceUpdatedAt,
+    fallback
+}: {
+    sourceCreatedAt?: number
+    sourceUpdatedAt?: number
+    fallback: number
+}) => {
+    const createdAt =
+        typeof sourceCreatedAt === "number" &&
+        Number.isFinite(sourceCreatedAt) &&
+        sourceCreatedAt > 0
+            ? Math.trunc(sourceCreatedAt)
+            : typeof sourceUpdatedAt === "number" &&
+                Number.isFinite(sourceUpdatedAt) &&
+                sourceUpdatedAt > 0
+              ? Math.trunc(sourceUpdatedAt)
+              : fallback
+
+    const updatedAtCandidate =
+        typeof sourceUpdatedAt === "number" &&
+        Number.isFinite(sourceUpdatedAt) &&
+        sourceUpdatedAt > 0
+            ? Math.trunc(sourceUpdatedAt)
+            : createdAt
+
+    return {
+        createdAt,
+        updatedAt: Math.max(createdAt, updatedAtCandidate)
+    }
+}
+
+const performThreadImport = async (
+    ctx: MutationCtx,
+    {
+        authorId,
+        title,
+        messages,
+        projectId,
+        sourceCreatedAt,
+        sourceUpdatedAt
+    }: {
+        authorId: string
+        title: string
+        messages: Array<Infer<typeof ImportedMessage>>
+        projectId?: Id<"projects">
+        sourceCreatedAt?: number
+        sourceUpdatedAt?: number
+    }
+) => {
+    const sanitizedMessages = messages.filter((message) => message.parts.length > 0)
+    if (sanitizedMessages.length === 0) {
+        return { error: "No importable messages found" } as const
+    }
+
+    const mirroredAttachmentCount = countMirroredAttachmentsInMessages(sanitizedMessages)
+    if (mirroredAttachmentCount > MAX_ATTACHMENTS_PER_THREAD) {
+        return {
+            error: `Thread exceeds the ${MAX_ATTACHMENTS_PER_THREAD} mirrored attachment limit`
+        } as const
+    }
+
+    const now = Date.now()
+    const threadTimestamps = normalizeImportedThreadTimestamps({
+        sourceCreatedAt,
+        sourceUpdatedAt,
+        fallback: now
+    })
+    const normalizedTitle = normalizeThreadTitle(title)
+    const threadId = await ctx.db.insert("threads", {
+        authorId,
+        title: normalizedTitle || "Imported Chat",
+        createdAt: threadTimestamps.createdAt,
+        updatedAt: threadTimestamps.updatedAt,
+        projectId
+    })
+
+    const threadDoc = await ctx.db.get(threadId)
+    if (threadDoc) {
+        await aggregrateThreadsByFolder.insert(ctx, threadDoc)
+    }
+
+    let timestamp = threadTimestamps.createdAt
+    for (const message of sanitizedMessages) {
+        timestamp += 1
+        await ctx.db.insert("messages", {
+            threadId,
+            messageId: nanoid(),
+            role: message.role,
+            parts: message.parts,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            metadata: message.metadata ?? {}
+        })
+    }
+
+    if (timestamp > threadTimestamps.updatedAt) {
+        await ctx.db.patch(threadId, {
+            updatedAt: timestamp
+        })
+    }
+
+    return {
+        threadId,
+        importedMessages: sanitizedMessages.length
+    } as const
+}
 
 export const getThreadById = internalQuery({
     args: { threadId: v.id("threads") },
@@ -82,6 +221,12 @@ export const createThreadOrInsertMessages = internalMutation({
         }
     ) => {
         if (!userMessage) return new ChatError("bad_request:chat")
+
+        const touchThread = async (targetThreadId: Id<"threads">) => {
+            await ctx.db.patch(targetThreadId, {
+                updatedAt: Date.now()
+            })
+        }
 
         if (!threadId) {
             const userMessageId_new = userMessage.messageId || nanoid()
@@ -194,6 +339,8 @@ export const createThreadOrInsertMessages = internalMutation({
                 ...newAssistantMessage_edit_or_retry
             })
 
+            await touchThread(threadId as Id<"threads">)
+
             return {
                 threadId: threadId as Id<"threads">,
                 userMessageId: targetFromMessageId,
@@ -228,6 +375,8 @@ export const createThreadOrInsertMessages = internalMutation({
             threadId: threadId as Id<"threads">,
             ...newAssistantMessage_existing
         })
+
+        await touchThread(threadId as Id<"threads">)
 
         return {
             threadId: threadId as Id<"threads">,
@@ -283,7 +432,7 @@ export const searchUserThreads = query({
             // If no search query, return recent threads with pagination
             return await db
                 .query("threads")
-                .withIndex("byAuthor", (q) => q.eq("authorId", user.id))
+                .withIndex("byAuthorUpdatedAt", (q) => q.eq("authorId", user.id))
                 .order("desc")
                 .paginate(paginationOpts)
         }
@@ -333,13 +482,13 @@ export const getUserThreadsPaginated = query({
         if (isFirstPage) {
             const pinnedQuery = db
                 .query("threads")
-                .withIndex("byAuthor", (q) => q.eq("authorId", user.id))
+                .withIndex("byAuthorUpdatedAt", (q) => q.eq("authorId", user.id))
                 .filter((q) => q.eq(q.field("pinned"), true))
                 .order("desc")
 
             const regularQuery = db
                 .query("threads")
-                .withIndex("byAuthor", (q) => q.eq("authorId", user.id))
+                .withIndex("byAuthorUpdatedAt", (q) => q.eq("authorId", user.id))
                 .filter((q) => q.neq(q.field("pinned"), true))
                 .order("desc")
 
@@ -372,7 +521,7 @@ export const getUserThreadsPaginated = query({
 
         const baseQuery = db
             .query("threads")
-            .withIndex("byAuthor", (q) => q.eq("authorId", user.id))
+            .withIndex("byAuthorUpdatedAt", (q) => q.eq("authorId", user.id))
             .filter((q) => q.neq(q.field("pinned"), true))
 
         if (!includeInFolder) {
@@ -640,53 +789,49 @@ export const importThread = mutation({
     args: {
         title: v.string(),
         messages: v.array(ImportedMessage),
-        projectId: v.optional(v.id("projects"))
+        projectId: v.optional(v.id("projects")),
+        sourceCreatedAt: v.optional(v.number()),
+        sourceUpdatedAt: v.optional(v.number())
     },
-    handler: async (ctx, { title, messages, projectId }) => {
+    handler: async (ctx, { title, messages, projectId, sourceCreatedAt, sourceUpdatedAt }) => {
         const user = await getUserIdentity(ctx.auth, {
             allowAnons: false
         })
 
         if ("error" in user) return { error: user.error }
 
-        const sanitizedMessages = messages.filter((message) => message.parts.length > 0)
-        if (sanitizedMessages.length === 0) {
-            return { error: "No importable messages found" }
-        }
-
-        const now = Date.now()
-        const normalizedTitle = normalizeThreadTitle(title)
-        const threadId = await ctx.db.insert("threads", {
+        return await performThreadImport(ctx, {
             authorId: user.id,
-            title: normalizedTitle || "Imported Chat",
-            createdAt: now,
-            updatedAt: now,
-            projectId
+            title,
+            messages,
+            projectId,
+            sourceCreatedAt,
+            sourceUpdatedAt
         })
+    }
+})
 
-        const threadDoc = await ctx.db.get(threadId)
-        if (threadDoc) {
-            await aggregrateThreadsByFolder.insert(ctx, threadDoc)
-        }
-
-        let timestamp = now
-        for (const message of sanitizedMessages) {
-            timestamp += 1
-            await ctx.db.insert("messages", {
-                threadId,
-                messageId: nanoid(),
-                role: message.role,
-                parts: message.parts,
-                createdAt: timestamp,
-                updatedAt: timestamp,
-                metadata: message.metadata ?? {}
-            })
-        }
-
-        return {
-            threadId,
-            importedMessages: sanitizedMessages.length
-        }
+export const importPreparedThread = internalMutation({
+    args: {
+        authorId: v.string(),
+        title: v.string(),
+        messages: v.array(ImportedMessage),
+        projectId: v.optional(v.id("projects")),
+        sourceCreatedAt: v.optional(v.number()),
+        sourceUpdatedAt: v.optional(v.number())
+    },
+    handler: async (
+        ctx,
+        { authorId, title, messages, projectId, sourceCreatedAt, sourceUpdatedAt }
+    ) => {
+        return await performThreadImport(ctx, {
+            authorId,
+            title,
+            messages,
+            projectId,
+            sourceCreatedAt,
+            sourceUpdatedAt
+        })
     }
 })
 
@@ -711,7 +856,7 @@ export const getThreadsByProject = query({
             // Get threads for specific project
             return await db
                 .query("threads")
-                .withIndex("byAuthorAndProject", (q) =>
+                .withIndex("byAuthorAndProjectUpdatedAt", (q) =>
                     q.eq("authorId", user.id).eq("projectId", projectId)
                 )
                 .order("desc")
@@ -721,7 +866,7 @@ export const getThreadsByProject = query({
         // Get threads without project (General)
         return await db
             .query("threads")
-            .withIndex("byAuthor", (q) => q.eq("authorId", user.id))
+            .withIndex("byAuthorUpdatedAt", (q) => q.eq("authorId", user.id))
             .filter((q) => q.eq(q.field("projectId"), undefined))
             .order("desc")
             .paginate(paginationOpts)
@@ -756,7 +901,7 @@ export const getUserThreadsPaginatedByProject = query({
                 // Get pinned threads for specific project
                 pinnedThreads = await db
                     .query("threads")
-                    .withIndex("byAuthorAndProject", (q) =>
+                    .withIndex("byAuthorAndProjectUpdatedAt", (q) =>
                         q.eq("authorId", user.id).eq("projectId", projectId)
                     )
                     .filter((q) => q.eq(q.field("pinned"), true))
@@ -766,7 +911,7 @@ export const getUserThreadsPaginatedByProject = query({
                 // Get regular threads (non-pinned) for specific project
                 regularThreadsResult = await db
                     .query("threads")
-                    .withIndex("byAuthorAndProject", (q) =>
+                    .withIndex("byAuthorAndProjectUpdatedAt", (q) =>
                         q.eq("authorId", user.id).eq("projectId", projectId)
                     )
                     .filter((q) => q.neq(q.field("pinned"), true))
@@ -776,7 +921,7 @@ export const getUserThreadsPaginatedByProject = query({
                 // Get pinned threads without project (General)
                 pinnedThreads = await db
                     .query("threads")
-                    .withIndex("byAuthor", (q) => q.eq("authorId", user.id))
+                    .withIndex("byAuthorUpdatedAt", (q) => q.eq("authorId", user.id))
                     .filter((q) =>
                         q.and(q.eq(q.field("projectId"), undefined), q.eq(q.field("pinned"), true))
                     )
@@ -786,7 +931,7 @@ export const getUserThreadsPaginatedByProject = query({
                 // Get regular threads (non-pinned) without project
                 regularThreadsResult = await db
                     .query("threads")
-                    .withIndex("byAuthor", (q) => q.eq("authorId", user.id))
+                    .withIndex("byAuthorUpdatedAt", (q) => q.eq("authorId", user.id))
                     .filter((q) =>
                         q.and(q.eq(q.field("projectId"), undefined), q.neq(q.field("pinned"), true))
                     )
@@ -818,7 +963,7 @@ export const getUserThreadsPaginatedByProject = query({
         if (projectId) {
             return await db
                 .query("threads")
-                .withIndex("byAuthorAndProject", (q) =>
+                .withIndex("byAuthorAndProjectUpdatedAt", (q) =>
                     q.eq("authorId", user.id).eq("projectId", projectId)
                 )
                 .filter((q) => q.neq(q.field("pinned"), true))
@@ -828,7 +973,7 @@ export const getUserThreadsPaginatedByProject = query({
 
         return await db
             .query("threads")
-            .withIndex("byAuthor", (q) => q.eq("authorId", user.id))
+            .withIndex("byAuthorUpdatedAt", (q) => q.eq("authorId", user.id))
             .filter((q) =>
                 q.and(q.eq(q.field("projectId"), undefined), q.neq(q.field("pinned"), true))
             )

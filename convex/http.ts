@@ -3,6 +3,7 @@ import { httpRouter } from "convex/server"
 import { getFile, uploadFile } from "./attachments"
 import { chatGET } from "./chat_http/get.route"
 import { chatPOST } from "./chat_http/post.route"
+import { uploadImportSource } from "./import_jobs_http"
 import { transcribeAudio } from "./speech_to_text"
 
 const normalizeOrigin = (value?: string) => {
@@ -39,6 +40,12 @@ cors.route({
     path: "/upload",
     method: "POST",
     handler: uploadFile
+})
+
+cors.route({
+    path: "/import-upload",
+    method: "POST",
+    handler: uploadImportSource
 })
 
 // Speech-to-text route

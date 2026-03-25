@@ -35,6 +35,29 @@ export const normalizeTitle = (value: string) =>
         .trim()
         .slice(0, 100)
 
+export const parseImportTimestamp = (value: unknown) => {
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+        return value < 1_000_000_000_000 ? Math.trunc(value * 1000) : Math.trunc(value)
+    }
+
+    if (typeof value === "string") {
+        const trimmed = value.trim()
+        if (!trimmed) return undefined
+
+        const asNumber = Number(trimmed)
+        if (Number.isFinite(asNumber) && asNumber > 0) {
+            return asNumber < 1_000_000_000_000 ? Math.trunc(asNumber * 1000) : Math.trunc(asNumber)
+        }
+
+        const parsed = Date.parse(trimmed)
+        if (Number.isFinite(parsed) && parsed > 0) {
+            return parsed
+        }
+    }
+
+    return undefined
+}
+
 export const mapRoleHeaderToRole = (header: string): ImportedMessageRole => {
     const normalized = header.trim().toLowerCase()
     if (normalized === "system") return "system"

@@ -98,6 +98,7 @@ export const ALL_SUPPORTED_EXTENSIONS = [
 // File size limits
 export const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 export const MAX_TOKENS_PER_FILE = 32000 // 32k tokens
+export const MAX_ATTACHMENTS_PER_THREAD = 20
 
 // PDF-specific limits
 export const MAX_PDF_PAGES = 100

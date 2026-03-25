@@ -49,7 +49,8 @@ const extractFileName = (url: string) => {
 }
 
 const getFileIcon = (part: { url: string; filename?: string; mediaType?: string }) => {
-    const { isImage, isCode, isPdf } = getFileTypeInfo(extractFileName(part.url), part.mediaType)
+    const resolvedFileName = part.filename || extractFileName(part.url)
+    const { isImage, isCode, isPdf } = getFileTypeInfo(resolvedFileName, part.mediaType)
 
     if (isImage) return <ImageIcon className="size-4 text-blue-500" />
     if (isCode) return <Code className="size-4 text-green-500" />
@@ -65,11 +66,9 @@ const FileAttachment = memo(
         part: { url: string; filename?: string; mediaType?: string }
         onPreview?: () => void
     }) => {
-        const { isImage } = getFileTypeInfo(extractFileName(part.url), part.mediaType)
-
         const extractedFileName = extractFileName(part.url)
-
         const fileName = part.filename || extractedFileName
+        const { isImage } = getFileTypeInfo(fileName, part.mediaType)
         const [imageError, setImageError] = useState(false)
 
         const handleInteraction = () => {
@@ -288,7 +287,7 @@ const EditableMessage = memo(
                     <div className="flex flex-wrap gap-2 px-4 pb-2">
                         {fileParts.map((part, index) => {
                             const { isImage } = getFileTypeInfo(
-                                extractFileName(part.url),
+                                part.filename || extractFileName(part.url),
                                 part.mediaType
                             )
                             const isRemoved = deletedUrls.includes(part.url)

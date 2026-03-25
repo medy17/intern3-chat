@@ -4,6 +4,7 @@ export interface Thread {
     _id: Id<"threads">
     title: string
     createdAt: number
+    updatedAt: number
     authorId: string
     pinned?: boolean
     projectId?: Id<"projects">

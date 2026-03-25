@@ -20,6 +20,7 @@ interface Thread {
     _id: string
     title: string
     createdAt: number
+    updatedAt: number
     authorId: string
 }
 
@@ -165,7 +166,9 @@ export function CommandK({ open: controlledOpen, onOpenChange }: CommandKProps =
                                             </div>
                                         </div>
                                         <div className="flex-shrink-0 text-muted-foreground text-xs">
-                                            {formatRelativeTime(thread.createdAt)}
+                                            {formatRelativeTime(
+                                                thread.updatedAt ?? thread.createdAt
+                                            )}
                                         </div>
                                     </div>
                                 </CommandItem>

@@ -47,6 +47,10 @@ export const patchMessage = internalMutation({
             updatedAt: Date.now()
         })
 
+        await db.patch(threadId, {
+            updatedAt: Date.now()
+        })
+
         // Create usage event for analytics
         if (metadata?.modelId) {
             const thread = await db.get(threadId)

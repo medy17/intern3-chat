@@ -31,6 +31,9 @@ interface FolderChatProps {
     folderId: Id<"projects">
 }
 
+const getThreadActivityTime = (thread: { createdAt: number; updatedAt?: number }) =>
+    thread.updatedAt ?? thread.createdAt
+
 const FolderChat = ({ folderId }: FolderChatProps) => {
     const { selectedModel, setSelectedModel } = useModelStore()
     const { threadId } = useThreadSync({ routeThreadId: undefined })
@@ -132,9 +135,11 @@ const FolderChat = ({ folderId }: FolderChatProps) => {
             return () => {
                 observer.disconnect()
             }
-        }, [recentThreads.status])
+        }, [recentThreads.loadMore, recentThreads.status])
 
-        const threads = recentThreads?.results || []
+        const threads = (recentThreads?.results || []).slice().sort((a, b) => {
+            return getThreadActivityTime(b) - getThreadActivityTime(a)
+        })
 
         const containerAnimProps = isRootPath
             ? {
@@ -191,7 +196,7 @@ const FolderChat = ({ folderId }: FolderChatProps) => {
                                             {thread.title}
                                         </div>
                                         <div className="text-muted-foreground text-xs">
-                                            {format(thread.createdAt, "MMM d, yyyy")}
+                                            {format(getThreadActivityTime(thread), "MMM d, yyyy")}
                                         </div>
                                     </div>
                                     {thread.pinned && (

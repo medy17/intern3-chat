@@ -1,3 +1,9 @@
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger
+} from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -18,6 +24,8 @@ import {
     DrawerTitle
 } from "@/components/ui/drawer"
 import { Label } from "@/components/ui/label"
+import { Progress } from "@/components/ui/progress"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
     Select,
     SelectContent,
@@ -32,6 +40,7 @@ import { useToken } from "@/hooks/auth-hooks"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { resolveJwtToken } from "@/lib/auth-token"
 import { browserEnv } from "@/lib/browser-env"
+import { MAX_ATTACHMENTS_PER_THREAD, getFileTypeInfo } from "@/lib/file_constants"
 import type { ParsedThreadImportDocument } from "@/lib/thread-import"
 import {
     fetchRemoteAttachmentAsFile,
@@ -40,9 +49,19 @@ import {
     prepareImportedAttachmentFile
 } from "@/lib/thread-import"
 import { dispatchThreadImportDialogState } from "@/lib/thread-import-events"
+import { buildThreadImportDocumentKey } from "@/lib/thread-import-keys"
 import { cn } from "@/lib/utils"
-import { useMutation } from "convex/react"
-import { CheckCircle2, FileText, FileUp, Loader2, Plus, Trash2, XCircle } from "lucide-react"
+import { useMutation, useQuery } from "convex/react"
+import {
+    AlertCircle,
+    CheckCircle2,
+    FileText,
+    FileUp,
+    Loader2,
+    Plus,
+    Trash2,
+    XCircle
+} from "lucide-react"
 import { nanoid } from "nanoid"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
@@ -70,8 +89,24 @@ type ImportMutationMessage = {
 
 type ImportQueueStatus = "parsing" | "ready" | "importing" | "success" | "error" | "invalid"
 
+type ImportJobStatus =
+    | "queued"
+    | "preparing"
+    | "importing"
+    | "completed"
+    | "completed_with_errors"
+    | "failed"
+
+interface ImportSourceFile {
+    id: string
+    file: File
+}
+
 interface ImportQueueItem {
     id: string
+    sourceId: string
+    documentKey: string
+    supportingSourceIds?: string[]
     fileName: string
     selected: boolean
     status: ImportQueueStatus
@@ -103,12 +138,135 @@ const statusClasses: Record<ImportQueueStatus, string> = {
     invalid: "bg-destructive/10 text-destructive dark:text-red-400 dark:bg-destructive/20"
 }
 
-const importConcurrencyOptions = [1, 2, 3] as const
 const supportedImportExtensionRegex = /\.(md|markdown|txt|json)$/i
-const attachmentThrottleThresholds = {
-    high: 120,
-    medium: 40
+const importConcurrencyTargets = {
+    mirrorStandard: 6,
+    externalLinks: 16,
+    skipAttachments: 10,
+    attachmentHeavy: 5,
+    attachmentVeryHeavy: 4,
+    globalAttachmentPool: 8
 } as const
+const attachmentThrottleThresholds = {
+    high: 160,
+    medium: 80
+} as const
+
+type TaskRunner = <T>(task: () => Promise<T>) => Promise<T>
+type AttachmentImportMode = "mirror" | "external" | "skip"
+
+const attachmentModeLabels: Record<AttachmentImportMode, string> = {
+    mirror: "Mirror attachments",
+    external: "Keep external links",
+    skip: "Skip attachments"
+}
+
+const importJobStatusLabels: Record<ImportJobStatus, string> = {
+    queued: "Queued",
+    preparing: "Preparing files",
+    importing: "Importing threads",
+    completed: "Completed",
+    completed_with_errors: "Completed with issues",
+    failed: "Failed"
+}
+
+const importJobStatusDescriptions: Record<ImportJobStatus, string> = {
+    queued: "Waiting to begin.",
+    preparing: "Parsing uploaded files and building the import queue.",
+    importing: "Creating conversations in the background.",
+    completed: "All selected conversations imported successfully.",
+    completed_with_errors: "Imported with warnings or partial failures.",
+    failed: "The import job could not complete."
+}
+
+const importJobStatusClasses: Record<ImportJobStatus, string> = {
+    queued: "bg-muted text-muted-foreground",
+    preparing: "bg-primary/10 text-primary",
+    importing: "bg-amber-500/10 text-amber-600 dark:text-amber-400 dark:bg-amber-500/20",
+    completed: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 dark:bg-emerald-500/20",
+    completed_with_errors:
+        "bg-amber-500/10 text-amber-600 dark:text-amber-400 dark:bg-amber-500/20",
+    failed: "bg-destructive/10 text-destructive dark:text-red-400 dark:bg-destructive/20"
+}
+
+const inferAttachmentMimeType = (filename: string) => {
+    const fileTypeInfo = getFileTypeInfo(filename)
+
+    if (fileTypeInfo.isPdf) {
+        return "application/pdf"
+    }
+
+    if (fileTypeInfo.isImage) {
+        const extension = fileTypeInfo.extension
+
+        switch (extension) {
+            case ".png":
+                return "image/png"
+            case ".jpg":
+            case ".jpeg":
+                return "image/jpeg"
+            case ".gif":
+                return "image/gif"
+            case ".webp":
+                return "image/webp"
+            case ".bmp":
+                return "image/bmp"
+            case ".ico":
+                return "image/x-icon"
+            case ".svg":
+                return "image/svg+xml"
+            default:
+                return undefined
+        }
+    }
+
+    if (fileTypeInfo.isText) {
+        return "text/plain"
+    }
+
+    return undefined
+}
+
+const createTaskRunner = (concurrency: number): TaskRunner => {
+    if (concurrency <= 1) {
+        return async function runTask<T>(task: () => Promise<T>) {
+            return task()
+        }
+    }
+
+    let activeTasks = 0
+    const pendingTasks: Array<() => void> = []
+
+    const runNextTask = () => {
+        if (activeTasks >= concurrency) {
+            return
+        }
+
+        const nextTask = pendingTasks.shift()
+        if (!nextTask) {
+            return
+        }
+
+        activeTasks += 1
+        nextTask()
+    }
+
+    return function runTask<T>(task: () => Promise<T>) {
+        return new Promise<T>((resolve, reject) => {
+            const executeTask = () => {
+                void task()
+                    .then(resolve, reject)
+                    .finally(() => {
+                        activeTasks -= 1
+                        runNextTask()
+                    })
+            }
+
+            pendingTasks.push(executeTask)
+            runNextTask()
+        })
+    }
+}
 
 const uploadAttachment = async ({
     file,
@@ -141,6 +299,42 @@ const uploadAttachment = async ({
     }
 }
 
+const uploadImportSource = async ({
+    file,
+    clientSourceId,
+    jwt
+}: {
+    file: File
+    clientSourceId: string
+    jwt: string
+}) => {
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("fileName", file.name)
+    formData.append("clientSourceId", clientSourceId)
+
+    const response = await fetch(`${browserEnv("VITE_CONVEX_API_URL")}/import-upload`, {
+        method: "POST",
+        body: formData,
+        headers: {
+            Authorization: `Bearer ${jwt}`
+        }
+    })
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        throw new Error(errorData?.error || `Import upload failed with status ${response.status}`)
+    }
+
+    return (await response.json()) as {
+        clientSourceId?: string
+        storageKey: string
+        fileName: string
+        mimeType?: string
+        size: number
+    }
+}
+
 export function ImportThreadButton({ onClick }: { onClick: () => void }) {
     return (
         <Button variant="outline" onClick={onClick} className="w-full justify-center">
@@ -154,27 +348,36 @@ export function ImportThreadDialog({
     open,
     onOpenChange,
     projects,
+    jobId,
+    onJobIdChange,
     onImported
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
     projects: Project[]
+    jobId: Id<"importJobs"> | null
+    onJobIdChange: (jobId: Id<"importJobs"> | null) => void
     onImported?: (threadId: Id<"threads">) => void
 }) {
     const { token } = useToken()
     const isMobile = useIsMobile()
     const importThreadMutation = useMutation(api.threads.importThread)
+    const startImportJobMutation = useMutation(api.import_jobs.startImportJob)
+    const deleteImportJobMutation = useMutation(api.import_jobs.deleteImportJob)
+    const currentJob = useQuery(api.import_jobs.getImportJob, jobId ? { jobId } : "skip")
     const fileInputRef = useRef<HTMLInputElement>(null)
     const dragDepthRef = useRef(0)
 
     const setOpen = onOpenChange
     const [showNewFolderDialog, setShowNewFolderDialog] = useState(false)
     const [selectOpen, setSelectOpen] = useState(false)
+    const [sourceFiles, setSourceFiles] = useState<ImportSourceFile[]>([])
     const [queue, setQueue] = useState<ImportQueueItem[]>([])
     const [isParsingFiles, setIsParsingFiles] = useState(false)
     const [isImporting, setIsImporting] = useState(false)
     const [isDropZoneActive, setIsDropZoneActive] = useState(false)
-    const [importAttachments, setImportAttachments] = useState(true)
+    const [attachmentImportMode, setAttachmentImportMode] =
+        useState<AttachmentImportMode>("external")
     const [selectedProjectId, setSelectedProjectId] = useState<string>("no-folder")
 
     useEffect(() => {
@@ -193,6 +396,15 @@ export function ImportThreadDialog({
             setIsDropZoneActive(false)
         }
     }, [open])
+
+    const resetLocalImportState = () => {
+        setQueue([])
+        setSourceFiles([])
+        setIsParsingFiles(false)
+        setIsImporting(false)
+        dragDepthRef.current = 0
+        setIsDropZoneActive(false)
+    }
 
     // Keep internal alias for setOpen used throughout the component
     // (onOpenChange is the controlled prop from parent)
@@ -229,32 +441,38 @@ export function ImportThreadDialog({
         [itemsReadyForImport]
     )
 
-    const selectedMessageCount = useMemo(
-        () => itemsReadyForImport.reduce((sum, item) => sum + item.messageCount, 0),
-        [itemsReadyForImport]
-    )
+    const shouldMirrorAttachments = attachmentImportMode === "mirror"
+    const shouldKeepExternalAttachments = attachmentImportMode === "external"
+    const attachmentModeSummary = attachmentModeLabels[attachmentImportMode]
+    const shouldUseAsyncImport =
+        shouldMirrorAttachments || itemsReadyForImport.length > 50 || Boolean(jobId)
 
     const requestedConcurrency = useMemo(() => {
-        return 2 // Hardcoded default reasonable concurrency
-    }, [])
+        switch (attachmentImportMode) {
+            case "mirror":
+                return importConcurrencyTargets.mirrorStandard
+            case "external":
+                return importConcurrencyTargets.externalLinks
+            case "skip":
+                return importConcurrencyTargets.skipAttachments
+        }
+    }, [attachmentImportMode])
 
     const effectiveConcurrency = useMemo(() => {
-        if (!importAttachments) {
+        if (!shouldMirrorAttachments) {
             return requestedConcurrency
         }
 
         if (selectedAttachmentCount >= attachmentThrottleThresholds.high) {
-            return 1
+            return importConcurrencyTargets.attachmentVeryHeavy
         }
 
         if (selectedAttachmentCount >= attachmentThrottleThresholds.medium) {
-            return Math.min(requestedConcurrency, 2)
+            return Math.min(requestedConcurrency, importConcurrencyTargets.attachmentHeavy)
         }
 
         return requestedConcurrency
-    }, [importAttachments, requestedConcurrency, selectedAttachmentCount])
-
-    const isConcurrencyThrottled = effectiveConcurrency < requestedConcurrency
+    }, [shouldMirrorAttachments, requestedConcurrency, selectedAttachmentCount])
 
     const canImport = itemsReadyForImport.length > 0 && !isImporting && !isParsingFiles
 
@@ -328,13 +546,24 @@ export function ImportThreadDialog({
 
                 updateById.set(jsonItem.id, {
                     ...jsonItem,
+                    supportingSourceIds: Array.from(
+                        new Set([
+                            ...(jsonItem.supportingSourceIds ?? []),
+                            jsonItem.sourceId,
+                            ...(markdownItem.supportingSourceIds ?? []),
+                            markdownItem.sourceId
+                        ])
+                    ).filter((sourceId) => sourceId !== jsonItem.sourceId),
                     parsed: mergeResult.mergedDocument,
                     messageCount: mergeResult.mergedDocument.messages.length,
                     attachmentCount: mergeResult.mergedDocument.messages.reduce(
                         (sum, message) => sum + message.attachments.length,
                         0
                     ),
-                    parseWarning: enrichmentWarning || mergeResult.mergedDocument.parseWarnings[0]
+                    parseWarning:
+                        enrichmentWarning ||
+                        mergeResult.mergedDocument.parseWarnings[0] ||
+                        undefined
                 })
             }
         }
@@ -389,21 +618,30 @@ export function ImportThreadDialog({
             return
         }
 
-        const queuedItems: ImportQueueItem[] = accepted.map((file) => ({
+        const acceptedSourceFiles: ImportSourceFile[] = accepted.map((file) => ({
             id: nanoid(),
-            fileName: file.name,
+            file
+        }))
+        const queuedItems: ImportQueueItem[] = acceptedSourceFiles.map((source) => ({
+            id: nanoid(),
+            sourceId: source.id,
+            documentKey: source.id,
+            supportingSourceIds: [],
+            fileName: source.file.name,
             selected: true,
             status: "parsing",
             messageCount: 0,
             attachmentCount: 0
         }))
 
+        setSourceFiles((previous) => [...previous, ...acceptedSourceFiles])
         setQueue((previous) => [...previous, ...queuedItems])
         setIsParsingFiles(true)
 
         await Promise.all(
             queuedItems.map(async (queuedItem, index) => {
-                const file = accepted[index]
+                const source = acceptedSourceFiles[index]
+                const file = source.file
 
                 try {
                     const content = await file.text()
@@ -435,6 +673,8 @@ export function ImportThreadDialog({
 
                     updateQueueItem(queuedItem.id, (item) => ({
                         ...item,
+                        documentKey: buildThreadImportDocumentKey(firstDocument, 0),
+                        supportingSourceIds: [],
                         fileName:
                             importableDocuments.length > 1
                                 ? `${file.name} • ${firstDocument.title}`
@@ -449,8 +689,14 @@ export function ImportThreadDialog({
 
                     if (remainingDocuments.length > 0) {
                         const extraItems: ImportQueueItem[] = remainingDocuments.map(
-                            (document) => ({
+                            (document, documentIndex) => ({
                                 id: nanoid(),
+                                sourceId: source.id,
+                                documentKey: buildThreadImportDocumentKey(
+                                    document,
+                                    documentIndex + 1
+                                ),
+                                supportingSourceIds: [],
                                 fileName: `${file.name} • ${document.title}`,
                                 selected: true,
                                 status: "ready",
@@ -543,10 +789,12 @@ export function ImportThreadDialog({
 
     const importSingleQueueItem = async ({
         item,
-        jwt
+        jwt,
+        runAttachmentTask
     }: {
         item: ImportQueueItem
         jwt: string
+        runAttachmentTask: TaskRunner
     }) => {
         if (!item.parsed) {
             throw new Error("Missing parsed conversation data")
@@ -554,6 +802,9 @@ export function ImportThreadDialog({
 
         let importedAttachmentCount = 0
         let failedAttachmentCount = 0
+        let remainingAttachmentSlots = shouldMirrorAttachments
+            ? MAX_ATTACHMENTS_PER_THREAD
+            : Number.POSITIVE_INFINITY
         const preparedMessages: ImportMutationMessage[] = []
 
         for (const parsedMessage of item.parsed.messages) {
@@ -567,35 +818,74 @@ export function ImportThreadDialog({
                 })
             }
 
-            if (importAttachments) {
-                for (const attachment of parsedMessage.attachments) {
-                    try {
-                        const downloadedFile = await fetchRemoteAttachmentAsFile({
-                            url: attachment.url,
-                            filename: attachment.filename
-                        })
+            if (shouldMirrorAttachments) {
+                const attachmentsToProcess = parsedMessage.attachments.slice(
+                    0,
+                    remainingAttachmentSlots
+                )
+                const skippedAttachments =
+                    parsedMessage.attachments.length - attachmentsToProcess.length
 
-                        const preparedFile = await prepareImportedAttachmentFile(downloadedFile)
-                        const uploaded = await uploadAttachment({
-                            file: preparedFile,
-                            jwt
-                        })
+                failedAttachmentCount += skippedAttachments
 
-                        parts.push({
-                            type: "file",
-                            data: uploaded.key,
-                            filename: uploaded.fileName,
-                            mimeType: uploaded.fileType
-                        })
+                const attachmentResults = await Promise.all(
+                    attachmentsToProcess.map((attachment) =>
+                        runAttachmentTask(async () => {
+                            try {
+                                const downloadedFile = await fetchRemoteAttachmentAsFile({
+                                    url: attachment.url,
+                                    filename: attachment.filename
+                                })
 
-                        importedAttachmentCount += 1
-                    } catch (error) {
+                                const preparedFile =
+                                    await prepareImportedAttachmentFile(downloadedFile)
+                                const uploaded = await uploadAttachment({
+                                    file: preparedFile,
+                                    jwt
+                                })
+
+                                return {
+                                    success: true as const,
+                                    part: {
+                                        type: "file" as const,
+                                        data: uploaded.key,
+                                        filename: uploaded.fileName,
+                                        mimeType: uploaded.fileType
+                                    }
+                                }
+                            } catch (error) {
+                                console.warn(
+                                    `[thread-import] Failed attachment import for ${attachment.url}`,
+                                    error
+                                )
+
+                                return {
+                                    success: false as const
+                                }
+                            }
+                        })
+                    )
+                )
+
+                for (const result of attachmentResults) {
+                    if (!result.success) {
                         failedAttachmentCount += 1
-                        console.warn(
-                            `[thread-import] Failed attachment import for ${attachment.url}`,
-                            error
-                        )
+                        continue
                     }
+
+                    parts.push(result.part)
+                    importedAttachmentCount += 1
+                    remainingAttachmentSlots -= 1
+                }
+            } else if (shouldKeepExternalAttachments) {
+                for (const attachment of parsedMessage.attachments) {
+                    parts.push({
+                        type: "file",
+                        data: attachment.url,
+                        filename: attachment.filename,
+                        mimeType: inferAttachmentMimeType(attachment.filename)
+                    })
+                    importedAttachmentCount += 1
                 }
             }
 
@@ -618,7 +908,9 @@ export function ImportThreadDialog({
         const result = await importThreadMutation({
             title: item.parsed.title,
             messages: preparedMessages,
-            projectId
+            projectId,
+            sourceCreatedAt: item.parsed.source.createdAt,
+            sourceUpdatedAt: item.parsed.source.updatedAt
         })
 
         if (!result || "error" in result) {
@@ -651,8 +943,78 @@ export function ImportThreadDialog({
 
         setIsImporting(true)
         try {
-            const jwt = await resolveJwtToken(token)
-            if (!jwt) {
+            const projectId =
+                selectedProjectId === "no-folder"
+                    ? undefined
+                    : (selectedProjectId as Id<"projects">)
+
+            if (shouldUseAsyncImport) {
+                const jwt = await resolveJwtToken(token)
+                if (!jwt) {
+                    throw new Error("Authentication token unavailable")
+                }
+
+                const selectedDocumentKeysBySource = new Map<string, string[]>()
+                for (const item of itemsReadyForImport) {
+                    const keys = selectedDocumentKeysBySource.get(item.sourceId) ?? []
+                    keys.push(item.documentKey)
+                    selectedDocumentKeysBySource.set(item.sourceId, keys)
+
+                    for (const supportingSourceId of item.supportingSourceIds ?? []) {
+                        if (!selectedDocumentKeysBySource.has(supportingSourceId)) {
+                            selectedDocumentKeysBySource.set(supportingSourceId, [])
+                        }
+                    }
+                }
+
+                const uploadedSources = await Promise.all(
+                    Array.from(selectedDocumentKeysBySource.entries()).map(
+                        async ([sourceId, selectedDocumentKeys]) => {
+                            const sourceFile = sourceFiles.find((source) => source.id === sourceId)
+                            if (!sourceFile) {
+                                throw new Error("Missing selected source file for async import")
+                            }
+
+                            const uploaded = await uploadImportSource({
+                                file: sourceFile.file,
+                                clientSourceId: sourceId,
+                                jwt
+                            })
+
+                            return {
+                                clientSourceId: sourceId,
+                                storageKey: uploaded.storageKey,
+                                fileName: uploaded.fileName,
+                                mimeType: uploaded.mimeType,
+                                size: uploaded.size,
+                                selectedDocumentKeys
+                            }
+                        }
+                    )
+                )
+
+                const result = await startImportJobMutation({
+                    attachmentMode: attachmentImportMode,
+                    projectId,
+                    sourceFiles: uploadedSources
+                })
+
+                if (!result || "error" in result) {
+                    throw new Error(
+                        result && "error" in result && typeof result.error === "string"
+                            ? result.error
+                            : "Failed to start import job"
+                    )
+                }
+
+                resetLocalImportState()
+                onJobIdChange(result.jobId)
+                toast.success("Import job started. You can close this dialog and keep working.")
+                return
+            }
+
+            const jwt = shouldMirrorAttachments ? await resolveJwtToken(token) : null
+            if (shouldMirrorAttachments && !jwt) {
                 throw new Error("Authentication token unavailable")
             }
 
@@ -662,6 +1024,9 @@ export function ImportThreadDialog({
             const importQueue = [...itemsReadyForImport]
             let cursor = 0
             const workerCount = Math.min(effectiveConcurrency, importQueue.length)
+            const runAttachmentTask = createTaskRunner(
+                shouldMirrorAttachments ? importConcurrencyTargets.globalAttachmentPool : 1
+            )
 
             const runWorker = async () => {
                 while (true) {
@@ -683,7 +1048,8 @@ export function ImportThreadDialog({
                     try {
                         const result = await importSingleQueueItem({
                             item: queueItem,
-                            jwt
+                            jwt: jwt!,
+                            runAttachmentTask
                         })
 
                         successCount += 1
@@ -724,6 +1090,51 @@ export function ImportThreadDialog({
         }
     }
 
+    const startNewImport = () => {
+        onJobIdChange(null)
+        resetLocalImportState()
+    }
+
+    const handleDeleteCurrentJob = async () => {
+        if (!jobId) return
+
+        try {
+            const result = await deleteImportJobMutation({ jobId })
+            if (!result || ("error" in result && result.error)) {
+                throw new Error(
+                    result && "error" in result && typeof result.error === "string"
+                        ? result.error
+                        : "Failed to remove import job"
+                )
+            }
+
+            onJobIdChange(null)
+            toast.success("Import job removed")
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Failed to remove import job")
+        }
+    }
+
+    const currentJobProgressValue = currentJob
+        ? currentJob.totalThreads > 0
+            ? Math.min(
+                  100,
+                  Math.round((currentJob.processedThreads / currentJob.totalThreads) * 100)
+              )
+            : currentJob.preparedSourceFiles > 0
+              ? Math.min(
+                    100,
+                    Math.round(
+                        (currentJob.preparedSourceFiles /
+                            Math.max(currentJob.totalSourceFiles, 1)) *
+                            100
+                    )
+                )
+              : currentJob.status === "completed" || currentJob.status === "completed_with_errors"
+                ? 100
+                : 0
+        : 0
+
     return (
         <>
             <input
@@ -749,343 +1160,445 @@ export function ImportThreadDialog({
                     onDrop: handleDialogDrop
                 }
 
-                const importBody = (
-                    <div className="space-y-6 overflow-y-auto px-4 sm:px-0">
-                        <div className="flex flex-col gap-4 sm:flex-row">
-                            <div className="flex-[2] space-y-2">
-                                <Label htmlFor="thread-import-folder">Destination Folder</Label>
-                                <div className="flex items-center gap-2">
-                                    <Select
-                                        open={selectOpen}
-                                        onOpenChange={setSelectOpen}
-                                        value={selectedProjectId}
-                                        onValueChange={setSelectedProjectId}
-                                        disabled={isImporting || isParsingFiles}
-                                    >
-                                        <SelectTrigger id="thread-import-folder" className="flex-1">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent className="z-[80]">
-                                            <SelectItem value="no-folder">
-                                                General (No Folder)
-                                            </SelectItem>
-                                            {projects.map((project) => (
-                                                <SelectItem key={project._id} value={project._id}>
-                                                    {project.name}
-                                                </SelectItem>
-                                            ))}
-                                            <SelectSeparator />
-                                            <button
-                                                type="button"
-                                                className="flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-primary text-sm outline-hidden hover:bg-accent focus:bg-accent"
-                                                onPointerDown={(e) => {
-                                                    e.preventDefault()
-                                                    e.stopPropagation()
-                                                }}
-                                                onClick={(e) => {
-                                                    e.preventDefault()
-                                                    e.stopPropagation()
-                                                    setSelectOpen(false)
-                                                    setShowNewFolderDialog(true)
-                                                }}
+                const queueImportBody = (
+                    <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-0">
+                        <div className="space-y-6 pb-4">
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="thread-import-folder">Destination Folder</Label>
+                                    <div className="flex items-center gap-2">
+                                        <Select
+                                            open={selectOpen}
+                                            onOpenChange={setSelectOpen}
+                                            value={selectedProjectId}
+                                            onValueChange={setSelectedProjectId}
+                                            disabled={isImporting || isParsingFiles}
+                                        >
+                                            <SelectTrigger
+                                                id="thread-import-folder"
+                                                className="flex-1"
                                             >
-                                                <Plus className="h-4 w-4" />
-                                                <span>Create Folder</span>
-                                            </button>
-                                        </SelectContent>
-                                    </Select>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent className="z-[80]">
+                                                <SelectItem value="no-folder">
+                                                    General (No Folder)
+                                                </SelectItem>
+                                                {projects.map((project) => (
+                                                    <SelectItem
+                                                        key={project._id}
+                                                        value={project._id}
+                                                    >
+                                                        {project.name}
+                                                    </SelectItem>
+                                                ))}
+                                                <SelectSeparator />
+                                                <button
+                                                    type="button"
+                                                    className="flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-primary text-sm outline-hidden hover:bg-accent focus:bg-accent"
+                                                    onPointerDown={(e) => {
+                                                        e.preventDefault()
+                                                        e.stopPropagation()
+                                                    }}
+                                                    onClick={(e) => {
+                                                        e.preventDefault()
+                                                        e.stopPropagation()
+                                                        setSelectOpen(false)
+                                                        setShowNewFolderDialog(true)
+                                                    }}
+                                                >
+                                                    <Plus className="h-4 w-4" />
+                                                    <span>Create Folder</span>
+                                                </button>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-md border bg-muted/10 px-3">
+                                    <Accordion type="single" collapsible>
+                                        <AccordionItem
+                                            value="attachment-options"
+                                            className="border-b-0"
+                                        >
+                                            <AccordionTrigger className="py-3 hover:no-underline">
+                                                <div className="space-y-0.5">
+                                                    <div className="font-normal text-sm">
+                                                        Attachment options
+                                                    </div>
+                                                    <p className="text-muted-foreground text-xs">
+                                                        {attachmentModeSummary}
+                                                    </p>
+                                                </div>
+                                            </AccordionTrigger>
+                                            <AccordionContent className="pt-1">
+                                                <RadioGroup
+                                                    value={attachmentImportMode}
+                                                    onValueChange={(value) =>
+                                                        setAttachmentImportMode(
+                                                            value as AttachmentImportMode
+                                                        )
+                                                    }
+                                                    className="gap-2"
+                                                >
+                                                    <label
+                                                        htmlFor="thread-import-attachment-mirror"
+                                                        className="flex cursor-pointer items-start gap-3 rounded-md border bg-background px-3 py-2.5 transition-colors hover:bg-muted/40"
+                                                    >
+                                                        <RadioGroupItem
+                                                            id="thread-import-attachment-mirror"
+                                                            value="mirror"
+                                                            disabled={isImporting || isParsingFiles}
+                                                            className="mt-0.5"
+                                                        />
+                                                        <div className="space-y-1">
+                                                            <div className="font-medium text-sm">
+                                                                Mirror attachments
+                                                            </div>
+                                                            <p className="text-muted-foreground text-xs leading-5">
+                                                                Slowest. Copies files into your app
+                                                                for better reliability. Max{" "}
+                                                                {MAX_ATTACHMENTS_PER_THREAD}{" "}
+                                                                mirrored attachments per imported
+                                                                thread.
+                                                            </p>
+                                                        </div>
+                                                    </label>
+
+                                                    <label
+                                                        htmlFor="thread-import-attachment-external"
+                                                        className="flex cursor-pointer items-start gap-3 rounded-md border bg-background px-3 py-2.5 transition-colors hover:bg-muted/40"
+                                                    >
+                                                        <RadioGroupItem
+                                                            id="thread-import-attachment-external"
+                                                            value="external"
+                                                            disabled={isImporting || isParsingFiles}
+                                                            className="mt-0.5"
+                                                        />
+                                                        <div className="space-y-1">
+                                                            <div className="font-medium text-sm">
+                                                                Keep external links
+                                                            </div>
+                                                            <p className="text-muted-foreground text-xs leading-5">
+                                                                Fastest. Files stay on the original
+                                                                source and may break later.
+                                                            </p>
+                                                        </div>
+                                                    </label>
+
+                                                    <label
+                                                        htmlFor="thread-import-attachment-skip"
+                                                        className="flex cursor-pointer items-start gap-3 rounded-md border bg-background px-3 py-2.5 transition-colors hover:bg-muted/40"
+                                                    >
+                                                        <RadioGroupItem
+                                                            id="thread-import-attachment-skip"
+                                                            value="skip"
+                                                            disabled={isImporting || isParsingFiles}
+                                                            className="mt-0.5"
+                                                        />
+                                                        <div className="space-y-1">
+                                                            <div className="font-medium text-sm">
+                                                                Skip attachments
+                                                            </div>
+                                                            <p className="text-muted-foreground text-xs leading-5">
+                                                                Imports messages only.
+                                                            </p>
+                                                        </div>
+                                                    </label>
+                                                </RadioGroup>
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    </Accordion>
                                 </div>
                             </div>
 
-                            <div className="flex-1 shrink-0 space-y-2">
-                                <Label className="invisible hidden sm:block">Options</Label>
-                                <div className="flex h-9 items-center rounded-md border bg-muted/10 px-3">
-                                    <div className="flex items-center space-x-2">
+                            <Button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isImporting || isParsingFiles}
+                                className="w-full sm:hidden"
+                            >
+                                <FileUp className="h-4 w-4" />
+                                Select Files
+                            </Button>
+
+                            <div
+                                className={cn(
+                                    "flex flex-col rounded-md border transition-colors",
+                                    isDropZoneActive && "border-primary bg-primary/5"
+                                )}
+                            >
+                                <div className="flex items-center justify-between border-b bg-muted/10 px-3 py-2">
+                                    <div className="flex items-center gap-2">
                                         <Checkbox
-                                            id="thread-import-attachments"
-                                            checked={importAttachments}
-                                            onCheckedChange={(checked) =>
-                                                setImportAttachments(
+                                            checked={
+                                                allSelectableChecked
+                                                    ? true
+                                                    : someSelectableChecked
+                                                      ? "indeterminate"
+                                                      : false
+                                            }
+                                            onCheckedChange={(checked) => {
+                                                const isChecked =
                                                     checked === "indeterminate"
                                                         ? true
                                                         : Boolean(checked)
-                                                )
-                                            }
-                                            disabled={isImporting || isParsingFiles}
-                                        />
-                                        <Label
-                                            htmlFor="thread-import-attachments"
-                                            className="font-normal text-sm"
-                                        >
-                                            Fetch remote attachments
-                                        </Label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
 
-                        <Button
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={isImporting || isParsingFiles}
-                            className="w-full sm:hidden"
-                        >
-                            <FileUp className="h-4 w-4" />
-                            Select Files
-                        </Button>
-
-                        <div
-                            className={cn(
-                                "flex flex-col rounded-md border transition-colors",
-                                isDropZoneActive && "border-primary bg-primary/5"
-                            )}
-                        >
-                            <div className="flex items-center justify-between border-b bg-muted/10 px-3 py-2">
-                                <div className="flex items-center gap-2">
-                                    <Checkbox
-                                        checked={
-                                            allSelectableChecked
-                                                ? true
-                                                : someSelectableChecked
-                                                  ? "indeterminate"
-                                                  : false
-                                        }
-                                        onCheckedChange={(checked) => {
-                                            const isChecked =
-                                                checked === "indeterminate"
-                                                    ? true
-                                                    : Boolean(checked)
-
-                                            setQueue((previous) =>
-                                                previous.map((item) =>
-                                                    item.status === "parsing" ||
-                                                    item.status === "importing"
-                                                        ? item
-                                                        : {
-                                                              ...item,
-                                                              selected: isChecked
-                                                          }
-                                                )
-                                            )
-                                        }}
-                                        disabled={
-                                            !hasSelectableItems || isImporting || isParsingFiles
-                                        }
-                                    />
-                                    <span className="font-medium text-sm">Conversation queue</span>
-                                </div>
-
-                                <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                                    <span>Ready: {summary.pending}</span>
-                                    <span>Imported: {summary.success}</span>
-                                    <span>Issues: {summary.failed}</span>
-                                </div>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-1 border-b bg-muted/20 px-2 py-1.5 sm:gap-2 sm:px-3 sm:py-2">
-                                <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={isImporting || isParsingFiles}
-                                    className="hidden h-8 shrink-0 px-2 sm:inline-flex sm:px-3"
-                                >
-                                    <FileUp className="h-3.5 w-3.5 sm:mr-1.5" />
-                                    <span className="hidden sm:inline">Add Files</span>
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() =>
-                                        setQueue((previous) =>
-                                            previous.filter((item) => !item.selected)
-                                        )
-                                    }
-                                    disabled={
-                                        selectedSelectableCount === 0 ||
-                                        isImporting ||
-                                        isParsingFiles
-                                    }
-                                    className="h-8 shrink-0 px-2 text-muted-foreground sm:px-3"
-                                >
-                                    <Trash2 className="h-3.5 w-3.5 sm:mr-1.5" />
-                                    <span className="hidden sm:inline">Remove Selected</span>
-                                    <span className="text-xs sm:hidden">Remove</span>
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() =>
-                                        setQueue((previous) =>
-                                            previous.filter((item) => item.status !== "success")
-                                        )
-                                    }
-                                    disabled={
-                                        summary.success === 0 || isImporting || isParsingFiles
-                                    }
-                                    className="h-8 shrink-0 px-2 text-muted-foreground sm:px-3"
-                                >
-                                    <span className="hidden sm:inline">Clear Completed</span>
-                                    <span className="text-xs sm:hidden">Clear</span>
-                                </Button>
-                                {(isParsingFiles || isImporting) && (
-                                    <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs">
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                        <span className="hidden sm:inline">
-                                            {isParsingFiles ? "Parsing..." : "Importing..."}
-                                        </span>
-                                    </span>
-                                )}
-                            </div>
-
-                            {isDropZoneActive && (
-                                <div className="hidden border-b bg-primary/10 px-3 py-4 text-center font-medium text-primary text-sm sm:block">
-                                    Drop export files here to add them to the queue
-                                </div>
-                            )}
-
-                            <div className="max-h-[30vh] min-h-[120px] overflow-y-auto sm:max-h-[40vh] sm:min-h-[150px]">
-                                {queue.length === 0 ? (
-                                    <div className="p-10 text-center text-muted-foreground">
-                                        <FileText className="mx-auto mb-3 h-10 w-10 opacity-20" />
-                                        <p className="font-medium text-sm">No files selected yet</p>
-                                        <p className="mt-1 hidden text-xs opacity-70 sm:block">
-                                            Drag and drop export files here
-                                        </p>
-                                        <p className="mt-1 text-xs opacity-70 sm:hidden">
-                                            Tap "Select Files" above to add export files
-                                        </p>
-                                    </div>
-                                ) : (
-                                    queue.map((item) => (
-                                        <div
-                                            key={item.id}
-                                            className="flex items-start gap-3 border-b px-3 py-3 last:border-b-0"
-                                        >
-                                            <Checkbox
-                                                checked={item.selected}
-                                                onCheckedChange={(checked) =>
-                                                    setQueue((previous) =>
-                                                        previous.map((currentItem) =>
-                                                            currentItem.id !== item.id ||
-                                                            currentItem.status === "parsing" ||
-                                                            currentItem.status === "importing"
-                                                                ? currentItem
-                                                                : {
-                                                                      ...currentItem,
-                                                                      selected:
-                                                                          checked ===
-                                                                          "indeterminate"
-                                                                              ? true
-                                                                              : Boolean(checked)
-                                                                  }
-                                                        )
+                                                setQueue((previous) =>
+                                                    previous.map((item) =>
+                                                        item.status === "parsing" ||
+                                                        item.status === "importing"
+                                                            ? item
+                                                            : {
+                                                                  ...item,
+                                                                  selected: isChecked
+                                                              }
                                                     )
-                                                }
-                                                disabled={
-                                                    item.status === "parsing" ||
-                                                    item.status === "importing" ||
-                                                    isImporting ||
-                                                    isParsingFiles
-                                                }
-                                            />
+                                                )
+                                            }}
+                                            disabled={
+                                                !hasSelectableItems || isImporting || isParsingFiles
+                                            }
+                                        />
+                                        <span className="font-medium text-sm">
+                                            Conversation queue
+                                        </span>
+                                    </div>
 
-                                            <div className="min-w-0 flex-1 space-y-1">
-                                                <div className="flex items-center gap-2">
-                                                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                                    <p className="truncate font-medium text-sm">
-                                                        {item.fileName}
+                                    <div className="flex items-center gap-2 text-muted-foreground text-xs">
+                                        <span>Ready: {summary.pending}</span>
+                                        <span>Imported: {summary.success}</span>
+                                        <span>Issues: {summary.failed}</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-1 border-b bg-muted/20 px-2 py-1.5 sm:gap-2 sm:px-3 sm:py-2">
+                                    <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={isImporting || isParsingFiles}
+                                        className="hidden h-8 shrink-0 px-2 sm:inline-flex sm:px-3"
+                                    >
+                                        <FileUp className="h-3.5 w-3.5 sm:mr-1.5" />
+                                        <span className="hidden sm:inline">Add Files</span>
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() =>
+                                            setQueue((previous) =>
+                                                previous.filter((item) => !item.selected)
+                                            )
+                                        }
+                                        disabled={
+                                            selectedSelectableCount === 0 ||
+                                            isImporting ||
+                                            isParsingFiles
+                                        }
+                                        className="h-8 shrink-0 px-2 text-muted-foreground sm:px-3"
+                                    >
+                                        <Trash2 className="h-3.5 w-3.5 sm:mr-1.5" />
+                                        <span className="hidden sm:inline">Remove Selected</span>
+                                        <span className="text-xs sm:hidden">Remove</span>
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() =>
+                                            setQueue((previous) =>
+                                                previous.filter((item) => item.status !== "success")
+                                            )
+                                        }
+                                        disabled={
+                                            summary.success === 0 || isImporting || isParsingFiles
+                                        }
+                                        className="h-8 shrink-0 px-2 text-muted-foreground sm:px-3"
+                                    >
+                                        <span className="hidden sm:inline">Clear Completed</span>
+                                        <span className="text-xs sm:hidden">Clear</span>
+                                    </Button>
+                                    {(isParsingFiles || isImporting) && (
+                                        <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs">
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            <span className="hidden sm:inline">
+                                                {isParsingFiles ? "Parsing..." : "Importing..."}
+                                            </span>
+                                        </span>
+                                    )}
+                                </div>
+
+                                {isDropZoneActive && (
+                                    <div className="hidden border-b bg-primary/10 px-3 py-4 text-center font-medium text-primary text-sm sm:block">
+                                        Drop export files here to add them to the queue
+                                    </div>
+                                )}
+
+                                <div className="max-h-[30vh] min-h-[120px] overflow-y-auto sm:max-h-[40vh] sm:min-h-[150px]">
+                                    {queue.length === 0 ? (
+                                        <div className="p-10 text-center text-muted-foreground">
+                                            <FileText className="mx-auto mb-3 h-10 w-10 opacity-20" />
+                                            <p className="font-medium text-sm">
+                                                No files selected yet
+                                            </p>
+                                            <p className="mt-1 hidden text-xs opacity-70 sm:block">
+                                                Drag and drop export files here
+                                            </p>
+                                            <p className="mt-1 text-xs opacity-70 sm:hidden">
+                                                Tap "Select Files" above to add export files
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        queue.map((item) => (
+                                            <div
+                                                key={item.id}
+                                                className="flex items-start gap-3 border-b px-3 py-3 last:border-b-0"
+                                            >
+                                                <Checkbox
+                                                    checked={item.selected}
+                                                    onCheckedChange={(checked) =>
+                                                        setQueue((previous) =>
+                                                            previous.map((currentItem) =>
+                                                                currentItem.id !== item.id ||
+                                                                currentItem.status === "parsing" ||
+                                                                currentItem.status === "importing"
+                                                                    ? currentItem
+                                                                    : {
+                                                                          ...currentItem,
+                                                                          selected:
+                                                                              checked ===
+                                                                              "indeterminate"
+                                                                                  ? true
+                                                                                  : Boolean(checked)
+                                                                      }
+                                                            )
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        item.status === "parsing" ||
+                                                        item.status === "importing" ||
+                                                        isImporting ||
+                                                        isParsingFiles
+                                                    }
+                                                />
+
+                                                <div className="min-w-0 flex-1 space-y-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                                        <p className="truncate font-medium text-sm">
+                                                            {item.fileName}
+                                                        </p>
+                                                        <Badge
+                                                            variant="secondary"
+                                                            className={cn(
+                                                                "text-xs",
+                                                                statusClasses[item.status]
+                                                            )}
+                                                        >
+                                                            {statusLabel[item.status]}
+                                                        </Badge>
+                                                    </div>
+
+                                                    <p className="text-muted-foreground text-xs">
+                                                        {item.messageCount} messages,{" "}
+                                                        {item.attachmentCount} attachments
                                                     </p>
-                                                    <Badge
-                                                        variant="secondary"
-                                                        className={cn(
-                                                            "text-xs",
-                                                            statusClasses[item.status]
+
+                                                    {item.parseWarning && (
+                                                        <p className="text-amber-600 text-xs dark:text-amber-400">
+                                                            {item.parseWarning}
+                                                        </p>
+                                                    )}
+
+                                                    {shouldMirrorAttachments &&
+                                                        item.attachmentCount >
+                                                            MAX_ATTACHMENTS_PER_THREAD && (
+                                                            <p className="text-amber-600 text-xs dark:text-amber-400">
+                                                                Only the first{" "}
+                                                                {MAX_ATTACHMENTS_PER_THREAD}{" "}
+                                                                attachments will be mirrored for
+                                                                this thread.
+                                                            </p>
                                                         )}
-                                                    >
-                                                        {statusLabel[item.status]}
-                                                    </Badge>
+
+                                                    {shouldKeepExternalAttachments &&
+                                                        item.attachmentCount > 0 && (
+                                                            <p className="text-muted-foreground text-xs">
+                                                                Attachments will remain as external
+                                                                links.
+                                                            </p>
+                                                        )}
+
+                                                    {item.error && (
+                                                        <p className="inline-flex items-center gap-1 text-destructive text-xs">
+                                                            <XCircle className="h-3 w-3" />
+                                                            {item.error}
+                                                        </p>
+                                                    )}
+
+                                                    {item.status === "success" && (
+                                                        <div className="inline-flex flex-wrap items-center gap-2 text-emerald-600 text-xs dark:text-emerald-400">
+                                                            <span className="inline-flex items-center gap-1">
+                                                                <CheckCircle2 className="h-3 w-3" />
+                                                                Imported
+                                                            </span>
+                                                            <span>
+                                                                Attachments:{" "}
+                                                                {item.importedAttachmentCount ?? 0}
+                                                            </span>
+                                                            {(item.failedAttachmentCount ?? 0) >
+                                                                0 && (
+                                                                <span>
+                                                                    Skipped:{" "}
+                                                                    {item.failedAttachmentCount}
+                                                                </span>
+                                                            )}
+                                                            {item.threadId && onImported && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() =>
+                                                                        onImported(item.threadId!)
+                                                                    }
+                                                                    className="h-6 px-2 text-xs"
+                                                                >
+                                                                    Open
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
 
-                                                <p className="text-muted-foreground text-xs">
-                                                    {item.messageCount} messages,{" "}
-                                                    {item.attachmentCount} attachments
-                                                </p>
-
-                                                {item.parseWarning && (
-                                                    <p className="text-amber-600 text-xs dark:text-amber-400">
-                                                        {item.parseWarning}
-                                                    </p>
-                                                )}
-
-                                                {item.error && (
-                                                    <p className="inline-flex items-center gap-1 text-destructive text-xs">
-                                                        <XCircle className="h-3 w-3" />
-                                                        {item.error}
-                                                    </p>
-                                                )}
-
-                                                {item.status === "success" && (
-                                                    <div className="inline-flex flex-wrap items-center gap-2 text-emerald-600 text-xs dark:text-emerald-400">
-                                                        <span className="inline-flex items-center gap-1">
-                                                            <CheckCircle2 className="h-3 w-3" />
-                                                            Imported
-                                                        </span>
-                                                        <span>
-                                                            Attachments:{" "}
-                                                            {item.importedAttachmentCount ?? 0}
-                                                        </span>
-                                                        {(item.failedAttachmentCount ?? 0) > 0 && (
-                                                            <span>
-                                                                Skipped:{" "}
-                                                                {item.failedAttachmentCount}
-                                                            </span>
-                                                        )}
-                                                        {item.threadId && onImported && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                onClick={() =>
-                                                                    onImported(item.threadId!)
-                                                                }
-                                                                className="h-6 px-2 text-xs"
-                                                            >
-                                                                Open
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() =>
-                                                    setQueue((previous) =>
-                                                        previous.filter(
-                                                            (current) => current.id !== item.id
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        setQueue((previous) =>
+                                                            previous.filter(
+                                                                (current) => current.id !== item.id
+                                                            )
                                                         )
-                                                    )
-                                                }
-                                                className="h-7 w-7"
-                                                disabled={
-                                                    item.status === "importing" ||
-                                                    item.status === "parsing" ||
-                                                    isImporting ||
-                                                    isParsingFiles
-                                                }
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    ))
-                                )}
+                                                    }
+                                                    className="h-7 w-7"
+                                                    disabled={
+                                                        item.status === "importing" ||
+                                                        item.status === "parsing" ||
+                                                        isImporting ||
+                                                        isParsingFiles
+                                                    }
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
                 )
 
-                const importFooter = (
+                const queueImportFooter = (
                     <>
                         <Button
                             variant="outline"
@@ -1102,22 +1615,241 @@ export function ImportThreadDialog({
                     </>
                 )
 
+                const importBody = jobId ? (
+                    <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-0">
+                        <div className="space-y-5 pb-4">
+                            {currentJob ? (
+                                <>
+                                    <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+                                        <div className="flex flex-wrap items-start justify-between gap-3">
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="font-medium text-sm">
+                                                        Background import
+                                                    </h3>
+                                                    <Badge
+                                                        variant="secondary"
+                                                        className={cn(
+                                                            "text-xs",
+                                                            importJobStatusClasses[
+                                                                currentJob.status
+                                                            ]
+                                                        )}
+                                                    >
+                                                        {importJobStatusLabels[currentJob.status]}
+                                                    </Badge>
+                                                </div>
+                                                <p className="text-muted-foreground text-sm">
+                                                    {importJobStatusDescriptions[currentJob.status]}
+                                                </p>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={handleDeleteCurrentJob}
+                                                >
+                                                    Remove Job
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={startNewImport}
+                                                >
+                                                    New Import
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        <Progress value={currentJobProgressValue} />
+
+                                        <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                                            <div className="rounded-md border bg-background/80 p-3">
+                                                <div className="text-muted-foreground text-xs">
+                                                    Files prepared
+                                                </div>
+                                                <div className="mt-1 font-medium">
+                                                    {currentJob.preparedSourceFiles}/
+                                                    {currentJob.totalSourceFiles}
+                                                </div>
+                                            </div>
+                                            <div className="rounded-md border bg-background/80 p-3">
+                                                <div className="text-muted-foreground text-xs">
+                                                    Threads processed
+                                                </div>
+                                                <div className="mt-1 font-medium">
+                                                    {currentJob.processedThreads}/
+                                                    {currentJob.totalThreads}
+                                                </div>
+                                            </div>
+                                            <div className="rounded-md border bg-background/80 p-3">
+                                                <div className="text-muted-foreground text-xs">
+                                                    Imported
+                                                </div>
+                                                <div className="mt-1 font-medium">
+                                                    {currentJob.importedThreads}
+                                                </div>
+                                            </div>
+                                            <div className="rounded-md border bg-background/80 p-3">
+                                                <div className="text-muted-foreground text-xs">
+                                                    Issues
+                                                </div>
+                                                <div className="mt-1 font-medium">
+                                                    {currentJob.errorCount +
+                                                        currentJob.warningCount}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-xs">
+                                            <span>
+                                                Attachment mode:{" "}
+                                                {attachmentModeLabels[currentJob.attachmentMode]}
+                                            </span>
+                                            {currentJob.completedAt && (
+                                                <span>
+                                                    Completed{" "}
+                                                    {new Date(
+                                                        currentJob.completedAt
+                                                    ).toLocaleString()}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {currentJob.recentWarnings.length > 0 && (
+                                        <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+                                            <div className="inline-flex items-center gap-2 font-medium text-sm">
+                                                <AlertCircle className="h-4 w-4 text-amber-500" />
+                                                Recent warnings
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                {currentJob.recentWarnings.map((warning, index) => (
+                                                    <p
+                                                        key={`${warning}-${index}`}
+                                                        className="text-sm"
+                                                    >
+                                                        {warning}
+                                                    </p>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {currentJob.recentErrors.length > 0 && (
+                                        <div className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+                                            <div className="inline-flex items-center gap-2 font-medium text-sm">
+                                                <XCircle className="h-4 w-4 text-destructive" />
+                                                Recent errors
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                {currentJob.recentErrors.map((error, index) => (
+                                                    <p
+                                                        key={`${error}-${index}`}
+                                                        className="text-sm"
+                                                    >
+                                                        {error}
+                                                    </p>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-3 rounded-lg border p-4">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="font-medium text-sm">Source files</div>
+                                            <div className="text-muted-foreground text-xs">
+                                                {currentJob.sources.length} file
+                                                {currentJob.sources.length === 1 ? "" : "s"}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {currentJob.sources.map((source) => (
+                                                <div
+                                                    key={source._id}
+                                                    className="flex items-start justify-between gap-3 rounded-md border bg-muted/10 px-3 py-2"
+                                                >
+                                                    <div className="min-w-0">
+                                                        <p className="truncate font-medium text-sm">
+                                                            {source.fileName}
+                                                        </p>
+                                                        <p className="text-muted-foreground text-xs">
+                                                            {source.preparedDocumentCount ?? 0}{" "}
+                                                            prepared conversation
+                                                            {source.preparedDocumentCount === 1
+                                                                ? ""
+                                                                : "s"}
+                                                        </p>
+                                                        {source.error && (
+                                                            <p className="mt-1 text-destructive text-xs">
+                                                                {source.error}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <Badge
+                                                        variant="secondary"
+                                                        className={cn(
+                                                            "text-xs",
+                                                            source.status === "error"
+                                                                ? "bg-destructive/10 text-destructive"
+                                                                : source.status === "prepared"
+                                                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                                                  : "bg-muted text-muted-foreground"
+                                                        )}
+                                                    >
+                                                        {source.status}
+                                                    </Badge>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="flex min-h-[260px] items-center justify-center text-muted-foreground">
+                                    <div className="inline-flex items-center gap-2 text-sm">
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Loading import job...
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    queueImportBody
+                )
+
+                const importFooter = jobId ? (
+                    <>
+                        <Button variant="outline" onClick={() => setOpen(false)}>
+                            Close
+                        </Button>
+                        <Button variant="ghost" onClick={handleDeleteCurrentJob}>
+                            Remove Job
+                        </Button>
+                        <Button variant="secondary" onClick={startNewImport}>
+                            Start Another Import
+                        </Button>
+                    </>
+                ) : (
+                    queueImportFooter
+                )
+
                 if (isMobile) {
                     return (
                         <Drawer open={open} onOpenChange={handleOpenChange}>
                             <DrawerContent
-                                className="z-[70] max-h-[90dvh]"
+                                className="z-[70] flex max-h-[90dvh] flex-col overflow-hidden"
                                 overlayClassName="z-[70]"
                                 {...dragProps}
                             >
-                                <DrawerHeader>
+                                <DrawerHeader className="shrink-0">
                                     <DrawerTitle>Import Thread</DrawerTitle>
                                     <DrawerDescription>
                                         Select export files, review, then import.
                                     </DrawerDescription>
                                 </DrawerHeader>
                                 {importBody}
-                                <DrawerFooter className="flex-row justify-end">
+                                <DrawerFooter className="shrink-0 flex-row justify-end">
                                     {importFooter}
                                 </DrawerFooter>
                             </DrawerContent>
@@ -1128,10 +1860,10 @@ export function ImportThreadDialog({
                 return (
                     <Dialog open={open} onOpenChange={handleOpenChange}>
                         <DialogContent
-                            className="max-h-[88vh] max-w-3xl overflow-hidden"
+                            className="flex max-h-[88vh] max-w-3xl flex-col overflow-hidden"
                             {...dragProps}
                         >
-                            <DialogHeader>
+                            <DialogHeader className="shrink-0">
                                 <DialogTitle>Import Thread</DialogTitle>
                                 <DialogDescription>
                                     Select one or more supported exports, review validation status,
@@ -1139,7 +1871,7 @@ export function ImportThreadDialog({
                                 </DialogDescription>
                             </DialogHeader>
                             {importBody}
-                            <DialogFooter>{importFooter}</DialogFooter>
+                            <DialogFooter className="shrink-0">{importFooter}</DialogFooter>
                         </DialogContent>
                     </Dialog>
                 )

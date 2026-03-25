@@ -27,6 +27,8 @@ export interface ParsedThreadImportDocument {
         format: ThreadImportFormat
         service: ThreadImportService
         conversationId?: string
+        createdAt?: number
+        updatedAt?: number
     }
 }
 

@@ -7,6 +7,9 @@ type AIUIMessageWithParts = UIMessage<Infer<typeof AIMessage>["metadata"]> & {
     metadata?: Infer<typeof AIMessage>["metadata"]
 }
 
+const isExternalFileReference = (value: string) =>
+    value.startsWith("http://") || value.startsWith("https://") || value.startsWith("data:")
+
 export const backendToUiMessages = (messages: Infer<typeof Message>[]): AIUIMessageWithParts[] => {
     if (!messages || messages.length === 0) {
         return []
@@ -46,7 +49,9 @@ export const backendToUiMessages = (messages: Infer<typeof Message>[]): AIUIMess
                             type: "file" as const,
                             filename: part.filename,
                             mediaType: part.mimeType || "application/octet-stream",
-                            url: part.data.startsWith("data:") ? part.data : `/r2?key=${part.data}`
+                            url: isExternalFileReference(part.data)
+                                ? part.data
+                                : `/r2?key=${part.data}`
                         }
                     }
 

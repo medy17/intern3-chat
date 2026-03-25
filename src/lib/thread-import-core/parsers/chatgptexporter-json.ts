@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { normalizeSpacing, normalizeTitle } from "../shared"
+import { normalizeSpacing, normalizeTitle, parseImportTimestamp } from "../shared"
 import type { ImportedMessageRole, ParsedThreadImportDocument } from "../types"
 import { extractChatGPTConversationIdFromUrl } from "./chatgptexporter-shared"
 
@@ -103,6 +103,9 @@ export const tryParseChatGPTExporterJson = (content: string): ParsedThreadImport
         parseWarnings.push("Skipped source-link/provider metadata from JSON export")
     }
 
+    const sourceCreatedAt = parseImportTimestamp(validated.data.metadata?.dates?.created)
+    const sourceUpdatedAt = parseImportTimestamp(validated.data.metadata?.dates?.updated)
+
     return {
         title: normalizeTitle(validated.data.metadata?.title || "Imported Chat") || "Imported Chat",
         messages,
@@ -110,7 +113,9 @@ export const tryParseChatGPTExporterJson = (content: string): ParsedThreadImport
         source: {
             service: "chatgptexporter",
             format: "json",
-            conversationId: extractChatGPTConversationIdFromUrl(validated.data.metadata?.link)
+            conversationId: extractChatGPTConversationIdFromUrl(validated.data.metadata?.link),
+            createdAt: sourceCreatedAt,
+            updatedAt: sourceUpdatedAt ?? sourceCreatedAt
         }
     }
 }

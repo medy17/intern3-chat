@@ -13,12 +13,15 @@ import type { Infer } from "convex/values"
 import { components } from "../_generated/api"
 import type { Message } from "../schema/message"
 import type { ModelAbility } from "../schema/settings"
-import { getFileTypeInfo, isImageMimeType } from "./file_constants"
+import { getFileTypeInfo } from "./file_constants"
 
 export type CoreMessage = ModelMessage & {
     messageId: string
 }
 const r2 = new R2(components.r2)
+
+const isExternalFileReference = (value: string) =>
+    value.startsWith("http://") || value.startsWith("https://") || value.startsWith("data:")
 
 export const dbMessagesToCore = async (
     messages: Infer<typeof Message>[],
@@ -49,15 +52,13 @@ export const dbMessagesToCore = async (
 
                     const filename = p.filename || extractedFileName
                     const fileTypeInfo = getFileTypeInfo(filename, p.mimeType)
+                    const fileUrl = isExternalFileReference(p.data)
+                        ? p.data
+                        : await r2.getUrl(p.data)
 
-                    if (
-                        fileTypeInfo.isVisionImage &&
-                        isImageMimeType(p.mimeType || "") &&
-                        !fileTypeInfo.isSvg
-                    ) {
+                    if (fileTypeInfo.isVisionImage && !fileTypeInfo.isSvg) {
                         // Handle image files
                         try {
-                            const fileUrl = await r2.getUrl(p.data)
                             mapped_content.push({
                                 type: "image",
                                 image: fileUrl
@@ -71,7 +72,6 @@ export const dbMessagesToCore = async (
                         }
                     } else if (fileTypeInfo.isText && !fileTypeInfo.isImage) {
                         try {
-                            const fileUrl = await r2.getUrl(p.data)
                             const data = await fetch(fileUrl)
 
                             if (data.ok) {
@@ -92,7 +92,6 @@ export const dbMessagesToCore = async (
                         }
                     } else if (fileTypeInfo.isPdf && modelAbilities.includes("pdf")) {
                         try {
-                            const fileUrl = await r2.getUrl(p.data)
                             const data = await fetch(fileUrl)
 
                             if (data.ok) {

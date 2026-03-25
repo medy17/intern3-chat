@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { normalizeSpacing, normalizeTitle } from "../shared"
+import { normalizeSpacing, normalizeTitle, parseImportTimestamp } from "../shared"
 import type { ParsedThreadImportDocument } from "../types"
 
 const T3ThreadSchema = z
@@ -128,6 +128,8 @@ export const tryParseT3ChatThreadsJson = (content: string): ParsedThreadImportDo
         }
 
         const title = normalizeTitle(thread.title ?? "")
+        const sourceCreatedAt = parseImportTimestamp(thread.created_at ?? thread.createdAt)
+        const sourceUpdatedAt = parseImportTimestamp(thread.updated_at ?? thread.updatedAt)
         documents.push({
             title: title || "Imported Chat",
             messages,
@@ -135,7 +137,9 @@ export const tryParseT3ChatThreadsJson = (content: string): ParsedThreadImportDo
             source: {
                 service: "t3chat",
                 format: "json",
-                conversationId: threadId
+                conversationId: threadId,
+                createdAt: sourceCreatedAt,
+                updatedAt: sourceUpdatedAt ?? sourceCreatedAt
             }
         })
     }

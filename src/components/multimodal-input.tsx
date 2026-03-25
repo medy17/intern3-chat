@@ -304,7 +304,6 @@ export const MultimodalInput = forwardRef<
         },
         session.user?.id && !auth.isLoading ? {} : "skip"
     )
-
     // Voice recording state
     const {
         state: voiceState,
