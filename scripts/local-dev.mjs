@@ -17,8 +17,7 @@ const ensureLocalDeploymentSelected = () => {
     if (rawValue.startsWith("local:")) return true
 
     console.error(
-        `[local-dev] CONVEX_DEPLOYMENT is '${rawValue}', not a local deployment.\n` +
-            "[local-dev] Run `bun run local:convex:configure` first, then re-run `bun run local:dev`."
+        `[local-dev] CONVEX_DEPLOYMENT is '${rawValue}', not a local deployment.\n[local-dev] Run \`bun run local:convex:configure\` first, then re-run \`bun run local:dev\`.`
     )
     return false
 }
