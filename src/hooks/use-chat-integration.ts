@@ -244,7 +244,7 @@ export function useChatIntegration<IsShared extends boolean>({
             initialMsgs: initialMessages.length
         })
 
-        if (initialMessages.length > 0) {
+        if (chatHelpers.messages.length === 0 && initialMessages.length > 0) {
             chatHelpers.setMessages(initialMessages)
             console.log("[UCI:messages_restored]", { count: initialMessages.length })
         }
