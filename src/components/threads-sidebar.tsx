@@ -803,7 +803,22 @@ export function ThreadsSidebar() {
                             event.preventDefault()
                             document.dispatchEvent(new CustomEvent("new_chat"))
                             setOpenMobile(false)
-                            void navigate({ to: "/" })
+
+                            // On mobile, closing the Sheet triggers useOverlayBackDismiss's
+                            // history.back() which races with navigate. Wait for that popstate
+                            // to settle before navigating, with a fallback timeout.
+                            let didNavigate = false
+                            const doNavigate = () => {
+                                if (didNavigate) return
+                                didNavigate = true
+                                void navigate({ to: "/" })
+                            }
+                            if (isMobile) {
+                                window.addEventListener("popstate", doNavigate, { once: true })
+                                setTimeout(doNavigate, 150)
+                            } else {
+                                doNavigate()
+                            }
                         }}
                         className={cn(
                             buttonVariants({ variant: "default" }),
