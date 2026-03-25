@@ -378,6 +378,23 @@ export function ThreadsSidebar() {
         }
     }, [isSelectionMode, selectedThreadIds.length])
 
+    const activeImportJob = useMemo(
+        () =>
+            importJobs?.find(
+                (job) =>
+                    job.status === "queued" ||
+                    job.status === "preparing" ||
+                    job.status === "importing"
+            ) ?? null,
+        [importJobs]
+    )
+
+    useEffect(() => {
+        if (activeImportJob && !importDialogJobId) {
+            setImportDialogJobId(activeImportJob._id)
+        }
+    }, [activeImportJob, importDialogJobId])
+
     useEffect(() => {
         if (!importJobs) return
 
@@ -782,9 +799,11 @@ export function ThreadsSidebar() {
                     {/* <TooltipTrigger> */}
                     <Link
                         to="/"
-                        onClick={() => {
+                        onClick={(event) => {
+                            event.preventDefault()
                             document.dispatchEvent(new CustomEvent("new_chat"))
                             setOpenMobile(false)
+                            void navigate({ to: "/" })
                         }}
                         className={cn(
                             buttonVariants({ variant: "default" }),
@@ -796,7 +815,7 @@ export function ThreadsSidebar() {
 
                     <ImportThreadButton
                         onClick={() => {
-                            setImportDialogJobId(null)
+                            setImportDialogJobId(activeImportJob?._id ?? null)
                             setImportOpen(true)
                         }}
                     />

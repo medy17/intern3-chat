@@ -203,21 +203,29 @@ export const deleteImportJob = mutation({
             return { error: "Import job not found" }
         }
 
-        const jobThreads = await ctx.db
-            .query("importJobThreads")
-            .withIndex("byJobId", (q) => q.eq("jobId", jobId))
-            .collect()
-        const jobSources = await ctx.db
-            .query("importJobSources")
-            .withIndex("byJobId", (q) => q.eq("jobId", jobId))
-            .collect()
-
-        for (const jobThread of jobThreads) {
-            await ctx.db.delete(jobThread._id)
+        const BATCH = 100
+        let hasMore = true
+        while (hasMore) {
+            const batch = await ctx.db
+                .query("importJobThreads")
+                .withIndex("byJobId", (q) => q.eq("jobId", jobId))
+                .take(BATCH)
+            for (const row of batch) {
+                await ctx.db.delete(row._id)
+            }
+            hasMore = batch.length === BATCH
         }
 
-        for (const jobSource of jobSources) {
-            await ctx.db.delete(jobSource._id)
+        hasMore = true
+        while (hasMore) {
+            const batch = await ctx.db
+                .query("importJobSources")
+                .withIndex("byJobId", (q) => q.eq("jobId", jobId))
+                .take(BATCH)
+            for (const row of batch) {
+                await ctx.db.delete(row._id)
+            }
+            hasMore = batch.length === BATCH
         }
 
         await ctx.db.delete(jobId)
