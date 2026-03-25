@@ -967,29 +967,33 @@ export function ImportThreadDialog({
                     }
                 }
 
+                const runUploadTask = createTaskRunner(8)
                 const uploadedSources = await Promise.all(
                     Array.from(selectedDocumentKeysBySource.entries()).map(
-                        async ([sourceId, selectedDocumentKeys]) => {
-                            const sourceFile = sourceFiles.find((source) => source.id === sourceId)
-                            if (!sourceFile) {
-                                throw new Error("Missing selected source file for async import")
-                            }
+                        ([sourceId, selectedDocumentKeys]) =>
+                            runUploadTask(async () => {
+                                const sourceFile = sourceFiles.find(
+                                    (source) => source.id === sourceId
+                                )
+                                if (!sourceFile) {
+                                    throw new Error("Missing selected source file for async import")
+                                }
 
-                            const uploaded = await uploadImportSource({
-                                file: sourceFile.file,
-                                clientSourceId: sourceId,
-                                jwt
+                                const uploaded = await uploadImportSource({
+                                    file: sourceFile.file,
+                                    clientSourceId: sourceId,
+                                    jwt
+                                })
+
+                                return {
+                                    clientSourceId: sourceId,
+                                    storageKey: uploaded.storageKey,
+                                    fileName: uploaded.fileName,
+                                    mimeType: uploaded.mimeType,
+                                    size: uploaded.size,
+                                    selectedDocumentKeys
+                                }
                             })
-
-                            return {
-                                clientSourceId: sourceId,
-                                storageKey: uploaded.storageKey,
-                                fileName: uploaded.fileName,
-                                mimeType: uploaded.mimeType,
-                                size: uploaded.size,
-                                selectedDocumentKeys
-                            }
-                        }
                     )
                 )
 
