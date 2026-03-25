@@ -87,6 +87,20 @@ CONVEX_DEPLOYMENT=dev:knowing-falcon-519 bunx convex dev --once --codegen disabl
 
 These push Convex functions to cloud dev but keep your local default unchanged.
 
+If you still hit `ws://127.0.0.1:3210/... code 1006` afterward, verify `.env.local` has:
+
+```bash
+CONVEX_DEPLOYMENT=local:...
+```
+
+Then run:
+
+```bash
+bun run local:convex:configure
+```
+
+The local scripts use `--local-force-upgrade`, so Convex backend upgrade prompts do not block non-interactive terminals.
+
 ### Fastest debug loop
 
 Use a local app first. Repeated Vercel builds are too slow for auth and provider debugging.

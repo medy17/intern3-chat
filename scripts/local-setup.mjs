@@ -37,6 +37,7 @@ const main = async () => {
             "existing",
             "--dev-deployment",
             "local",
+            "--local-force-upgrade",
             "--once",
             "--codegen",
             "disable",

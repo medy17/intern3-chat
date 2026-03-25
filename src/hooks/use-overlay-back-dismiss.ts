@@ -30,23 +30,20 @@ export const useOverlayBackDismiss = ({
 }) => {
     const entryIdRef = React.useRef<string | null>(null)
     const suppressNextPopCloseRef = React.useRef(false)
+    const onCloseRef = React.useRef(onClose)
 
     React.useEffect(() => {
-        if (!enabled || !open) {
+        onCloseRef.current = onClose
+    }, [onClose])
+
+    React.useEffect(() => {
+        if (!enabled) {
             return
         }
 
-        const entryId = createOverlayEntryId()
-        entryIdRef.current = entryId
-
-        window.history.pushState(
-            { ...getHistoryState(), [OVERLAY_HISTORY_KEY]: entryId },
-            "",
-            window.location.href
-        )
-
         const handlePopState = (event: PopStateEvent) => {
-            if (entryIdRef.current !== entryId) {
+            const entryId = entryIdRef.current
+            if (!entryId) {
                 return
             }
 
@@ -62,25 +59,42 @@ export const useOverlayBackDismiss = ({
                 return
             }
 
-            onClose()
+            onCloseRef.current()
         }
 
         window.addEventListener("popstate", handlePopState)
-
         return () => {
             window.removeEventListener("popstate", handlePopState)
+        }
+    }, [enabled])
 
-            if (entryIdRef.current !== entryId) {
-                return
-            }
+    React.useEffect(() => {
+        if (!enabled) {
+            entryIdRef.current = null
+            return
+        }
 
+        if (open && !entryIdRef.current) {
+            const entryId = createOverlayEntryId()
+            entryIdRef.current = entryId
+
+            window.history.pushState(
+                { ...getHistoryState(), [OVERLAY_HISTORY_KEY]: entryId },
+                "",
+                window.location.href
+            )
+            return
+        }
+
+        if (!open && entryIdRef.current) {
+            const entryId = entryIdRef.current
             const currentState = window.history.state as Record<string, unknown> | null
+            entryIdRef.current = null
+
             if (currentState?.[OVERLAY_HISTORY_KEY] === entryId) {
                 suppressNextPopCloseRef.current = true
                 window.history.back()
             }
-
-            entryIdRef.current = null
         }
-    }, [enabled, onClose, open])
+    }, [enabled, open])
 }

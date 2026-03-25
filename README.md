@@ -56,6 +56,7 @@ bun run cloud:dev:push
 ```
 
 This script is cross-platform (Windows/macOS/Linux).
+It also restores your original `.env.local` after the push so local mode is not overwritten.
 
 Manual overrides:
 
@@ -68,6 +69,12 @@ Remove-Item Env:CONVEX_DEPLOYMENT
 ```bash
 CONVEX_DEPLOYMENT=dev:knowing-falcon-519 bunx convex dev --once --codegen disable --typecheck disable
 ```
+
+## Local WS Troubleshooting
+
+If you see websocket errors like `ws://127.0.0.1:3210/... code 1006`, check `CONVEX_DEPLOYMENT` in `.env.local`.
+It must start with `local:` when running `bun run local:dev`.
+Local scripts also pass `--local-force-upgrade` to avoid blocking upgrade prompts in non-interactive terminals.
 
 ## Environment Split
 
