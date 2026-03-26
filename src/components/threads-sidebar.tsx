@@ -38,6 +38,12 @@ import { useInfiniteScroll } from "@/hooks/use-infinite-scroll"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { authClient } from "@/lib/auth-client"
 import { useDiskCachedPaginatedQuery, useDiskCachedQuery } from "@/lib/convex-cached-query"
+import {
+    isEditableShortcutTarget,
+    isMacLikePlatform,
+    isShortcutModifierPressed,
+    matchesNewChatShortcut
+} from "@/lib/keyboard-shortcuts"
 import { getProjectColorClasses } from "@/lib/project-constants"
 import { cn } from "@/lib/utils"
 import { Link } from "@tanstack/react-router"
@@ -48,6 +54,7 @@ import {
     CheckCheck,
     CircleAlert,
     Clock3,
+    Crown,
     FolderOpen,
     Image,
     KeyRound,
@@ -321,6 +328,7 @@ function PrototypeCreditsGroup({ summary }: { summary: PrototypeCreditSummary })
     const basicProgress =
         summary.basic.limit > 0 ? (summary.basic.used / summary.basic.limit) * 100 : 0
     const proProgress = summary.pro.limit > 0 ? (summary.pro.used / summary.pro.limit) * 100 : 0
+    const PlanIcon = summary.plan === "pro" ? Crown : Wallet
 
     return (
         <SidebarGroup>
@@ -328,13 +336,10 @@ function PrototypeCreditsGroup({ summary }: { summary: PrototypeCreditSummary })
             <SidebarGroupContent>
                 <div className="rounded-md border bg-sidebar-accent/20 px-3 py-3">
                     <div className="flex items-center gap-2">
-                        <Wallet className="h-4 w-4 shrink-0" />
+                        <PlanIcon className="h-4 w-4 shrink-0" />
                         <div className="font-medium text-sm">
-                            {summary.plan === "pro" ? "Pro prototype" : "Free prototype"}
+                            {summary.plan === "pro" ? "Pro Plan" : "Free Plan"}
                         </div>
-                        <span className="ml-auto rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide">
-                            Shadow
-                        </span>
                     </div>
 
                     <div className="mt-3 space-y-3">
@@ -381,9 +386,6 @@ function PrototypeCreditsLoadingGroup() {
                     <div className="flex items-center gap-2">
                         <Wallet className="h-4 w-4 shrink-0" />
                         <div className="font-medium text-sm">Credits</div>
-                        <span className="ml-auto rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide">
-                            Shadow
-                        </span>
                     </div>
                     <div className="mt-3 text-muted-foreground text-xs">Loading usage...</div>
                 </div>
@@ -426,6 +428,12 @@ export function ThreadsSidebar() {
     const importJobs = useQuery(
         api.import_jobs.listImportJobs,
         session?.user?.id && !auth.isLoading ? { limit: 6 } : "skip"
+    )
+    const activeThread = useQuery(
+        api.threads.getThread,
+        params.threadId && session?.user?.id && !auth.isLoading
+            ? { threadId: params.threadId as Id<"threads"> }
+            : "skip"
     )
     const usageSummary = useQuery(
         api.credits.getMyCreditUsageSummary,
@@ -480,6 +488,14 @@ export function ThreadsSidebar() {
     const shouldShowPrototypeCredits = isAuthenticated && !auth.isLoading
     const shouldShowDevCreditPlanToggle = import.meta.env.DEV && Boolean(session?.user?.id)
     const hasError = false
+    const [primaryShortcutLabel, setPrimaryShortcutLabel] = useState("Ctrl")
+    const currentThreadForShortcut = useMemo(
+        () =>
+            (activeThread && !("error" in activeThread)
+                ? (activeThread as Thread)
+                : allThreads.find((thread) => thread._id === params.threadId)) ?? null,
+        [activeThread, allThreads, params.threadId]
+    )
 
     const selectedThreads = useMemo(() => {
         return allThreads.filter((thread) => selectedThreadIds.includes(thread._id))
@@ -494,6 +510,10 @@ export function ThreadsSidebar() {
             previous.filter((threadId) => allThreads.some((thread) => thread._id === threadId))
         )
     }, [allThreads])
+
+    useEffect(() => {
+        setPrimaryShortcutLabel(isMacLikePlatform() ? "⌘" : "Ctrl")
+    }, [])
 
     useEffect(() => {
         if (isSelectionMode && selectedThreadIds.length === 0) {
@@ -804,18 +824,46 @@ export function ThreadsSidebar() {
         }, 150)
     })
 
-    // Keyboard shortcut for new chat (Cmd+Shift+O)
+    // Keyboard shortcut for new chat:
+    // macOS: Cmd+Shift+O
+    // Windows/Linux: Ctrl+Alt+O
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.metaKey && event.shiftKey && event.key.toLowerCase() === "o") {
-                event.preventDefault()
-                navigate({ to: "/" })
+            if (isEditableShortcutTarget(event.target)) {
+                return
             }
+
+            if (!matchesNewChatShortcut(event)) return
+
+            event.preventDefault()
+            navigate({ to: "/" })
         }
 
         document.addEventListener("keydown", handleKeyDown)
         return () => document.removeEventListener("keydown", handleKeyDown)
     }, [navigate])
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (isEditableShortcutTarget(event.target)) {
+                return
+            }
+
+            if (!currentThreadForShortcut || !isShortcutModifierPressed(event) || !event.shiftKey) {
+                return
+            }
+
+            if (event.key !== "Backspace" && event.key !== "Delete") {
+                return
+            }
+
+            event.preventDefault()
+            handleOpenDeleteDialog(currentThreadForShortcut)
+        }
+
+        document.addEventListener("keydown", handleKeyDown)
+        return () => document.removeEventListener("keydown", handleKeyDown)
+    }, [currentThreadForShortcut, handleOpenDeleteDialog])
 
     useEffect(() => {
         const container = scrollContainerRef.current
@@ -1165,7 +1213,7 @@ export function ThreadsSidebar() {
                         Search chats
                         <div className="ml-auto flex items-center gap-1 text-xs">
                             <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-medium font-mono text-muted-foreground">
-                                <span className="text-sm">⌘</span>
+                                <span className="text-sm">{primaryShortcutLabel}</span>
                                 <span className="text-xs">K</span>
                             </kbd>
                         </div>

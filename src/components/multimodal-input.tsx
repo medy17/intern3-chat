@@ -862,6 +862,7 @@ export const MultimodalInput = forwardRef<
                                 <ModelSelector
                                     selectedModel={selectedModel}
                                     onModelChange={setSelectedModel}
+                                    shortcutTarget="composer"
                                 />
                             )}
 

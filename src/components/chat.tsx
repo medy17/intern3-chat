@@ -9,6 +9,10 @@ import { useDynamicTitle } from "@/hooks/use-dynamic-title"
 import { useThreadSync } from "@/hooks/use-thread-sync"
 import { type UploadedFile, useChatStore } from "@/lib/chat-store"
 import { useDiskCachedQuery } from "@/lib/convex-cached-query"
+import {
+    OPEN_MODEL_PICKER_SHORTCUT_EVENT,
+    isShortcutModifierPressed
+} from "@/lib/keyboard-shortcuts"
 import { useModelStore } from "@/lib/model-store"
 import { useDefaultModelId } from "@/lib/models-providers-shared"
 import { useThemeStore } from "@/lib/theme-store"
@@ -46,6 +50,24 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
             setSelectedModel(defaultModelId)
         }
     }, [defaultModelId, selectedModel, setSelectedModel])
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (!isShortcutModifierPressed(event) || event.shiftKey || event.altKey) {
+                return
+            }
+
+            if (event.key !== "/") {
+                return
+            }
+
+            event.preventDefault()
+            document.dispatchEvent(new CustomEvent(OPEN_MODEL_PICKER_SHORTCUT_EVENT))
+        }
+
+        document.addEventListener("keydown", handleKeyDown)
+        return () => document.removeEventListener("keydown", handleKeyDown)
+    }, [])
 
     const projects = useDiskCachedQuery(
         api.folders.getUserProjects,

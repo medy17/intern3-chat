@@ -25,6 +25,7 @@ import { useSession } from "@/hooks/auth-hooks"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useDiskCachedQuery } from "@/lib/convex-cached-query"
 import { DefaultSettings } from "@/lib/default-user-settings"
+import { OPEN_MODEL_PICKER_SHORTCUT_EVENT } from "@/lib/keyboard-shortcuts"
 import { useModelStore } from "@/lib/model-store"
 import {
     type DisplayModel,
@@ -357,13 +358,15 @@ export function ModelSelector({
     onModelChange,
     className,
     side = "bottom",
-    align = "start"
+    align = "start",
+    shortcutTarget = "none"
 }: {
     selectedModel: string
     onModelChange: (modelId: string) => void
     className?: string
     side?: "top" | "right" | "bottom" | "left"
     align?: "start" | "center" | "end"
+    shortcutTarget?: "composer" | "none"
 }) {
     const auth = useConvexAuth()
     const session = useSession()
@@ -510,6 +513,20 @@ export function ModelSelector({
             setSearchValue("")
         }
     }, [open])
+
+    React.useEffect(() => {
+        if (shortcutTarget !== "composer") {
+            return
+        }
+
+        const handleOpenShortcut = () => {
+            setOpen(true)
+        }
+
+        document.addEventListener(OPEN_MODEL_PICKER_SHORTCUT_EVENT, handleOpenShortcut)
+        return () =>
+            document.removeEventListener(OPEN_MODEL_PICKER_SHORTCUT_EVENT, handleOpenShortcut)
+    }, [shortcutTarget])
 
     React.useLayoutEffect(() => {
         if (!open) return
