@@ -5,20 +5,12 @@ import {
     ContextMenuSeparator,
     ContextMenuTrigger
 } from "@/components/ui/context-menu"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu"
 import { SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
 import { api } from "@/convex/_generated/api"
 import { cn } from "@/lib/utils"
-import { Link } from "@tanstack/react-router"
-import { useParams } from "@tanstack/react-router"
+import { Link, useParams } from "@tanstack/react-router"
 import { useMutation } from "convex/react"
-import equal from "fast-deep-equal/es6"
-import { Check, CheckSquare2, Edit3, FolderOpen, MoreHorizontal, Pin, Trash2 } from "lucide-react"
+import { Check, CheckSquare2, Edit3, FolderOpen, Pin, Trash2 } from "lucide-react"
 import { memo, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import type { Thread } from "./types"
@@ -51,7 +43,7 @@ export const ThreadItem = memo(
         onToggleSelection,
         onStartSelection
     }: ThreadItemProps) => {
-        const [isMenuOpen, setIsMenuOpen] = useState(false)
+        const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
         const longPressTimeoutRef = useRef<number | null>(null)
         const longPressTriggeredRef = useRef(false)
 
@@ -84,31 +76,16 @@ export const ThreadItem = memo(
             }
         }
 
-        const handleRename = () => {
-            onOpenRenameDialog?.(thread)
-        }
-
-        const handleMove = () => {
-            onOpenMoveDialog?.(thread)
-        }
-
-        const handleDelete = () => {
-            onOpenDeleteDialog?.(thread)
-        }
-
-        const handleStartSelection = () => {
-            onStartSelection?.(thread)
-        }
-
-        const handleToggleSelection = () => {
-            onToggleSelection?.(thread)
-        }
+        const handleRename = () => onOpenRenameDialog?.(thread)
+        const handleMove = () => onOpenMoveDialog?.(thread)
+        const handleDelete = () => onOpenDeleteDialog?.(thread)
+        const handleStartSelection = () => onStartSelection?.(thread)
+        const handleToggleSelection = () => onToggleSelection?.(thread)
 
         const handlePointerDown = (event: React.PointerEvent<HTMLAnchorElement>) => {
             if (!enableLongPressSelection || isSelectionMode || event.pointerType !== "touch") {
                 return
             }
-
             longPressTriggeredRef.current = false
             clearLongPressTimer()
             longPressTimeoutRef.current = window.setTimeout(() => {
@@ -133,39 +110,11 @@ export const ThreadItem = memo(
                 handleToggleSelection()
                 return
             }
-
             if (longPressTriggeredRef.current) {
                 event.preventDefault()
                 event.stopPropagation()
             }
         }
-
-        const menuItems = (
-            <>
-                {onStartSelection && !isSelectionMode && (
-                    <DropdownMenuItem onClick={handleStartSelection}>
-                        <CheckSquare2 className="h-4 w-4" />
-                        Select threads
-                    </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={handleRename}>
-                    <Edit3 className="h-4 w-4" />
-                    Rename
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleTogglePin}>
-                    <Pin className="h-4 w-4" />
-                    {thread.pinned ? "Unpin" : "Pin"}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleMove}>
-                    <FolderOpen className="h-4 w-4" />
-                    Move to folder
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleDelete} variant="destructive">
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                </DropdownMenuItem>
-            </>
-        )
 
         const contextMenuItems = (
             <>
@@ -201,25 +150,31 @@ export const ThreadItem = memo(
             <SidebarMenuItem className={isInFolder ? "pl-6" : ""}>
                 <div
                     className={cn(
-                        "group/item flex w-full items-center rounded-sm hover:bg-accent/50",
-                        isMenuOpen && "bg-accent/50",
-                        (isActive || isSelected) && "bg-accent/60"
+                        "group/item relative flex h-9 w-full items-center overflow-hidden rounded-lg outline-hidden",
+                        "transition-colors duration-150 ease-in-out",
+                        // Use solid background colors instead of translucent (/50)
+                        "hover:bg-sidebar-accent",
+                        isContextMenuOpen && "bg-sidebar-accent",
+                        (isActive || isSelected) && "bg-sidebar-accent"
                     )}
                 >
                     <SidebarMenuButton
-                        className={cn("flex-1 hover:bg-transparent", isActive && "text-foreground")}
+                        className={cn(
+                            "h-full min-w-0 flex-1 px-2 hover:bg-transparent",
+                            isActive && "text-sidebar-accent-foreground"
+                        )}
                     >
                         {isSelectionMode ? (
                             <button
                                 type="button"
-                                className="flex w-full items-center justify-between gap-2"
+                                className="flex h-full w-full min-w-0 items-center gap-2"
                                 onClick={handleToggleSelection}
                             >
                                 <div className="flex min-w-0 flex-1 items-center gap-2">
                                     <span
                                         aria-hidden="true"
                                         className={cn(
-                                            "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
+                                            "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors",
                                             isSelected
                                                 ? "border-primary bg-primary text-primary-foreground"
                                                 : "border-muted-foreground/40 bg-transparent"
@@ -227,14 +182,16 @@ export const ThreadItem = memo(
                                     >
                                         {isSelected && <Check className="h-3 w-3" />}
                                     </span>
-                                    <span className="truncate">{thread.title}</span>
+                                    <span className="block min-w-0 flex-1 truncate text-sm">
+                                        {thread.title}
+                                    </span>
                                 </div>
                             </button>
                         ) : (
                             <Link
                                 to="/thread/$threadId"
                                 params={{ threadId: thread._id }}
-                                className="flex items-center justify-between gap-2"
+                                className="flex h-full w-full min-w-0 items-center"
                                 onClick={handleLinkClick}
                                 onPointerDown={handlePointerDown}
                                 onPointerUp={handlePointerUp}
@@ -242,43 +199,79 @@ export const ThreadItem = memo(
                                 onPointerCancel={clearLongPressTimer}
                                 onPointerMove={clearLongPressTimer}
                             >
-                                <div className="flex min-w-0 flex-1 items-center gap-2">
-                                    <span className="truncate">{thread.title}</span>
+                                <div className="flex min-w-0 flex-1 items-center">
+                                    <span className="block min-w-0 flex-1 truncate text-sm">
+                                        {thread.title}
+                                    </span>
                                 </div>
-                                <DropdownMenu onOpenChange={setIsMenuOpen}>
-                                    <DropdownMenuTrigger asChild>
-                                        <button
-                                            type="button"
-                                            onClick={(event) => {
-                                                event.preventDefault()
-                                                event.stopPropagation()
-                                            }}
-                                            className={cn(
-                                                "rounded p-1 transition-opacity",
-                                                isMenuOpen ||
-                                                    "opacity-0 group-hover/item:opacity-100"
-                                            )}
-                                        >
-                                            <MoreHorizontal className="mr-1 h-4 w-4" />
-                                        </button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        {menuItems}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
                             </Link>
                         )}
                     </SidebarMenuButton>
+
+                    {!isSelectionMode && (
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center justify-end">
+                            {/* 
+                                1. Increased width to w-28 for a smoother fade
+                                2. Changed to a solid gradient (via-40% creates a solid block behind the buttons) 
+                            */}
+                            <div
+                                className={cn(
+                                    "absolute inset-y-0 right-0 w-28 rounded-r-lg opacity-0 transition-opacity duration-150",
+                                    "bg-gradient-to-r from-transparent via-40% via-sidebar-accent to-sidebar-accent",
+                                    "group-hover/item:opacity-100",
+                                    isContextMenuOpen && "opacity-100"
+                                )}
+                            />
+
+                            <div
+                                className={cn(
+                                    "pointer-events-none relative z-10 flex translate-x-2 items-center gap-1 pr-1.5 opacity-0",
+                                    "transition-all duration-150 ease-out",
+                                    "group-hover/item:pointer-events-auto group-hover/item:translate-x-0 group-hover/item:opacity-100",
+                                    isContextMenuOpen &&
+                                        "pointer-events-auto translate-x-0 opacity-100"
+                                )}
+                            >
+                                <button
+                                    type="button"
+                                    title={thread.pinned ? "Unpin thread" : "Pin thread"}
+                                    onClick={(event) => {
+                                        event.preventDefault()
+                                        event.stopPropagation()
+                                        void handleTogglePin()
+                                    }}
+                                    className="pointer-events-auto flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground"
+                                >
+                                    <Pin
+                                        className={cn(
+                                            "h-3.5 w-3.5",
+                                            thread.pinned && "fill-current text-foreground"
+                                        )}
+                                    />
+                                </button>
+                                <button
+                                    type="button"
+                                    title="Delete thread"
+                                    onClick={(event) => {
+                                        event.preventDefault()
+                                        event.stopPropagation()
+                                        handleDelete()
+                                    }}
+                                    className="pointer-events-auto flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </SidebarMenuItem>
         )
 
-        if (!enableContextMenu) {
-            return threadContent
-        }
+        if (!enableContextMenu) return threadContent
 
         return (
-            <ContextMenu onOpenChange={setIsMenuOpen}>
+            <ContextMenu onOpenChange={setIsContextMenuOpen}>
                 <ContextMenuTrigger asChild>{threadContent}</ContextMenuTrigger>
                 <ContextMenuContent>{contextMenuItems}</ContextMenuContent>
             </ContextMenu>
@@ -286,12 +279,13 @@ export const ThreadItem = memo(
     },
     (prevProps, nextProps) => {
         return (
-            equal(prevProps.thread, nextProps.thread) &&
+            prevProps.thread._id === nextProps.thread._id &&
+            prevProps.thread.title === nextProps.thread.title &&
+            prevProps.thread.pinned === nextProps.thread.pinned &&
             prevProps.isInFolder === nextProps.isInFolder &&
             prevProps.isSelectionMode === nextProps.isSelectionMode &&
             prevProps.isSelected === nextProps.isSelected &&
-            prevProps.enableContextMenu === nextProps.enableContextMenu &&
-            prevProps.enableLongPressSelection === nextProps.enableLongPressSelection
+            prevProps.enableContextMenu === nextProps.enableContextMenu
         )
     }
 )

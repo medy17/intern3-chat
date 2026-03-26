@@ -347,7 +347,7 @@ function PrototypeCreditsGroup({ summary }: { summary: PrototypeCreditSummary })
                             <div className="flex items-center justify-between text-xs">
                                 <span className="text-muted-foreground">Basic</span>
                                 <span>
-                                    {summary.basic.used}/{summary.basic.limit} used
+                                    {summary.basic.used}/{summary.basic.limit}
                                 </span>
                             </div>
                             <Progress value={basicProgress} className="h-1.5" />
@@ -357,7 +357,7 @@ function PrototypeCreditsGroup({ summary }: { summary: PrototypeCreditSummary })
                             <div className="flex items-center justify-between text-xs">
                                 <span className="text-muted-foreground">Pro</span>
                                 <span>
-                                    {summary.pro.used}/{summary.pro.limit} used
+                                    {summary.pro.used}/{summary.pro.limit}
                                 </span>
                             </div>
                             <Progress value={proProgress} className="h-1.5" />
