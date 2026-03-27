@@ -16,24 +16,32 @@ export function ThemeScript() {
 
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
       const mode = themeState?.currentMode ?? (prefersDark ? "dark" : "light");
+      const baseStyles = themeState?.cssVars?.theme;
 
       const activeStyles =
         mode === "dark"
           ? themeState?.cssVars?.dark
           : themeState?.cssVars?.light;
 
-      if (!activeStyles) {
+      if (!baseStyles && !activeStyles) {
         return;
       }
 
-      const stylesToApply = Object.keys(activeStyles);
+      const stylesToApply = {
+        ...(baseStyles || {}),
+        ...(activeStyles || {})
+      };
 
-      for (const styleName of stylesToApply) {
-        const value = activeStyles[styleName];
+      for (const styleName of Object.keys(stylesToApply)) {
+        const value = stylesToApply[styleName];
         if (value !== undefined) {
           root.style.setProperty(\`--\${styleName}\`, value);
         }
       }
+
+      root.setAttribute("data-theme", mode);
+      root.classList.toggle("dark", mode === "dark");
+      root.classList.toggle("light", mode === "light");
     })();
   `
 

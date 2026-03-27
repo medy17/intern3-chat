@@ -131,7 +131,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
                 <HeadContent />
             </head>
 
-            <body className="h-dvh overflow-hidden">
+            <body className="h-dvh overflow-hidden font-sans">
                 <Providers>{children}</Providers>
 
                 <Scripts />
