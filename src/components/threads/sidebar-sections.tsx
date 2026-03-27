@@ -69,11 +69,13 @@ function ThreadsGroup({
     icon,
     isSelectionMode,
     selectedThreadIds,
+    onExportSelected,
     enableContextMenu,
     enableLongPressSelection,
     onOpenRenameDialog,
     onOpenMoveDialog,
     onOpenDeleteDialog,
+    onExportThread,
     onToggleSelection,
     onStartSelection
 }: {
@@ -82,11 +84,13 @@ function ThreadsGroup({
     icon?: ReactNode
     isSelectionMode?: boolean
     selectedThreadIds: string[]
+    onExportSelected?: () => Promise<void> | void
     enableContextMenu?: boolean
     enableLongPressSelection?: boolean
     onOpenRenameDialog?: (thread: Thread) => void
     onOpenMoveDialog?: (thread: Thread) => void
     onOpenDeleteDialog?: (thread: Thread) => void
+    onExportThread?: (thread: Thread) => Promise<void> | void
     onToggleSelection?: (thread: Thread) => void
     onStartSelection?: (thread: Thread) => void
 }) {
@@ -106,11 +110,14 @@ function ThreadsGroup({
                             thread={thread}
                             isSelectionMode={isSelectionMode}
                             isSelected={selectedThreadIds.includes(thread._id)}
+                            selectedThreadCount={selectedThreadIds.length}
                             enableContextMenu={enableContextMenu}
                             enableLongPressSelection={enableLongPressSelection}
                             onOpenRenameDialog={onOpenRenameDialog}
                             onOpenMoveDialog={onOpenMoveDialog}
                             onOpenDeleteDialog={onOpenDeleteDialog}
+                            onExportThread={onExportThread}
+                            onExportSelected={onExportSelected}
                             onToggleSelection={onToggleSelection}
                             onStartSelection={onStartSelection}
                         />
@@ -166,6 +173,8 @@ export type ThreadGroupActions = {
     onOpenRenameDialog?: (thread: Thread) => void
     onOpenMoveDialog?: (thread: Thread) => void
     onOpenDeleteDialog?: (thread: Thread) => void
+    onExportThread?: (thread: Thread) => Promise<void> | void
+    onExportSelected?: () => Promise<void> | void
     onToggleSelection?: (thread: Thread) => void
     onStartSelection?: (thread: Thread) => void
 }

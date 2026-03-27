@@ -35,6 +35,58 @@ export const normalizeTitle = (value: string) =>
         .trim()
         .slice(0, 100)
 
+export const extractLeadingFrontmatter = (value: string) => {
+    const normalized = value.replace(/\r\n/g, "\n")
+    const frontmatterMatch = normalized.match(/^---\n([\s\S]*?)\n---\n?/)
+
+    if (!frontmatterMatch) {
+        return {
+            body: normalized,
+            frontmatter: {} as Record<string, string>
+        }
+    }
+
+    const parsed = Object.fromEntries(
+        frontmatterMatch[1]
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .map((line) => {
+                const separatorIndex = line.indexOf(":")
+                if (separatorIndex === -1) {
+                    return null
+                }
+
+                const key = line.slice(0, separatorIndex).trim()
+                const rawValue = line.slice(separatorIndex + 1).trim()
+
+                if (!key) {
+                    return null
+                }
+
+                if (rawValue.startsWith('"') && rawValue.endsWith('"')) {
+                    try {
+                        return [key, JSON.parse(rawValue) as string]
+                    } catch {
+                        return [key, rawValue.slice(1, -1)]
+                    }
+                }
+
+                if (rawValue.startsWith("'") && rawValue.endsWith("'")) {
+                    return [key, rawValue.slice(1, -1)]
+                }
+
+                return [key, rawValue]
+            })
+            .filter((entry): entry is [string, string] => Boolean(entry))
+    )
+
+    return {
+        body: normalized.slice(frontmatterMatch[0].length),
+        frontmatter: parsed
+    }
+}
+
 export const parseImportTimestamp = (value: unknown) => {
     if (typeof value === "number" && Number.isFinite(value) && value > 0) {
         return value < 1_000_000_000_000 ? Math.trunc(value * 1000) : Math.trunc(value)

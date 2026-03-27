@@ -13,6 +13,7 @@ import { useAction, useMutation } from "convex/react"
 import {
     Check,
     CheckSquare2,
+    Download,
     Edit3,
     FolderOpen,
     Loader2,
@@ -29,11 +30,14 @@ interface ThreadItemProps {
     isInFolder?: boolean
     isSelectionMode?: boolean
     isSelected?: boolean
+    selectedThreadCount?: number
     enableContextMenu?: boolean
     enableLongPressSelection?: boolean
     onOpenRenameDialog?: (thread: Thread) => void
     onOpenMoveDialog?: (thread: Thread) => void
     onOpenDeleteDialog?: (thread: Thread) => void
+    onExportThread?: (thread: Thread) => Promise<void> | void
+    onExportSelected?: () => Promise<void> | void
     onToggleSelection?: (thread: Thread) => void
     onStartSelection?: (thread: Thread) => void
 }
@@ -44,16 +48,20 @@ export const ThreadItem = memo(
         isInFolder = false,
         isSelectionMode = false,
         isSelected = false,
+        selectedThreadCount = 0,
         enableContextMenu = true,
         enableLongPressSelection = false,
         onOpenRenameDialog,
         onOpenMoveDialog,
         onOpenDeleteDialog,
+        onExportThread,
+        onExportSelected,
         onToggleSelection,
         onStartSelection
     }: ThreadItemProps) => {
         const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
         const [isRegeneratingTitle, setIsRegeneratingTitle] = useState(false)
+        const [isExporting, setIsExporting] = useState(false)
         const longPressTimeoutRef = useRef<number | null>(null)
         const longPressStartPointRef = useRef<{ x: number; y: number } | null>(null)
         const longPressTriggeredRef = useRef(false)
@@ -93,6 +101,22 @@ export const ThreadItem = memo(
         const handleDelete = () => onOpenDeleteDialog?.(thread)
         const handleStartSelection = () => onStartSelection?.(thread)
         const handleToggleSelection = () => onToggleSelection?.(thread)
+        const shouldExportSelection = isSelectionMode && selectedThreadCount > 1
+        const handleExport = async () => {
+            if (isExporting) return
+
+            setIsExporting(true)
+            try {
+                if (shouldExportSelection) {
+                    await onExportSelected?.()
+                    return
+                }
+
+                await onExportThread?.(thread)
+            } finally {
+                setIsExporting(false)
+            }
+        }
 
         const handleRegenerateTitle = async () => {
             setIsRegeneratingTitle(true)
@@ -200,6 +224,14 @@ export const ThreadItem = memo(
                 <ContextMenuItem onClick={handleRename}>
                     <Edit3 className="h-4 w-4" />
                     Rename
+                </ContextMenuItem>
+                <ContextMenuItem onClick={() => void handleExport()} disabled={isExporting}>
+                    {isExporting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                        <Download className="h-4 w-4" />
+                    )}
+                    {shouldExportSelection ? "Export Selected as ZIP" : "Export as Markdown"}
                 </ContextMenuItem>
                 <ContextMenuItem
                     onClick={() => {
@@ -392,7 +424,10 @@ export const ThreadItem = memo(
             prevProps.isInFolder === nextProps.isInFolder &&
             prevProps.isSelectionMode === nextProps.isSelectionMode &&
             prevProps.isSelected === nextProps.isSelected &&
-            prevProps.enableContextMenu === nextProps.enableContextMenu
+            prevProps.selectedThreadCount === nextProps.selectedThreadCount &&
+            prevProps.enableContextMenu === nextProps.enableContextMenu &&
+            prevProps.onExportThread === nextProps.onExportThread &&
+            prevProps.onExportSelected === nextProps.onExportSelected
         )
     }
 )

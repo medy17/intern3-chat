@@ -20,8 +20,9 @@ import {
     isShortcutModifierPressed,
     matchesNewChatShortcut
 } from "@/lib/keyboard-shortcuts"
+import { exportMultipleThreads, exportSingleThread } from "@/lib/thread-export-client"
 import { useNavigate, useParams } from "@tanstack/react-router"
-import { useConvexAuth, useMutation, useQuery } from "convex/react"
+import { useConvex, useConvexAuth, useMutation, useQuery } from "convex/react"
 import type { MouseEvent } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
@@ -95,6 +96,7 @@ export function ThreadsSidebar() {
     const isMobile = useIsMobile()
     const { setOpenMobile } = useSidebar()
     const auth = useConvexAuth()
+    const convex = useConvex()
     const togglePinMutation = useMutation(api.threads.togglePinThread)
     const deleteThreadMutation = useMutation(api.threads.deleteThread)
     const moveThreadMutation = useMutation(api.folders.moveThreadToProject)
@@ -440,6 +442,37 @@ export function ThreadsSidebar() {
         setSelectedThreadIds(allThreads.map((thread) => thread._id))
     })
 
+    const handleExportThread = useFunction(async (thread: Thread) => {
+        try {
+            await exportSingleThread({
+                convex,
+                threadId: thread._id
+            })
+        } catch (error) {
+            console.error("Failed to export thread:", error)
+            toast.error(error instanceof Error ? error.message : "Failed to export conversation")
+        }
+    })
+
+    const handleExportSelectedThreads = useFunction(async () => {
+        if (selectedThreads.length === 0) return
+
+        setIsApplyingSelectionAction(true)
+        try {
+            await exportMultipleThreads({
+                convex,
+                threadIds: selectedThreads.map((thread) => thread._id)
+            })
+        } catch (error) {
+            console.error("Failed to export selected threads:", error)
+            toast.error(
+                error instanceof Error ? error.message : "Failed to export selected threads"
+            )
+        } finally {
+            setIsApplyingSelectionAction(false)
+        }
+    })
+
     const handleBulkTogglePin = useFunction(async () => {
         if (selectedThreads.length === 0) return
 
@@ -642,6 +675,8 @@ export function ThreadsSidebar() {
                         onOpenRenameDialog={handleOpenRenameDialog}
                         onOpenMoveDialog={handleOpenMoveDialog}
                         onOpenDeleteDialog={handleOpenDeleteDialog}
+                        onExportThread={handleExportThread}
+                        onExportSelected={handleExportSelectedThreads}
                         onToggleSelection={handleToggleSelection}
                         onStartSelection={handleStartSelection}
                     />

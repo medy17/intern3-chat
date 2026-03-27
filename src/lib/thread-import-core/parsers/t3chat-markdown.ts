@@ -1,8 +1,10 @@
 import { z } from "zod"
 import {
+    extractLeadingFrontmatter,
     mapRoleHeaderToRole,
     normalizeSpacing,
     normalizeTitle,
+    parseImportTimestamp,
     stripAttachmentMarkup
 } from "../shared"
 import type { ParsedThreadImportDocument } from "../types"
@@ -31,7 +33,8 @@ const extractTitle = (markdown: string) => {
 }
 
 export const tryParseT3ChatMarkdown = (markdown: string): ParsedThreadImportDocument | null => {
-    const normalizedMarkdown = markdown.replace(/\r\n/g, "\n")
+    const { body, frontmatter } = extractLeadingFrontmatter(markdown)
+    const normalizedMarkdown = body.replace(/\r\n/g, "\n")
     const sectionMatches = Array.from(normalizedMarkdown.matchAll(SECTION_HEADER_REGEX))
 
     if (sectionMatches.length === 0) {
@@ -83,13 +86,27 @@ export const tryParseT3ChatMarkdown = (markdown: string): ParsedThreadImportDocu
         return null
     }
 
+    const titleFromFrontmatter =
+        typeof frontmatter.title === "string" ? normalizeTitle(frontmatter.title) : ""
+    const sourceCreatedAt = parseImportTimestamp(frontmatter.created_at ?? frontmatter.createdAt)
+    const sourceUpdatedAt = parseImportTimestamp(frontmatter.updated_at ?? frontmatter.updatedAt)
+    const conversationId =
+        typeof frontmatter.thread_id === "string"
+            ? frontmatter.thread_id
+            : typeof frontmatter.id === "string"
+              ? frontmatter.id
+              : undefined
+
     return {
-        title: normalizeTitle(title) || "Imported Chat",
+        title: titleFromFrontmatter || normalizeTitle(title) || "Imported Chat",
         messages,
         parseWarnings,
         source: {
             service: "t3chat",
-            format: "markdown"
+            format: "markdown",
+            conversationId,
+            createdAt: sourceCreatedAt,
+            updatedAt: sourceUpdatedAt ?? sourceCreatedAt
         }
     }
 }
