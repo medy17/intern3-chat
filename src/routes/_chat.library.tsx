@@ -232,7 +232,7 @@ const GeneratedImageItem = memo(
                 style={{ aspectRatio: cssAspectRatio }}
                 onClick={onClick}
             >
-                {!isLoaded && (
+                {loadState !== "ready" && (
                     <div className="absolute inset-0 z-10 bg-background">
                         {placeholder === "tiles" ? (
                             <ImageSkeleton
