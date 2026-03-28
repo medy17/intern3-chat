@@ -14,7 +14,7 @@ import { type ReactNode, type RefObject, useEffect, useState } from "react"
 import { FolderItem } from "./folder-item"
 import { NewFolderButton } from "./new-folder-button"
 import { ThreadItem } from "./thread-item"
-import type { SidebarProject, Thread } from "./types"
+import type { Project, SidebarProject, Thread } from "./types"
 
 const getThreadActivityTime = (thread: Thread) => thread.updatedAt ?? thread.createdAt
 
@@ -73,12 +73,17 @@ function ThreadsGroup({
     onExportSelected,
     enableContextMenu,
     enableLongPressSelection,
+    canBulkTogglePin,
+    areAllSelectedPinned,
     onOpenRenameDialog,
     onOpenMoveDialog,
     onOpenDeleteDialog,
     onExportThread,
     onToggleSelection,
-    onStartSelection
+    onStartSelection,
+    onBulkTogglePin,
+    onOpenBulkMoveDialog,
+    onOpenBulkDeleteDialog
 }: {
     title: string
     threads: Thread[]
@@ -88,12 +93,17 @@ function ThreadsGroup({
     onExportSelected?: () => Promise<void> | void
     enableContextMenu?: boolean
     enableLongPressSelection?: boolean
+    canBulkTogglePin?: boolean
+    areAllSelectedPinned?: boolean
     onOpenRenameDialog?: (thread: Thread) => void
     onOpenMoveDialog?: (thread: Thread) => void
     onOpenDeleteDialog?: (thread: Thread) => void
     onExportThread?: (thread: Thread) => Promise<void> | void
     onToggleSelection?: (thread: Thread) => void
     onStartSelection?: (thread: Thread) => void
+    onBulkTogglePin?: () => Promise<void> | void
+    onOpenBulkMoveDialog?: () => void
+    onOpenBulkDeleteDialog?: () => void
 }) {
     if (threads.length === 0) return null
 
@@ -114,6 +124,8 @@ function ThreadsGroup({
                             selectedThreadCount={selectedThreadIds.length}
                             enableContextMenu={enableContextMenu}
                             enableLongPressSelection={enableLongPressSelection}
+                            canBulkTogglePin={canBulkTogglePin}
+                            areAllSelectedPinned={areAllSelectedPinned}
                             onOpenRenameDialog={onOpenRenameDialog}
                             onOpenMoveDialog={onOpenMoveDialog}
                             onOpenDeleteDialog={onOpenDeleteDialog}
@@ -121,6 +133,9 @@ function ThreadsGroup({
                             onExportSelected={onExportSelected}
                             onToggleSelection={onToggleSelection}
                             onStartSelection={onStartSelection}
+                            onBulkTogglePin={onBulkTogglePin}
+                            onOpenBulkMoveDialog={onOpenBulkMoveDialog}
+                            onOpenBulkDeleteDialog={onOpenBulkDeleteDialog}
                         />
                     ))}
                 </SidebarMenu>
@@ -143,7 +158,26 @@ function LibraryLink() {
     )
 }
 
-export function FoldersSection({ projects }: { projects: SidebarProject[] }) {
+export type FolderGroupActions = {
+    isSelectionMode?: boolean
+    enableContextMenu?: boolean
+    enableLongPressSelection?: boolean
+    getFolderSelectionState?: (project: Project, threadCount: number) => "none" | "some" | "all"
+    onToggleFolderSelection?: (project: Project) => void | Promise<void>
+    onStartFolderSelection?: (project: Project) => void | Promise<void>
+}
+
+export function FoldersSection({
+    projects,
+    isSelectionMode,
+    enableContextMenu,
+    enableLongPressSelection,
+    getFolderSelectionState,
+    onToggleFolderSelection,
+    onStartFolderSelection
+}: {
+    projects: SidebarProject[]
+} & FolderGroupActions) {
     const [isOpen, setIsOpen] = useState(() => {
         if (typeof window !== "undefined") {
             const saved = localStorage.getItem("folders-section-open")
@@ -181,6 +215,15 @@ export function FoldersSection({ projects }: { projects: SidebarProject[] }) {
                                         key={project._id}
                                         project={project}
                                         numThreads={project.threadCount}
+                                        isSelectionMode={isSelectionMode}
+                                        selectionState={getFolderSelectionState?.(
+                                            project,
+                                            project.threadCount
+                                        )}
+                                        enableContextMenu={enableContextMenu}
+                                        enableLongPressSelection={enableLongPressSelection}
+                                        onToggleSelection={onToggleFolderSelection}
+                                        onStartSelection={onStartFolderSelection}
                                     />
                                 ))}
                             </SidebarMenu>
@@ -197,6 +240,8 @@ export type ThreadGroupActions = {
     selectedThreadIds: string[]
     enableContextMenu?: boolean
     enableLongPressSelection?: boolean
+    canBulkTogglePin?: boolean
+    areAllSelectedPinned?: boolean
     onOpenRenameDialog?: (thread: Thread) => void
     onOpenMoveDialog?: (thread: Thread) => void
     onOpenDeleteDialog?: (thread: Thread) => void
@@ -204,6 +249,9 @@ export type ThreadGroupActions = {
     onExportSelected?: () => Promise<void> | void
     onToggleSelection?: (thread: Thread) => void
     onStartSelection?: (thread: Thread) => void
+    onBulkTogglePin?: () => Promise<void> | void
+    onOpenBulkMoveDialog?: () => void
+    onOpenBulkDeleteDialog?: () => void
 }
 
 export function ThreadSections({

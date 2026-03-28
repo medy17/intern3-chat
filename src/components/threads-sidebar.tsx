@@ -104,12 +104,15 @@ type PrototypeCreditPlanSummary = {
     }
 }
 
+type SelectionScope = "thread" | "folder" | null
+
 export function ThreadsSidebar() {
     const [showGradient, setShowGradient] = useState(false)
     const [commandKOpen, setCommandKOpen] = useState(false)
     const [importOpen, setImportOpen] = useState(false)
     const [importDialogJobId, setImportDialogJobId] = useState<Id<"importJobs"> | null>(null)
     const [isSelectionMode, setIsSelectionMode] = useState(false)
+    const [selectionScope, setSelectionScope] = useState<SelectionScope>(null)
     const [selectedThreadIds, setSelectedThreadIds] = useState<string[]>([])
     const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false)
     const [showBulkMoveDialog, setShowBulkMoveDialog] = useState(false)
@@ -209,10 +212,31 @@ export function ThreadsSidebar() {
         [activeThread, allThreads, params.threadId]
     )
 
-    const selectedThreads = useMemo(
-        () => allThreads.filter((thread) => selectedThreadIds.includes(thread._id)),
-        [allThreads, selectedThreadIds]
+    const selectedThreadsQuery = useQuery(
+        api.threads.getUserThreadsByIds,
+        selectedThreadIds.length > 0 && session?.user?.id && !auth.isLoading
+            ? {
+                  threadIds: selectedThreadIds as Id<"threads">[]
+              }
+            : "skip"
     )
+
+    const selectedThreads = useMemo(() => selectedThreadsQuery ?? [], [selectedThreadsQuery])
+    const selectedThreadsCount = selectedThreadIds.length
+    const canBulkTogglePin =
+        selectedThreads.length === selectedThreadsCount && selectedThreadsCount > 0
+    const areAllSelectedPinned =
+        canBulkTogglePin && selectedThreads.every((thread) => thread.pinned)
+    const selectedThreadCountsByProject = useMemo(() => {
+        const counts = new Map<string, number>()
+        for (const thread of selectedThreads) {
+            if (!thread.projectId) continue
+            counts.set(thread.projectId, (counts.get(thread.projectId) ?? 0) + 1)
+        }
+        return counts
+    }, [selectedThreads])
+    const isThreadSelectionMode = isSelectionMode && selectionScope === "thread"
+    const isFolderSelectionMode = isSelectionMode && selectionScope === "folder"
 
     const groupedNonProjectThreads = useMemo(() => groupThreadsByTime(allThreads), [allThreads])
 
@@ -256,10 +280,17 @@ export function ThreadsSidebar() {
     }, [prototypeCreditPlanSummary, usageSummary])
 
     useEffect(() => {
-        setSelectedThreadIds((previous) =>
-            previous.filter((threadId) => allThreads.some((thread) => thread._id === threadId))
-        )
-    }, [allThreads])
+        if (!selectedThreadsQuery || selectedThreadIds.length === 0) {
+            return
+        }
+
+        if (selectedThreadsQuery.length === selectedThreadIds.length) {
+            return
+        }
+
+        const existingIds = new Set(selectedThreadsQuery.map((thread) => thread._id))
+        setSelectedThreadIds((previous) => previous.filter((threadId) => existingIds.has(threadId)))
+    }, [selectedThreadIds.length, selectedThreadsQuery])
 
     useEffect(() => {
         setPrimaryShortcutLabel(isMacLikePlatform() ? "⌘" : "Ctrl")
@@ -268,6 +299,7 @@ export function ThreadsSidebar() {
     useEffect(() => {
         if (isSelectionMode && selectedThreadIds.length === 0) {
             setIsSelectionMode(false)
+            setSelectionScope(null)
         }
     }, [isSelectionMode, selectedThreadIds.length])
 
@@ -450,13 +482,16 @@ export function ThreadsSidebar() {
     }, [currentThreadForShortcut, handleOpenDeleteDialog])
 
     const handleStartSelection = useFunction((thread: Thread) => {
+        setSelectionScope("thread")
         setIsSelectionMode(true)
-        setSelectedThreadIds((previous) =>
-            previous.includes(thread._id) ? previous : [...previous, thread._id]
-        )
+        setSelectedThreadIds([thread._id])
     })
 
     const handleToggleSelection = useFunction((thread: Thread) => {
+        if (selectionScope !== "thread") {
+            setSelectionScope("thread")
+        }
+
         setSelectedThreadIds((previous) =>
             previous.includes(thread._id)
                 ? previous.filter((threadId) => threadId !== thread._id)
@@ -466,6 +501,7 @@ export function ThreadsSidebar() {
 
     const handleExitSelectionMode = useFunction(() => {
         setIsSelectionMode(false)
+        setSelectionScope(null)
         setSelectedThreadIds([])
         setShowBulkDeleteDialog(false)
         setShowBulkMoveDialog(false)
@@ -478,8 +514,72 @@ export function ThreadsSidebar() {
     })
 
     const handleSelectAllThreads = useFunction(() => {
-        setSelectedThreadIds(allThreads.map((thread) => thread._id))
+        if (!isThreadSelectionMode) return
+
+        setSelectedThreadIds((previous) =>
+            Array.from(new Set([...previous, ...allThreads.map((thread) => thread._id)]))
+        )
     })
+
+    const handleStartFolderSelection = useFunction(async (project: SidebarProject) => {
+        if (project.threadCount === 0) return
+
+        try {
+            const threadIds = await convex.query(api.threads.getThreadIdsByProject, {
+                projectId: project._id
+            })
+
+            if (threadIds.length === 0) return
+
+            setSelectionScope("folder")
+            setIsSelectionMode(true)
+            setSelectedThreadIds(threadIds)
+        } catch (error) {
+            console.error("Failed to load folder threads for selection:", error)
+            toast.error("Failed to select folder threads")
+        }
+    })
+
+    const handleToggleFolderSelection = useFunction(async (project: SidebarProject) => {
+        if (project.threadCount === 0) return
+
+        try {
+            const threadIds = await convex.query(api.threads.getThreadIdsByProject, {
+                projectId: project._id
+            })
+
+            if (threadIds.length === 0) return
+
+            if (selectionScope !== "folder") {
+                setSelectionScope("folder")
+            }
+
+            const folderThreadIdSet = new Set(threadIds)
+            setSelectedThreadIds((previous) => {
+                const isFullySelected = threadIds.every((threadId) => previous.includes(threadId))
+
+                if (isFullySelected) {
+                    return previous.filter((threadId) => !folderThreadIdSet.has(threadId))
+                }
+
+                return Array.from(new Set([...previous, ...threadIds]))
+            })
+        } catch (error) {
+            console.error("Failed to toggle folder thread selection:", error)
+            toast.error("Failed to update folder selection")
+        }
+    })
+
+    const getFolderSelectionState = useFunction(
+        (project: SidebarProject, threadCount: number): "none" | "some" | "all" => {
+            if (threadCount === 0) return "none"
+
+            const selectedCount = selectedThreadCountsByProject.get(project._id) ?? 0
+            if (selectedCount === 0) return "none"
+            if (selectedCount >= threadCount) return "all"
+            return "some"
+        }
+    )
 
     const handleExportThread = useFunction(async (thread: Thread) => {
         try {
@@ -494,13 +594,13 @@ export function ThreadsSidebar() {
     })
 
     const handleExportSelectedThreads = useFunction(async () => {
-        if (selectedThreads.length === 0) return
+        if (selectedThreadsCount === 0) return
 
         setIsApplyingSelectionAction(true)
         try {
             await exportMultipleThreads({
                 convex,
-                threadIds: selectedThreads.map((thread) => thread._id)
+                threadIds: selectedThreadIds as Id<"threads">[]
             })
         } catch (error) {
             console.error("Failed to export selected threads:", error)
@@ -513,7 +613,7 @@ export function ThreadsSidebar() {
     })
 
     const handleBulkTogglePin = useFunction(async () => {
-        if (selectedThreads.length === 0) return
+        if (selectedThreads.length === 0 || selectedThreads.length !== selectedThreadsCount) return
 
         const shouldPin = !selectedThreads.every((thread) => thread.pinned)
         const threadsToToggle = selectedThreads.filter(
@@ -541,19 +641,21 @@ export function ThreadsSidebar() {
     })
 
     const handleConfirmBulkDelete = useFunction(async () => {
-        if (selectedThreads.length === 0) return
+        if (selectedThreadsCount === 0) return
 
         setIsApplyingSelectionAction(true)
         try {
-            if (selectedThreads.some((thread) => thread._id === params.threadId)) {
+            if (selectedThreadIds.includes(params.threadId as string)) {
                 navigate({ to: "/", replace: true })
             }
 
             await Promise.all(
-                selectedThreads.map((thread) => deleteThreadMutation({ threadId: thread._id }))
+                selectedThreadIds.map((threadId) =>
+                    deleteThreadMutation({ threadId: threadId as Id<"threads"> })
+                )
             )
             toast.success(
-                `Deleted ${selectedThreads.length} thread${selectedThreads.length === 1 ? "" : "s"}`
+                `Deleted ${selectedThreadsCount} thread${selectedThreadsCount === 1 ? "" : "s"}`
             )
             handleExitSelectionMode()
         } catch (error) {
@@ -571,7 +673,7 @@ export function ThreadsSidebar() {
     })
 
     const handleConfirmBulkMove = useFunction(async () => {
-        if (selectedThreads.length === 0) return
+        if (selectedThreadsCount === 0) return
 
         const targetProjectId =
             bulkMoveProjectId === "no-folder" ? undefined : (bulkMoveProjectId as Id<"projects">)
@@ -579,9 +681,9 @@ export function ThreadsSidebar() {
         setIsApplyingSelectionAction(true)
         try {
             await Promise.all(
-                selectedThreads.map((thread) =>
+                selectedThreadIds.map((threadId) =>
                     moveThreadMutation({
-                        threadId: thread._id,
+                        threadId: threadId as Id<"threads">,
                         projectId: targetProjectId
                     })
                 )
@@ -593,7 +695,7 @@ export function ThreadsSidebar() {
                 : "General"
 
             toast.success(
-                `Moved ${selectedThreads.length} thread${selectedThreads.length === 1 ? "" : "s"} to ${targetName}`
+                `Moved ${selectedThreadsCount} thread${selectedThreadsCount === 1 ? "" : "s"} to ${targetName}`
             )
             handleExitSelectionMode()
         } catch (error) {
@@ -678,7 +780,15 @@ export function ThreadsSidebar() {
             return (
                 <>
                     <LibraryLink />
-                    <FoldersSection projects={resolvedProjects} />
+                    <FoldersSection
+                        projects={resolvedProjects}
+                        isSelectionMode={isFolderSelectionMode}
+                        enableContextMenu={!isMobile}
+                        enableLongPressSelection={isMobile}
+                        getFolderSelectionState={getFolderSelectionState}
+                        onToggleFolderSelection={handleToggleFolderSelection}
+                        onStartFolderSelection={handleStartFolderSelection}
+                    />
                     <EmptyState message="No threads found" />
                 </>
             )
@@ -690,14 +800,24 @@ export function ThreadsSidebar() {
                 {importJobs && importJobs.length > 0 && (
                     <ImportJobsGroup jobs={importJobs} onOpenJob={handleOpenImportJob} />
                 )}
-                <FoldersSection projects={resolvedProjects} />
+                <FoldersSection
+                    projects={resolvedProjects}
+                    isSelectionMode={isFolderSelectionMode}
+                    enableContextMenu={!isMobile}
+                    enableLongPressSelection={isMobile}
+                    getFolderSelectionState={getFolderSelectionState}
+                    onToggleFolderSelection={handleToggleFolderSelection}
+                    onStartFolderSelection={handleStartFolderSelection}
+                />
                 {allThreads.length > 0 && (
                     <ThreadSections
                         groupedThreads={groupedNonProjectThreads}
-                        isSelectionMode={isSelectionMode}
-                        selectedThreadIds={selectedThreadIds}
+                        isSelectionMode={isThreadSelectionMode}
+                        selectedThreadIds={isThreadSelectionMode ? selectedThreadIds : []}
                         enableContextMenu={!isMobile}
                         enableLongPressSelection={isMobile}
+                        canBulkTogglePin={canBulkTogglePin}
+                        areAllSelectedPinned={areAllSelectedPinned}
                         onOpenRenameDialog={handleOpenRenameDialog}
                         onOpenMoveDialog={handleOpenMoveDialog}
                         onOpenDeleteDialog={handleOpenDeleteDialog}
@@ -705,6 +825,9 @@ export function ThreadsSidebar() {
                         onExportSelected={handleExportSelectedThreads}
                         onToggleSelection={handleToggleSelection}
                         onStartSelection={handleStartSelection}
+                        onBulkTogglePin={handleBulkTogglePin}
+                        onOpenBulkMoveDialog={handleOpenBulkMoveDialog}
+                        onOpenBulkDeleteDialog={() => setShowBulkDeleteDialog(true)}
                     />
                 )}
                 <LoadMoreThreadsGroup
@@ -741,6 +864,8 @@ export function ThreadsSidebar() {
                 {isSelectionMode && (
                     <SelectionToolbar
                         selectedThreads={selectedThreads}
+                        selectedCount={selectedThreadsCount}
+                        canSelectAllThreads={isThreadSelectionMode}
                         isApplyingSelectionAction={isApplyingSelectionAction}
                         onSelectAllThreads={handleSelectAllThreads}
                         onBulkTogglePin={handleBulkTogglePin}
@@ -764,7 +889,7 @@ export function ThreadsSidebar() {
             <BulkMoveThreadsDialog
                 open={showBulkMoveDialog}
                 onOpenChange={setShowBulkMoveDialog}
-                selectedThreadsCount={selectedThreads.length}
+                selectedThreadsCount={selectedThreadsCount}
                 bulkMoveProjectId={bulkMoveProjectId}
                 onBulkMoveProjectIdChange={setBulkMoveProjectId}
                 isApplyingSelectionAction={isApplyingSelectionAction}
@@ -774,7 +899,7 @@ export function ThreadsSidebar() {
             <BulkDeleteThreadsDialog
                 open={showBulkDeleteDialog}
                 onOpenChange={setShowBulkDeleteDialog}
-                selectedThreadsCount={selectedThreads.length}
+                selectedThreadsCount={selectedThreadsCount}
                 isApplyingSelectionAction={isApplyingSelectionAction}
                 onConfirm={handleConfirmBulkDelete}
             />

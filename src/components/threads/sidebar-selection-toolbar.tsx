@@ -17,6 +17,8 @@ type OverflowAction = "pin" | "move" | "delete"
 
 export function SelectionToolbar({
     selectedThreads,
+    selectedCount,
+    canSelectAllThreads,
     isApplyingSelectionAction,
     onSelectAllThreads,
     onBulkTogglePin,
@@ -25,6 +27,8 @@ export function SelectionToolbar({
     onExitSelectionMode
 }: {
     selectedThreads: Thread[]
+    selectedCount: number
+    canSelectAllThreads?: boolean
     isApplyingSelectionAction: boolean
     onSelectAllThreads: () => void
     onBulkTogglePin: () => void
@@ -52,7 +56,10 @@ export function SelectionToolbar({
 
             const availableWidth =
                 layoutWidth - labelWidth - TOOLBAR_SIDE_PADDING - TOOLBAR_GAP_WIDTH
-            const alwaysVisibleWidth = TOOLBAR_BUTTON_WIDTH * 2 + TOOLBAR_GAP_WIDTH
+            const alwaysVisibleActions = canSelectAllThreads ? 2 : 1
+            const alwaysVisibleWidth =
+                TOOLBAR_BUTTON_WIDTH * alwaysVisibleActions +
+                (alwaysVisibleActions > 1 ? TOOLBAR_GAP_WIDTH : 0)
 
             const remainingWidth = Math.max(0, availableWidth - alwaysVisibleWidth)
             const candidates: OverflowAction[] = ["pin", "move", "delete"]
@@ -91,41 +98,42 @@ export function SelectionToolbar({
         return () => {
             observer.disconnect()
         }
-    }, [])
+    }, [canSelectAllThreads])
 
     const overflowActions = (["pin", "move", "delete"] as const).filter(
         (action) => !visibleOverflowActions.includes(action)
     )
+    const isPinStateResolved = selectedThreads.length === selectedCount && selectedCount > 0
+    const areAllSelectedThreadsPinned =
+        isPinStateResolved && selectedThreads.every((thread) => thread.pinned)
 
-    if (selectedThreads.length === 0) return null
+    if (selectedCount === 0) return null
 
     return (
         <div className="absolute right-2 bottom-2 left-2 z-20 rounded-lg border bg-sidebar/95 p-2 shadow-lg backdrop-blur">
             <div ref={layoutRef} className="flex items-center gap-2">
                 <div ref={labelRef} className="font-medium text-sm">
-                    {selectedThreads.length} selected
+                    {selectedCount} selected
                 </div>
                 <div className="ml-auto flex items-center gap-1">
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={onSelectAllThreads}
-                        disabled={isApplyingSelectionAction}
-                        title="Select all loaded threads"
-                    >
-                        <CheckCheck className="h-4 w-4" />
-                    </Button>
+                    {canSelectAllThreads && (
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={onSelectAllThreads}
+                            disabled={isApplyingSelectionAction}
+                            title="Select all loaded threads"
+                        >
+                            <CheckCheck className="h-4 w-4" />
+                        </Button>
+                    )}
                     {visibleOverflowActions.includes("pin") && (
                         <Button
                             size="icon"
                             variant="ghost"
                             onClick={onBulkTogglePin}
-                            disabled={isApplyingSelectionAction}
-                            title={
-                                selectedThreads.every((thread) => thread.pinned)
-                                    ? "Unpin selected"
-                                    : "Pin selected"
-                            }
+                            disabled={isApplyingSelectionAction || !isPinStateResolved}
+                            title={areAllSelectedThreadsPinned ? "Unpin selected" : "Pin selected"}
                         >
                             <Pin className="h-4 w-4" />
                         </Button>
@@ -166,9 +174,12 @@ export function SelectionToolbar({
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                                 {overflowActions.includes("pin") && (
-                                    <DropdownMenuItem onClick={onBulkTogglePin}>
+                                    <DropdownMenuItem
+                                        onClick={onBulkTogglePin}
+                                        disabled={!isPinStateResolved}
+                                    >
                                         <Pin className="h-4 w-4" />
-                                        {selectedThreads.every((thread) => thread.pinned)
+                                        {areAllSelectedThreadsPinned
                                             ? "Unpin selected"
                                             : "Pin selected"}
                                     </DropdownMenuItem>

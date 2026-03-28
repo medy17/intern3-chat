@@ -925,6 +925,47 @@ export const getThreadsByProject = query({
     }
 })
 
+export const getThreadIdsByProject = query({
+    args: {
+        projectId: v.id("projects")
+    },
+    handler: async ({ db, auth }, { projectId }) => {
+        const user = await getUserIdentity(auth, { allowAnons: true })
+
+        if ("error" in user) {
+            return []
+        }
+
+        const threads = await db
+            .query("threads")
+            .withIndex("byAuthorAndProject", (q) =>
+                q.eq("authorId", user.id).eq("projectId", projectId)
+            )
+            .collect()
+
+        return threads.map((thread) => thread._id)
+    }
+})
+
+export const getUserThreadsByIds = query({
+    args: {
+        threadIds: v.array(v.id("threads"))
+    },
+    handler: async ({ db, auth }, { threadIds }) => {
+        const user = await getUserIdentity(auth, { allowAnons: true })
+
+        if ("error" in user) {
+            return []
+        }
+
+        const threads = await Promise.all(threadIds.map((threadId) => db.get(threadId)))
+
+        return threads
+            .filter((thread): thread is NonNullable<typeof thread> => Boolean(thread))
+            .filter((thread) => thread.authorId === user.id)
+    }
+})
+
 // Enhanced getUserThreadsPaginated with project filtering
 export const getUserThreadsPaginatedByProject = query({
     args: {

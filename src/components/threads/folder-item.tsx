@@ -10,6 +10,13 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuSeparator,
+    ContextMenuTrigger
+} from "@/components/ui/context-menu"
+import {
     Dialog,
     DialogContent,
     DialogFooter,
@@ -36,26 +43,46 @@ import { cn } from "@/lib/utils"
 import { Link } from "@tanstack/react-router"
 import { useNavigate, useParams } from "@tanstack/react-router"
 import { useMutation } from "convex/react"
-import { Check, Edit3, Loader2, MoreHorizontal, Trash2 } from "lucide-react"
-import { useState } from "react"
+import { Check, CheckSquare2, Edit3, Loader2, Minus, MoreHorizontal, Trash2 } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import type { Project } from "./types"
 
-export function FolderItem({
-    project,
-    numThreads
-}: {
+type FolderSelectionState = "none" | "some" | "all"
+
+interface FolderItemProps {
     project: Project
     numThreads: number
-}) {
+    isSelectionMode?: boolean
+    selectionState?: FolderSelectionState
+    enableContextMenu?: boolean
+    enableLongPressSelection?: boolean
+    onStartSelection?: (project: Project) => void | Promise<void>
+    onToggleSelection?: (project: Project) => void | Promise<void>
+}
+
+export function FolderItem({
+    project,
+    numThreads,
+    isSelectionMode = false,
+    selectionState = "none",
+    enableContextMenu = true,
+    enableLongPressSelection = false,
+    onStartSelection,
+    onToggleSelection
+}: FolderItemProps) {
     const [showEditDialog, setShowEditDialog] = useState(false)
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
     const [isMenuOpen, setIsMenuOpen] = useState(false)
+    const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
     const [editName, setEditName] = useState("")
     const [editDescription, setEditDescription] = useState("")
     const [editColor, setEditColor] = useState<string>("blue")
     const [isEditing, setIsEditing] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
+    const longPressTimeoutRef = useRef<number | null>(null)
+    const longPressStartPointRef = useRef<{ x: number; y: number } | null>(null)
+    const longPressTriggeredRef = useRef(false)
 
     const colorClasses = getProjectColorClasses(project.color as ProjectColorId)
     const updateProjectMutation = useMutation(api.folders.updateProject)
@@ -131,49 +158,222 @@ export function FolderItem({
         setEditColor(project.color || "blue")
         setShowEditDialog(true)
     }
-    const { setOpenMobile } = useSidebar()
 
-    return (
+    const { setOpenMobile } = useSidebar()
+    const hasThreads = numThreads > 0
+    const isFullySelected = selectionState === "all"
+    const isPartiallySelected = selectionState === "some"
+    const isTileHighlighted =
+        isMenuOpen || isContextMenuOpen || isCurrentFolder || isFullySelected || isPartiallySelected
+
+    useEffect(() => {
+        return () => {
+            if (longPressTimeoutRef.current !== null) {
+                window.clearTimeout(longPressTimeoutRef.current)
+            }
+        }
+    }, [])
+
+    const clearLongPressTimer = () => {
+        if (longPressTimeoutRef.current !== null) {
+            window.clearTimeout(longPressTimeoutRef.current)
+            longPressTimeoutRef.current = null
+        }
+    }
+
+    const handleStartSelection = () => {
+        if (!hasThreads) return
+        void onStartSelection?.(project)
+    }
+
+    const handleToggleSelection = () => {
+        if (!hasThreads) return
+        void onToggleSelection?.(project)
+    }
+
+    const handlePointerDown = (event: React.PointerEvent<HTMLAnchorElement>) => {
+        if (!enableLongPressSelection || isSelectionMode || event.pointerType !== "touch") {
+            return
+        }
+
+        longPressTriggeredRef.current = false
+        longPressStartPointRef.current = {
+            x: event.clientX,
+            y: event.clientY
+        }
+        clearLongPressTimer()
+        longPressTimeoutRef.current = window.setTimeout(() => {
+            longPressTriggeredRef.current = true
+            handleStartSelection()
+        }, 450)
+    }
+
+    const handlePointerUp = () => {
+        clearLongPressTimer()
+        longPressStartPointRef.current = null
+        if (longPressTriggeredRef.current) {
+            window.setTimeout(() => {
+                longPressTriggeredRef.current = false
+            }, 0)
+        }
+    }
+
+    const handlePointerMove = (event: React.PointerEvent<HTMLAnchorElement>) => {
+        if (
+            event.pointerType !== "touch" ||
+            longPressTimeoutRef.current === null ||
+            !longPressStartPointRef.current
+        ) {
+            return
+        }
+
+        const deltaX = event.clientX - longPressStartPointRef.current.x
+        const deltaY = event.clientY - longPressStartPointRef.current.y
+        const movedDistance = Math.hypot(deltaX, deltaY)
+
+        if (movedDistance > 10) {
+            clearLongPressTimer()
+            longPressStartPointRef.current = null
+        }
+    }
+
+    const handleLinkClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+        if (longPressTriggeredRef.current) {
+            event.preventDefault()
+            event.stopPropagation()
+            return
+        }
+
+        setOpenMobile(false)
+    }
+
+    const handleContextMenu = (event: React.MouseEvent<HTMLAnchorElement>) => {
+        if (!enableLongPressSelection) {
+            return
+        }
+
+        event.preventDefault()
+        event.stopPropagation()
+    }
+
+    const folderMenuItems = (
         <>
-            <SidebarMenuItem>
-                <div
+            {!isSelectionMode && hasThreads && onStartSelection && (
+                <>
+                    <ContextMenuItem onClick={handleStartSelection}>
+                        <CheckSquare2 className="h-4 w-4" />
+                        Select threads
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                </>
+            )}
+            <ContextMenuItem onClick={openEditDialog}>
+                <Edit3 className="h-4 w-4" />
+                Edit folder
+            </ContextMenuItem>
+            <ContextMenuItem onClick={() => setShowDeleteDialog(true)} variant="destructive">
+                <Trash2 className="h-4 w-4" />
+                Delete folder
+            </ContextMenuItem>
+        </>
+    )
+
+    const folderContent = (
+        <SidebarMenuItem>
+            <div
+                className={cn(
+                    "group/item relative flex h-9 w-full items-center overflow-hidden rounded-lg outline-hidden transition-colors duration-200 ease-in-out hover:bg-sidebar-accent",
+                    isTileHighlighted && "bg-sidebar-accent"
+                )}
+            >
+                <SidebarMenuButton
+                    asChild={!isSelectionMode}
                     className={cn(
-                        "group/item flex w-full items-center rounded-sm hover:bg-accent/50",
-                        isMenuOpen && "bg-accent/50",
-                        isCurrentFolder && "bg-accent/60"
+                        "h-full min-w-0 flex-1 px-2 hover:bg-transparent",
+                        isCurrentFolder && !isSelectionMode && "text-foreground"
                     )}
                 >
-                    <SidebarMenuButton
-                        asChild
-                        className={cn(
-                            "flex-1 hover:bg-transparent",
-                            isCurrentFolder && "text-foreground"
-                        )}
-                    >
+                    {isSelectionMode ? (
+                        <button
+                            type="button"
+                            className="flex h-full w-full min-w-0 items-center gap-2"
+                            onClick={handleToggleSelection}
+                            disabled={!hasThreads}
+                        >
+                            <div className="flex min-w-0 flex-1 items-center gap-2">
+                                <span
+                                    aria-hidden="true"
+                                    className={cn(
+                                        "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors",
+                                        isFullySelected || isPartiallySelected
+                                            ? "border-primary bg-primary text-primary-foreground"
+                                            : "border-muted-foreground/40 bg-transparent"
+                                    )}
+                                >
+                                    {isFullySelected && <Check className="h-3 w-3" />}
+                                    {isPartiallySelected && <Minus className="h-3 w-3" />}
+                                </span>
+                                <div
+                                    className={cn(
+                                        "flex size-3 shrink-0 items-center justify-center rounded-full text-xs",
+                                        colorClasses.split(" ").slice(1).join(" ")
+                                    )}
+                                />
+                                <span className="min-w-0 flex-1 truncate font-medium text-sm">
+                                    {project.name}
+                                </span>
+                            </div>
+                            <span className="shrink-0 text-muted-foreground text-xs tabular-nums">
+                                {numThreads}
+                            </span>
+                        </button>
+                    ) : (
                         <Link
-                            onClick={() => {
-                                setOpenMobile(false)
-                            }}
+                            onClick={handleLinkClick}
                             to="/folder/$folderId"
                             params={{ folderId: project._id }}
-                            className="flex items-center gap-2"
+                            className="flex h-full w-full min-w-0 items-center gap-2"
+                            onContextMenu={handleContextMenu}
+                            onPointerDown={handlePointerDown}
+                            onPointerUp={handlePointerUp}
+                            onPointerLeave={handlePointerUp}
+                            onPointerCancel={handlePointerUp}
+                            onPointerMove={handlePointerMove}
+                            style={
+                                enableLongPressSelection
+                                    ? {
+                                          WebkitTouchCallout: "none",
+                                          WebkitUserSelect: "none",
+                                          userSelect: "none",
+                                          touchAction: "manipulation"
+                                      }
+                                    : undefined
+                            }
                         >
                             <div
                                 className={cn(
-                                    "flex size-3 flex-shrink-0 items-center justify-center rounded-full text-xs",
+                                    "flex size-3 shrink-0 items-center justify-center rounded-full text-xs",
                                     colorClasses.split(" ").slice(1).join(" ")
                                 )}
                             />
-                            <span className="truncate font-medium">{project.name}</span>
+                            <span className="min-w-0 flex-1 truncate font-medium">
+                                {project.name}
+                            </span>
                         </Link>
-                    </SidebarMenuButton>
+                    )}
+                </SidebarMenuButton>
 
+                {!isSelectionMode && (
                     <DropdownMenu onOpenChange={setIsMenuOpen}>
                         <DropdownMenuTrigger asChild>
-                            <button type="button" className={"relative rounded p-1"}>
+                            <button
+                                type="button"
+                                className="relative mr-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground"
+                                aria-label={`Folder actions for ${project.name}`}
+                            >
                                 <span
                                     className={cn(
-                                        "-translate-y-1/2 absolute top-[50%] right-2 ml-auto flex-shrink-0 rounded bg-input px-0.5 py-0.25 text-muted-foreground text-xs leading-none transition-opacity",
+                                        "pointer-events-none absolute rounded bg-input px-1 py-0.5 text-[10px] leading-none transition-opacity",
                                         isMenuOpen
                                             ? "opacity-0"
                                             : "opacity-100 group-hover/item:opacity-0"
@@ -183,13 +383,19 @@ export function FolderItem({
                                 </span>
                                 <MoreHorizontal
                                     className={cn(
-                                        "mr-1 h-4 w-4 transition-opacity",
+                                        "h-4 w-4 transition-opacity",
                                         isMenuOpen || "opacity-0 group-hover/item:opacity-100"
                                     )}
                                 />
                             </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                            {hasThreads && onStartSelection && (
+                                <DropdownMenuItem onClick={handleStartSelection}>
+                                    <CheckSquare2 className="h-4 w-4" />
+                                    Select threads
+                                </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem onClick={openEditDialog}>
                                 <Edit3 className="h-4 w-4" />
                                 Edit folder
@@ -203,8 +409,21 @@ export function FolderItem({
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
-                </div>
-            </SidebarMenuItem>
+                )}
+            </div>
+        </SidebarMenuItem>
+    )
+
+    return (
+        <>
+            {enableContextMenu ? (
+                <ContextMenu onOpenChange={setIsContextMenuOpen}>
+                    <ContextMenuTrigger asChild>{folderContent}</ContextMenuTrigger>
+                    <ContextMenuContent>{folderMenuItems}</ContextMenuContent>
+                </ContextMenu>
+            ) : (
+                folderContent
+            )}
 
             {/* Edit Dialog */}
             <Dialog

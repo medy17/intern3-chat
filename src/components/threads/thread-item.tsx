@@ -33,11 +33,16 @@ interface ThreadItemProps {
     selectedThreadCount?: number
     enableContextMenu?: boolean
     enableLongPressSelection?: boolean
+    canBulkTogglePin?: boolean
+    areAllSelectedPinned?: boolean
     onOpenRenameDialog?: (thread: Thread) => void
     onOpenMoveDialog?: (thread: Thread) => void
     onOpenDeleteDialog?: (thread: Thread) => void
     onExportThread?: (thread: Thread) => Promise<void> | void
     onExportSelected?: () => Promise<void> | void
+    onBulkTogglePin?: () => Promise<void> | void
+    onOpenBulkMoveDialog?: () => void
+    onOpenBulkDeleteDialog?: () => void
     onToggleSelection?: (thread: Thread) => void
     onStartSelection?: (thread: Thread) => void
 }
@@ -51,11 +56,16 @@ export const ThreadItem = memo(
         selectedThreadCount = 0,
         enableContextMenu = true,
         enableLongPressSelection = false,
+        canBulkTogglePin = true,
+        areAllSelectedPinned = false,
         onOpenRenameDialog,
         onOpenMoveDialog,
         onOpenDeleteDialog,
         onExportThread,
         onExportSelected,
+        onBulkTogglePin,
+        onOpenBulkMoveDialog,
+        onOpenBulkDeleteDialog,
         onToggleSelection,
         onStartSelection
     }: ThreadItemProps) => {
@@ -101,7 +111,8 @@ export const ThreadItem = memo(
         const handleDelete = () => onOpenDeleteDialog?.(thread)
         const handleStartSelection = () => onStartSelection?.(thread)
         const handleToggleSelection = () => onToggleSelection?.(thread)
-        const shouldExportSelection = isSelectionMode && selectedThreadCount > 1
+        const shouldUseBulkActions = isSelectionMode && selectedThreadCount > 1
+        const shouldExportSelection = shouldUseBulkActions
         const handleExport = async () => {
             if (isExporting) return
 
@@ -221,43 +232,70 @@ export const ThreadItem = memo(
                         <ContextMenuSeparator />
                     </>
                 )}
-                <ContextMenuItem onClick={handleRename}>
-                    <Edit3 className="h-4 w-4" />
-                    Rename
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => void handleExport()} disabled={isExporting}>
-                    {isExporting ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                        <Download className="h-4 w-4" />
-                    )}
-                    {shouldExportSelection ? "Export Selected as ZIP" : "Export as Markdown"}
-                </ContextMenuItem>
-                <ContextMenuItem
-                    onClick={() => {
-                        void handleRegenerateTitle()
-                    }}
-                    disabled={isRegeneratingTitle}
-                >
-                    {isRegeneratingTitle ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                        <Sparkles className="h-4 w-4" />
-                    )}
-                    Regenerate Title
-                </ContextMenuItem>
-                <ContextMenuItem onClick={handleTogglePin}>
-                    <Pin className="h-4 w-4" />
-                    {thread.pinned ? "Unpin" : "Pin"}
-                </ContextMenuItem>
-                <ContextMenuItem onClick={handleMove}>
-                    <FolderOpen className="h-4 w-4" />
-                    Move to folder
-                </ContextMenuItem>
-                <ContextMenuItem onClick={handleDelete} variant="destructive">
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                </ContextMenuItem>
+                {shouldUseBulkActions ? (
+                    <>
+                        <ContextMenuItem onClick={() => void handleExport()} disabled={isExporting}>
+                            {isExporting ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Download className="h-4 w-4" />
+                            )}
+                            Export Selected as ZIP
+                        </ContextMenuItem>
+                        <ContextMenuItem onClick={onBulkTogglePin} disabled={!canBulkTogglePin}>
+                            <Pin className="h-4 w-4" />
+                            {areAllSelectedPinned ? "Unpin selected" : "Pin selected"}
+                        </ContextMenuItem>
+                        <ContextMenuItem onClick={onOpenBulkMoveDialog}>
+                            <FolderOpen className="h-4 w-4" />
+                            Move selected
+                        </ContextMenuItem>
+                        <ContextMenuItem onClick={onOpenBulkDeleteDialog} variant="destructive">
+                            <Trash2 className="h-4 w-4" />
+                            Delete selected
+                        </ContextMenuItem>
+                    </>
+                ) : (
+                    <>
+                        <ContextMenuItem onClick={handleRename}>
+                            <Edit3 className="h-4 w-4" />
+                            Rename
+                        </ContextMenuItem>
+                        <ContextMenuItem onClick={() => void handleExport()} disabled={isExporting}>
+                            {isExporting ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Download className="h-4 w-4" />
+                            )}
+                            Export as Markdown
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                            onClick={() => {
+                                void handleRegenerateTitle()
+                            }}
+                            disabled={isRegeneratingTitle}
+                        >
+                            {isRegeneratingTitle ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Sparkles className="h-4 w-4" />
+                            )}
+                            Regenerate Title
+                        </ContextMenuItem>
+                        <ContextMenuItem onClick={handleTogglePin}>
+                            <Pin className="h-4 w-4" />
+                            {thread.pinned ? "Unpin" : "Pin"}
+                        </ContextMenuItem>
+                        <ContextMenuItem onClick={handleMove}>
+                            <FolderOpen className="h-4 w-4" />
+                            Move to folder
+                        </ContextMenuItem>
+                        <ContextMenuItem onClick={handleDelete} variant="destructive">
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                        </ContextMenuItem>
+                    </>
+                )}
             </>
         )
 
@@ -426,8 +464,13 @@ export const ThreadItem = memo(
             prevProps.isSelected === nextProps.isSelected &&
             prevProps.selectedThreadCount === nextProps.selectedThreadCount &&
             prevProps.enableContextMenu === nextProps.enableContextMenu &&
+            prevProps.canBulkTogglePin === nextProps.canBulkTogglePin &&
+            prevProps.areAllSelectedPinned === nextProps.areAllSelectedPinned &&
             prevProps.onExportThread === nextProps.onExportThread &&
-            prevProps.onExportSelected === nextProps.onExportSelected
+            prevProps.onExportSelected === nextProps.onExportSelected &&
+            prevProps.onBulkTogglePin === nextProps.onBulkTogglePin &&
+            prevProps.onOpenBulkMoveDialog === nextProps.onOpenBulkMoveDialog &&
+            prevProps.onOpenBulkDeleteDialog === nextProps.onOpenBulkDeleteDialog
         )
     }
 )
