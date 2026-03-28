@@ -33,6 +33,31 @@ export const Route = createFileRoute("/_chat/library")({
 
 const IMAGES_PER_PAGE = 50
 type ImageSortOption = "newest" | "oldest"
+type ImageLoadPlaceholder = "tiles" | "skeleton"
+
+const GalleryImageSkeleton = memo(({ aspectRatio }: { aspectRatio: string }) => {
+    const cssAspectRatio = useMemo(() => {
+        if (aspectRatio.includes("x")) {
+            const [width, height] = aspectRatio.split("x").map(Number)
+            return `${width}/${height}`
+        }
+        if (aspectRatio.includes(":")) {
+            const baseRatio = aspectRatio.replace("-hd", "")
+            return baseRatio.replace(":", "/")
+        }
+        return "1/1"
+    }, [aspectRatio])
+
+    return (
+        <div
+            className="overflow-hidden rounded-xl border border-border/60 bg-background"
+            style={{ aspectRatio: cssAspectRatio }}
+        >
+            <Skeleton className="h-full w-full rounded-none bg-accent/70" />
+        </div>
+    )
+})
+GalleryImageSkeleton.displayName = "GalleryImageSkeleton"
 
 const PendingImageItem = memo(({ aspectRatio }: { aspectRatio: string }) => {
     // Convert aspect ratio to CSS aspect-ratio value
@@ -81,17 +106,31 @@ const PendingImageItem = memo(({ aspectRatio }: { aspectRatio: string }) => {
 PendingImageItem.displayName = "PendingImageItem"
 
 const GeneratedImageItem = memo(
-    ({ image, onClick }: { image: Doc<"generatedImages">; onClick: () => void }) => {
+    ({
+        image,
+        onClick,
+        placeholder = "skeleton",
+        onImageSettled
+    }: {
+        image: Doc<"generatedImages">
+        onClick: () => void
+        placeholder?: ImageLoadPlaceholder
+        onImageSettled?: () => void
+    }) => {
         const [isError, setIsError] = useState(false)
         const [isLoaded, setIsLoaded] = useState(false)
 
         const imageUrl = `${browserEnv("VITE_CONVEX_API_URL")}/r2?key=${image.storageKey}`
 
-        const handleImageLoad = useCallback(() => setIsLoaded(true), [])
+        const handleImageLoad = useCallback(() => {
+            setIsLoaded(true)
+            onImageSettled?.()
+        }, [onImageSettled])
         const handleImageError = useCallback(() => {
             setIsError(true)
             setIsLoaded(true)
-        }, [])
+            onImageSettled?.()
+        }, [onImageSettled])
 
         const aspectRatio = image.aspectRatio || "1:1"
         const cssAspectRatio = useMemo(() => {
@@ -142,16 +181,19 @@ const GeneratedImageItem = memo(
             >
                 {!isLoaded && (
                     <div className="absolute inset-0 z-10 bg-background">
-                        {" "}
-                        <ImageSkeleton
-                            rows={rows}
-                            cols={cols}
-                            dotSize={3}
-                            gap={4}
-                            loadingDuration={99999}
-                            autoLoop={false}
-                            className="h-full w-full border-0 bg-transparent"
-                        />
+                        {placeholder === "tiles" ? (
+                            <ImageSkeleton
+                                rows={rows}
+                                cols={cols}
+                                dotSize={3}
+                                gap={4}
+                                loadingDuration={99999}
+                                autoLoop={false}
+                                className="h-full w-full border-0 bg-transparent"
+                            />
+                        ) : (
+                            <GalleryImageSkeleton aspectRatio={aspectRatio} />
+                        )}
                     </div>
                 )}
                 <img
@@ -199,6 +241,10 @@ function LibraryPage() {
     const [pendingGenerations, setPendingGenerations] = useState<
         { id: string; aspectRatio: string }[]
     >([])
+    const [completedGenerationCount, setCompletedGenerationCount] = useState(0)
+    const [animatedImageIds, setAnimatedImageIds] = useState<string[]>([])
+    const previousPageImageIdsRef = useRef<string[]>([])
+    const previousGenerationCountRef = useRef(0)
 
     useEffect(() => {
         if (session.user?.id) {
@@ -272,6 +318,27 @@ function LibraryPage() {
         galleryRef.current?.scrollTo({ top: 0, behavior: "smooth" })
     }, [currentCursor, sortBy])
 
+    useEffect(() => {
+        const currentImageIds = images.map((image) => image._id)
+        const didCompleteGeneration = completedGenerationCount > previousGenerationCountRef.current
+
+        if (didCompleteGeneration && sortBy === "newest" && pageNumber === 1) {
+            const previousImageIds = new Set(previousPageImageIdsRef.current)
+            const newImageIds = currentImageIds.filter((imageId) => !previousImageIds.has(imageId))
+
+            if (newImageIds.length > 0) {
+                setAnimatedImageIds((prev) => [...new Set([...prev, ...newImageIds])])
+            }
+        }
+
+        previousGenerationCountRef.current = completedGenerationCount
+        previousPageImageIdsRef.current = currentImageIds
+    }, [completedGenerationCount, images, pageNumber, sortBy])
+
+    const handleImageSettled = useCallback((imageId: Doc<"generatedImages">["_id"]) => {
+        setAnimatedImageIds((prev) => prev.filter((id) => id !== imageId))
+    }, [])
+
     if (!session.user?.id) {
         return (
             <div className="container mx-auto max-w-6xl px-4 pt-12 pb-8">
@@ -292,9 +359,10 @@ function LibraryPage() {
         <div className="flex h-dvh w-full overflow-hidden">
             <ImageGenerationSidebar
                 onGenerateStart={(info) => setPendingGenerations((prev) => [info, ...prev])}
-                onGenerateComplete={(id) =>
+                onGenerateComplete={(id) => {
                     setPendingGenerations((prev) => prev.filter((p) => p.id !== id))
-                }
+                    setCompletedGenerationCount((prev) => prev + 1)
+                }}
             />
 
             <div ref={galleryRef} className="flex-1 overflow-y-auto p-6">
@@ -367,7 +435,13 @@ function LibraryPage() {
                                 <div key={image._id} className="mb-4 break-inside-avoid">
                                     <GeneratedImageItem
                                         image={image}
+                                        placeholder={
+                                            animatedImageIds.includes(image._id)
+                                                ? "tiles"
+                                                : "skeleton"
+                                        }
                                         onClick={() => setSelectedImage(image)}
+                                        onImageSettled={() => handleImageSettled(image._id)}
                                     />
                                 </div>
                             ))}
