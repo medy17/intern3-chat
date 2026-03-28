@@ -8,10 +8,10 @@ import {
 } from "@/components/ui/dialog"
 import { api } from "@/convex/_generated/api"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
-import { browserEnv } from "@/lib/browser-env"
+import { getExpandedImageUrl, getGeneratedImageProxyUrl } from "@/lib/generated-image-urls"
 import { useSharedModels } from "@/lib/shared-models"
-import { useMutation } from "convex/react"
-import { Download, Trash2 } from "lucide-react"
+import { useMutation, useQuery } from "convex/react"
+import { Download, ExternalLink, Trash2 } from "lucide-react"
 import { useState } from "react"
 
 interface ImageDetailsModalProps {
@@ -23,15 +23,27 @@ interface ImageDetailsModalProps {
 export function ImageDetailsModal({ image, isOpen, onClose }: ImageDetailsModalProps) {
     const { models } = useSharedModels()
     const deleteImage = useMutation(api.images_node.deleteGeneratedImage)
+    const metadata = useQuery(
+        api.attachments.getFileMetadata,
+        image ? { key: image.storageKey } : "skip"
+    )
     const [isDeleting, setIsDeleting] = useState(false)
 
     if (!image) return null
 
-    const imageUrl = `${browserEnv("VITE_CONVEX_API_URL")}/r2?key=${image.storageKey}`
+    const imageUrl = getExpandedImageUrl({
+        storageKey: image.storageKey,
+        aspectRatio: image.aspectRatio
+    })
+    const fullResolutionUrl = metadata?.url || getGeneratedImageProxyUrl(image.storageKey)
     const model = models.find((m) => m.id === image.modelId)
 
     const handleDownload = () => {
-        window.open(imageUrl, "_blank")
+        window.open(fullResolutionUrl, "_blank")
+    }
+
+    const handleViewFullResolution = () => {
+        window.open(fullResolutionUrl, "_blank")
     }
 
     const handleDelete = async () => {
@@ -99,6 +111,14 @@ export function ImageDetailsModal({ image, isOpen, onClose }: ImageDetailsModalP
                     </div>
 
                     <div className="mt-auto flex gap-3 border-t pt-6">
+                        <Button
+                            variant="outline"
+                            className="flex-1"
+                            onClick={handleViewFullResolution}
+                        >
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            Full Resolution
+                        </Button>
                         <Button variant="secondary" className="flex-1" onClick={handleDownload}>
                             <Download className="mr-2 h-4 w-4" />
                             Download

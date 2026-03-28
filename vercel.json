@@ -2,6 +2,28 @@
     "$schema": "https://openapi.vercel.sh/vercel.json",
     "installCommand": "bun install",
     "buildCommand": "bun run build",
+    "images": {
+        "sizes": [576, 720, 1080],
+        "formats": ["image/avif", "image/webp"],
+        "minimumCacheTTL": 2678400,
+        "remotePatterns": [
+            {
+                "protocol": "https",
+                "hostname": "**.convex.site",
+                "pathname": "/**"
+            },
+            {
+                "protocol": "http",
+                "hostname": "127.0.0.1",
+                "pathname": "/http/**"
+            },
+            {
+                "protocol": "http",
+                "hostname": "localhost",
+                "pathname": "/http/**"
+            }
+        ]
+    },
     "headers": [
         {
             "source": "/assets/(.*)",

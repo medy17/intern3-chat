@@ -21,7 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/convex/_generated/api"
 import type { Doc } from "@/convex/_generated/dataModel"
 import { useSession } from "@/hooks/auth-hooks"
-import { browserEnv } from "@/lib/browser-env"
+import { getLibraryImageSources } from "@/lib/generated-image-urls"
 import { cn } from "@/lib/utils"
 import { createFileRoute } from "@tanstack/react-router"
 import { useAction, useQuery } from "convex/react"
@@ -156,7 +156,10 @@ const GeneratedImageItem = memo(
         const [loadState, setLoadState] = useState<"loading" | "revealing" | "ready">("loading")
         const revealTimeoutRef = useRef<number | null>(null)
 
-        const imageUrl = `${browserEnv("VITE_CONVEX_API_URL")}/r2?key=${image.storageKey}`
+        const imageSources = getLibraryImageSources({
+            storageKey: image.storageKey,
+            aspectRatio: image.aspectRatio
+        })
 
         const handleImageLoad = useCallback(() => {
             setLoadState("revealing")
@@ -253,7 +256,9 @@ const GeneratedImageItem = memo(
                     <TileLoadIndicator complete={loadState === "revealing"} />
                 )}
                 <img
-                    src={imageUrl}
+                    src={imageSources.src}
+                    srcSet={imageSources.srcSet}
+                    sizes={imageSources.sizes}
                     alt={image.prompt || "AI generation"}
                     className={cn(
                         "absolute inset-0 h-full w-full object-cover transition-all duration-500",
