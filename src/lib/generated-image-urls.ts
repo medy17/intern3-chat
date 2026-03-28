@@ -85,20 +85,20 @@ export const getLibraryImageSources = ({
             storageKey,
             aspectRatio,
             longEdge: 720,
-            quality: 58
+            quality: 76
         }),
         srcSet: [
             `${getOptimizedGeneratedImageUrl({
                 storageKey,
                 aspectRatio,
                 longEdge: 576,
-                quality: 52
+                quality: 70
             })} ${smallWidth}w`,
             `${getOptimizedGeneratedImageUrl({
                 storageKey,
                 aspectRatio,
                 longEdge: 720,
-                quality: 58
+                quality: 76
             })} ${largeWidth}w`
         ].join(", "),
         sizes: "(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw"
@@ -116,5 +116,5 @@ export const getExpandedImageUrl = ({
         storageKey,
         aspectRatio,
         longEdge: 1080,
-        quality: 68
+        quality: 84
     })
