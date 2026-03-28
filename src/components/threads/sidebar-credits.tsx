@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { SidebarGroup, SidebarGroupContent, SidebarGroupLabel } from "@/components/ui/sidebar"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Crown, KeyRound, Wallet } from "lucide-react"
 
 export type PrototypeCreditSummary = {
@@ -81,17 +82,39 @@ function PrototypeCreditsGroup({ summary }: { summary: PrototypeCreditSummary })
     )
 }
 
-function PrototypeCreditsLoadingGroup() {
+export function PrototypeCreditsLoadingGroup() {
     return (
         <SidebarGroup>
             <SidebarGroupLabel>Credits</SidebarGroupLabel>
             <SidebarGroupContent>
                 <div className="rounded-md border bg-sidebar-accent/20 px-3 py-3">
                     <div className="flex items-center gap-2">
-                        <Wallet className="h-4 w-4 shrink-0" />
-                        <div className="font-medium text-sm">Credits</div>
+                        <Skeleton className="h-4 w-4 shrink-0" />
+                        <Skeleton className="h-4 w-20" />
                     </div>
-                    <div className="mt-3 text-muted-foreground text-xs">Loading usage...</div>
+
+                    <div className="mt-3 space-y-3">
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                                <Skeleton className="h-3 w-10" />
+                                <Skeleton className="h-3 w-12" />
+                            </div>
+                            <Skeleton className="h-1.5 w-full" />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                                <Skeleton className="h-3 w-10" />
+                                <Skeleton className="h-3 w-12" />
+                            </div>
+                            <Skeleton className="h-1.5 w-full" />
+                        </div>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between">
+                        <Skeleton className="h-3 w-16" />
+                        <Skeleton className="h-3 w-16" />
+                    </div>
                 </div>
             </SidebarGroupContent>
         </SidebarGroup>

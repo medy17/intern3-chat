@@ -7,6 +7,7 @@ import {
     SidebarRail,
     useSidebar
 } from "@/components/ui/sidebar"
+import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { useFunction } from "@/hooks/use-function"
@@ -28,7 +29,11 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { ImportThreadDialog } from "./threads/import-thread-button"
 import { BulkDeleteThreadsDialog, BulkMoveThreadsDialog } from "./threads/sidebar-bulk-dialogs"
-import { type PrototypeCreditSummary, PrototypeCreditsSection } from "./threads/sidebar-credits"
+import {
+    type PrototypeCreditSummary,
+    PrototypeCreditsLoadingGroup,
+    PrototypeCreditsSection
+} from "./threads/sidebar-credits"
 import { ThreadsSidebarHeader } from "./threads/sidebar-header"
 import { ImportJobsGroup } from "./threads/sidebar-import-jobs"
 import {
@@ -42,8 +47,40 @@ import { SelectionToolbar } from "./threads/sidebar-selection-toolbar"
 import { ThreadItemDialogs } from "./threads/thread-item-dialogs"
 import type { SidebarProject, Thread } from "./threads/types"
 
-function LoadingSkeleton() {
-    return <></>
+function ThreadItemSkeleton() {
+    return (
+        <div className="flex h-9 w-full items-center px-2">
+            <Skeleton className="h-4 w-[85%] rounded-md" />
+        </div>
+    )
+}
+
+function LoadingSkeleton({ shouldShowCredits }: { shouldShowCredits: boolean }) {
+    return (
+        <div className="flex flex-col gap-2 py-2">
+            <div className="px-2">
+                <Skeleton className="h-8 w-full" />
+            </div>
+            {shouldShowCredits && <PrototypeCreditsLoadingGroup />}
+            <div className="mt-4 flex flex-col gap-2 px-2">
+                <div className="mb-2 flex flex-col gap-2">
+                    <Skeleton className="h-4 w-20" />
+                    <div className="flex flex-col">
+                        <ThreadItemSkeleton />
+                        <ThreadItemSkeleton />
+                    </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                    <Skeleton className="h-4 w-24" />
+                    <div className="flex flex-col">
+                        <ThreadItemSkeleton />
+                        <ThreadItemSkeleton />
+                        <ThreadItemSkeleton />
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
 }
 
 function EmptyState({ message }: { message: string }) {
@@ -90,7 +127,7 @@ export function ThreadsSidebar() {
 
     const scrollContainerRef = useRef<HTMLDivElement>(null)
     const importJobStatusRef = useRef<Record<string, string>>({})
-    const { data: session } = authClient.useSession()
+    const { data: session, isPending: isSessionPending } = authClient.useSession()
     const navigate = useNavigate()
     const params = useParams({ strict: false }) as { threadId?: string }
     const isMobile = useIsMobile()
@@ -146,7 +183,12 @@ export function ThreadsSidebar() {
         session?.user?.id && !auth.isLoading ? {} : "skip"
     )
 
-    const isLoading = false
+    const hasError = false
+    const hasProjectsError = "error" in projects
+    const resolvedProjects: SidebarProject[] = hasProjectsError ? [] : projects
+
+    const isLoading = auth.isLoading && allThreads.length === 0 && resolvedProjects.length === 0
+
     const sentinelRef = useInfiniteScroll({
         hasMore: status === "CanLoadMore",
         isLoading: false,
@@ -156,11 +198,8 @@ export function ThreadsSidebar() {
     })
 
     const isAuthenticated = Boolean(session?.user?.id)
-    const shouldShowPrototypeCredits = isAuthenticated && !auth.isLoading
+    const shouldShowPrototypeCredits = isAuthenticated || isSessionPending
     const shouldShowDevCreditPlanToggle = import.meta.env.DEV && Boolean(session?.user?.id)
-    const hasError = false
-    const hasProjectsError = "error" in projects
-    const resolvedProjects: SidebarProject[] = hasProjectsError ? [] : projects
 
     const currentThreadForShortcut = useMemo(
         () =>
@@ -625,7 +664,7 @@ export function ThreadsSidebar() {
 
     const renderContent = () => {
         if (isLoading) {
-            return <LoadingSkeleton />
+            return <LoadingSkeleton shouldShowCredits={false} />
         }
 
         if (hasError || hasProjectsError) {
@@ -639,13 +678,6 @@ export function ThreadsSidebar() {
             return (
                 <>
                     <LibraryLink />
-                    <PrototypeCreditsSection
-                        shouldShow={shouldShowPrototypeCredits}
-                        summary={prototypeCreditSummary}
-                        shouldShowDevCreditPlanToggle={shouldShowDevCreditPlanToggle}
-                        isUpdatingCreditPlan={isUpdatingCreditPlan}
-                        onSetCreditPlan={handleSetCreditPlan}
-                    />
                     <EmptyState message="No threads found" />
                 </>
             )
@@ -657,13 +689,6 @@ export function ThreadsSidebar() {
                 {importJobs && importJobs.length > 0 && (
                     <ImportJobsGroup jobs={importJobs} onOpenJob={handleOpenImportJob} />
                 )}
-                <PrototypeCreditsSection
-                    shouldShow={shouldShowPrototypeCredits}
-                    summary={prototypeCreditSummary}
-                    shouldShowDevCreditPlanToggle={shouldShowDevCreditPlanToggle}
-                    isUpdatingCreditPlan={isUpdatingCreditPlan}
-                    onSetCreditPlan={handleSetCreditPlan}
-                />
                 <FoldersSection projects={resolvedProjects} />
                 {allThreads.length > 0 && (
                     <ThreadSections
@@ -700,6 +725,13 @@ export function ThreadsSidebar() {
                     onSearchClick={handleSearchClick}
                 />
                 <SidebarContent ref={scrollContainerRef} className="scrollbar-hide">
+                    <PrototypeCreditsSection
+                        shouldShow={shouldShowPrototypeCredits}
+                        summary={prototypeCreditSummary}
+                        shouldShowDevCreditPlanToggle={shouldShowDevCreditPlanToggle}
+                        isUpdatingCreditPlan={isUpdatingCreditPlan}
+                        onSetCreditPlan={handleSetCreditPlan}
+                    />
                     {renderContent()}
                 </SidebarContent>
                 {showGradient && (
