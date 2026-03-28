@@ -678,6 +678,7 @@ export function ThreadsSidebar() {
             return (
                 <>
                     <LibraryLink />
+                    <FoldersSection projects={resolvedProjects} />
                     <EmptyState message="No threads found" />
                 </>
             )

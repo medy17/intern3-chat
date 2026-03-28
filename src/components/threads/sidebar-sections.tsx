@@ -1,4 +1,5 @@
 import { buttonVariants } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
     SidebarGroup,
     SidebarGroupContent,
@@ -8,8 +9,8 @@ import {
 import { cn } from "@/lib/utils"
 import { Link } from "@tanstack/react-router"
 import { isAfter, isToday, isYesterday, subDays } from "date-fns"
-import { Image, Loader2, Pin } from "lucide-react"
-import type { ReactNode, RefObject } from "react"
+import { ChevronRight, Image, Loader2, Pin } from "lucide-react"
+import { type ReactNode, type RefObject, useEffect, useState } from "react"
 import { FolderItem } from "./folder-item"
 import { NewFolderButton } from "./new-folder-button"
 import { ThreadItem } from "./thread-item"
@@ -143,25 +144,51 @@ function LibraryLink() {
 }
 
 export function FoldersSection({ projects }: { projects: SidebarProject[] }) {
+    const [isOpen, setIsOpen] = useState(() => {
+        if (typeof window !== "undefined") {
+            const saved = localStorage.getItem("folders-section-open")
+            if (saved !== null) {
+                return saved === "true"
+            }
+        }
+        return false // default for new users is collapsed
+    })
+
+    useEffect(() => {
+        localStorage.setItem("folders-section-open", String(isOpen))
+    }, [isOpen])
+
     return (
-        <SidebarGroup>
-            <SidebarGroupLabel className="pr-0">
-                Folders
-                <div className="flex-grow" />
-                <NewFolderButton />
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-                <SidebarMenu>
-                    {projects.map((project) => (
-                        <FolderItem
-                            key={project._id}
-                            project={project}
-                            numThreads={project.threadCount}
-                        />
-                    ))}
-                </SidebarMenu>
-            </SidebarGroupContent>
-        </SidebarGroup>
+        <Collapsible open={isOpen} onOpenChange={setIsOpen} className="group/collapsible">
+            <SidebarGroup>
+                <SidebarGroupLabel className="gap-0 pr-0">
+                    <CollapsibleTrigger className="mr-2 flex flex-1 cursor-pointer items-center transition-colors hover:text-sidebar-foreground">
+                        <ChevronRight className="mr-1 h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                        Folders
+                    </CollapsibleTrigger>
+                    <NewFolderButton onSuccess={() => setIsOpen(true)} />
+                </SidebarGroupLabel>
+                <CollapsibleContent>
+                    <SidebarGroupContent>
+                        {projects.length === 0 ? (
+                            <div className="p-4 text-center text-muted-foreground text-sm">
+                                No folders created yet
+                            </div>
+                        ) : (
+                            <SidebarMenu>
+                                {projects.map((project) => (
+                                    <FolderItem
+                                        key={project._id}
+                                        project={project}
+                                        numThreads={project.threadCount}
+                                    />
+                                ))}
+                            </SidebarMenu>
+                        )}
+                    </SidebarGroupContent>
+                </CollapsibleContent>
+            </SidebarGroup>
+        </Collapsible>
     )
 }
 

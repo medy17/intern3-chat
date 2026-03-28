@@ -223,7 +223,13 @@ export function NewFolderDialog({
     )
 }
 
-export function NewFolderButton({ onClick }: { onClick?: () => void }) {
+export function NewFolderButton({
+    onClick,
+    onSuccess
+}: {
+    onClick?: () => void
+    onSuccess?: (projectId: Id<"projects">) => void
+}) {
     const [showDialog, setShowDialog] = useState(false)
 
     return (
@@ -241,7 +247,7 @@ export function NewFolderButton({ onClick }: { onClick?: () => void }) {
                 <span className="sr-only">New folder</span>
             </Button>
 
-            <NewFolderDialog open={showDialog} onOpenChange={setShowDialog} />
+            <NewFolderDialog open={showDialog} onOpenChange={setShowDialog} onSuccess={onSuccess} />
         </>
     )
 }
