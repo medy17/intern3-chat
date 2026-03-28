@@ -118,6 +118,7 @@ export const getUserRegistryInternal = internalQuery({
                 abilities: model.abilities,
                 mode: model.mode,
                 supportedImageSizes: model.supportedImageSizes,
+                supportedImageResolutions: model.supportedImageResolutions,
                 prototypeCreditTier: model.prototypeCreditTier,
                 prototypeCreditTierWithReasoning: model.prototypeCreditTierWithReasoning
             }

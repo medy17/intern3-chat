@@ -58,7 +58,7 @@ export async function generateAndStoreImage({
     imageModel: ImageModelV3
     modelId: string
     userId: string
-    threadId: Id<"threads">
+    threadId?: Id<"threads">
     actionCtx: GenericActionCtx<DataModel>
 }): Promise<ImageGenerationResult> {
     console.log("[cvx][image_generation] Starting image generation")

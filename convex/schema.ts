@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from "convex/server"
 import { PrototypeCreditAccount, PrototypeCreditEvent } from "./schema/credits"
 import { Project } from "./schema/folders"
+import { GeneratedImage } from "./schema/generated_image"
 import { ImportJob, ImportJobSource, ImportJobThread } from "./schema/import_job"
 import { Message } from "./schema/message"
 import { UserSettings } from "./schema/settings"
@@ -19,7 +20,8 @@ export {
     Project,
     ImportJob,
     ImportJobSource,
-    ImportJobThread
+    ImportJobThread,
+    GeneratedImage
 }
 
 export default defineSchema({
@@ -69,5 +71,9 @@ export default defineSchema({
     importJobThreads: defineTable(ImportJobThread)
         .index("byJobId", ["jobId"])
         .index("byJobIdAndStatus", ["jobId", "status"])
-        .index("byJobIdAndDocumentKey", ["jobId", "documentKey"])
+        .index("byJobIdAndDocumentKey", ["jobId", "documentKey"]),
+
+    generatedImages: defineTable(GeneratedImage)
+        .index("byUserId", ["userId"])
+        .index("byUserIdAndCreatedAt", ["userId", "createdAt"])
 })

@@ -128,10 +128,11 @@ export const GOOGLE_MODELS: SharedModel[] = [
             "i3-google:gemini-3.1-flash-image-preview",
             "google:gemini-3.1-flash-image-preview"
         ],
-        abilities: ["reasoning", "vision", "effort_control"],
+        abilities: [],
+        mode: "image",
+        customIcon: "google",
         supportedImageSizes: ["1:1", "3:2", "2:3", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9"],
         supportedImageResolutions: ["1K", "2K", "4K"],
-        supportsDisablingReasoning: true,
         prototypeCreditTier: "pro"
     },
     {
@@ -140,7 +141,9 @@ export const GOOGLE_MODELS: SharedModel[] = [
         shortName: "3 Pro Image",
         releaseOrder: 20260911,
         adapters: ["i3-google:gemini-3-pro-image-preview", "google:gemini-3-pro-image-preview"],
-        abilities: ["reasoning", "vision", "effort_control"],
+        abilities: [],
+        mode: "image",
+        customIcon: "google",
         supportedImageSizes: [
             "1:1",
             "3:2",
@@ -154,7 +157,6 @@ export const GOOGLE_MODELS: SharedModel[] = [
             "21:9"
         ],
         supportedImageResolutions: ["1K", "2K", "4K"],
-        supportsDisablingReasoning: true,
         prototypeCreditTier: "pro"
     }
 ]
