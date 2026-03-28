@@ -35,7 +35,8 @@ export const generateStandaloneImage = action({
             modelId: args.modelId,
             userId: user.id,
             actionCtx: ctx,
-            referenceImageKeys: args.referenceImageIds
+            referenceImageKeys: args.referenceImageIds,
+            maxAssets: 1
         })
 
         const insertedIds: string[] = []

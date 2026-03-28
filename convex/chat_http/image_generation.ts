@@ -76,6 +76,32 @@ export interface ImageGenerationResult {
     modelId: string
 }
 
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+    const digest = await crypto.subtle.digest("SHA-256", bytes)
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")
+}
+
+async function dedupeImagePayloads(
+    images: { mediaType: string; uint8Array: Uint8Array }[]
+): Promise<{ mediaType: string; uint8Array: Uint8Array }[]> {
+    const seen = new Set<string>()
+    const deduped: { mediaType: string; uint8Array: Uint8Array }[] = []
+
+    for (const image of images) {
+        const digest = await sha256Hex(image.uint8Array)
+        const key = `${image.mediaType}:${image.uint8Array.byteLength}:${digest}`
+
+        if (seen.has(key)) {
+            continue
+        }
+
+        seen.add(key)
+        deduped.push(image)
+    }
+
+    return deduped
+}
+
 export async function generateAndStoreImage({
     prompt,
     imageSize: requestedImageSize,
@@ -85,7 +111,8 @@ export async function generateAndStoreImage({
     userId,
     threadId,
     actionCtx,
-    referenceImageKeys
+    referenceImageKeys,
+    maxAssets
 }: {
     prompt: string
     imageSize: ImageSize
@@ -96,6 +123,7 @@ export async function generateAndStoreImage({
     threadId?: Id<"threads">
     actionCtx: GenericActionCtx<DataModel>
     referenceImageKeys?: string[]
+    maxAssets?: number
 }): Promise<ImageGenerationResult> {
     console.log("[cvx][image_generation] Starting image generation")
 
@@ -147,7 +175,7 @@ export async function generateAndStoreImage({
     try {
         console.log(
             `[cvx][image_generation] Generating image with model ${imageModel.provider}/${imageModel.modelId}`,
-            { imageSize, aspectRatio, size }
+            { imageSize, aspectRatio, size, imageResolution: requestedImageResolution }
         )
 
         let imagesData: { mediaType: string; uint8Array: Uint8Array }[] = []
@@ -234,11 +262,15 @@ export async function generateAndStoreImage({
                     imageConfig: {
                         aspectRatio: aspectRatio || "auto",
                         imageSize: requestedImageResolution || "1K",
-                        outputMimeType: "image/png"
+                        imageOutputOptions: {
+                            mimeType: "image/png"
+                        }
                     }
                 },
                 safetySettings: GOOGLE_MINIMUM_SAFETY_SETTINGS
             }
+
+            console.log("[cvx][image_generation] Vertex generationConfig", body.generationConfig)
 
             const res = await fetch(url, {
                 method: "POST",
@@ -287,6 +319,8 @@ export async function generateAndStoreImage({
                     }
                 }
             }
+
+            imagesData = await dedupeImagePayloads(imagesData)
 
             if (imagesData.length === 0) {
                 throw new Error("No valid images returned from Vertex API")
@@ -361,6 +395,15 @@ export async function generateAndStoreImage({
                 mediaType: img.mediaType,
                 uint8Array: img.uint8Array
             }))
+        }
+
+        if (typeof maxAssets === "number" && maxAssets > 0 && imagesData.length > maxAssets) {
+            console.warn(
+                `[cvx][image_generation] Truncating ${imagesData.length} generated image payloads to ${maxAssets}`
+            )
+            imagesData = [...imagesData]
+                .sort((a, b) => b.uint8Array.byteLength - a.uint8Array.byteLength)
+                .slice(0, maxAssets)
         }
 
         const assets: ImageGenerationResult["assets"] = []

@@ -491,7 +491,8 @@ export const chatPOST = httpAction(async (ctx, req) => {
                             modelId: body.model,
                             userId: user.id,
                             threadId: mutationResult.threadId,
-                            actionCtx: ctx
+                            actionCtx: ctx,
+                            maxAssets: 1
                         })
 
                         // Send tool result

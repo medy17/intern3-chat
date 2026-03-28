@@ -1,4 +1,14 @@
 import { ImageLoadIndicator } from "@/components/library/image-load-indicator"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import {
     Dialog,
@@ -12,7 +22,7 @@ import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { getExpandedImageUrl, getGeneratedImageProxyUrl } from "@/lib/generated-image-urls"
 import { useSharedModels } from "@/lib/shared-models"
 import { cn } from "@/lib/utils"
-import { useMutation, useQuery } from "convex/react"
+import { useAction, useQuery } from "convex/react"
 import { Download, ExternalLink, Trash2 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 
@@ -24,12 +34,13 @@ interface ImageDetailsModalProps {
 
 export function ImageDetailsModal({ image, isOpen, onClose }: ImageDetailsModalProps) {
     const { models } = useSharedModels()
-    const deleteImage = useMutation(api.images_node.deleteGeneratedImage)
+    const deleteImage = useAction(api.images_node.deleteGeneratedImage)
     const metadata = useQuery(
         api.attachments.getFileMetadata,
         image ? { key: image.storageKey } : "skip"
     )
     const [isDeleting, setIsDeleting] = useState(false)
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false)
     const [loadState, setLoadState] = useState<"loading" | "revealing" | "ready">("loading")
     const revealTimeoutRef = useRef<number | null>(null)
     const aspectRatio = image?.aspectRatio || "1:1"
@@ -92,10 +103,10 @@ export function ImageDetailsModal({ image, isOpen, onClose }: ImageDetailsModalP
     }
 
     const handleDelete = async () => {
-        if (!confirm("Are you sure you want to delete this image?")) return
         setIsDeleting(true)
         try {
             await deleteImage({ id: image._id as Id<"generatedImages"> })
+            setShowDeleteDialog(false)
             onClose()
         } catch (error) {
             console.error("Failed to delete image", error)
@@ -191,7 +202,7 @@ export function ImageDetailsModal({ image, isOpen, onClose }: ImageDetailsModalP
                         <Button
                             variant="destructive"
                             size="icon"
-                            onClick={handleDelete}
+                            onClick={() => setShowDeleteDialog(true)}
                             disabled={isDeleting}
                         >
                             <Trash2 className="h-4 w-4" />
@@ -199,6 +210,27 @@ export function ImageDetailsModal({ image, isOpen, onClose }: ImageDetailsModalP
                     </div>
                 </div>
             </DialogContent>
+            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Image</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Delete this generated image from your library? This will remove the
+                            stored file and cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDelete}
+                            disabled={isDeleting}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            {isDeleting ? "Deleting..." : "Delete"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Dialog>
     )
 }
