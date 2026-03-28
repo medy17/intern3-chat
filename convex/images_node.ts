@@ -74,7 +74,7 @@ export const deleteGeneratedImage = action({
             await r2.deleteObject(ctx, image.storageKey)
         } catch (error) {
             console.error("Failed to delete from R2:", error)
-            // Even if R2 deletion fails (e.g., file not found), we should probably delete the DB record
+            throw new Error("Failed to delete image file from storage")
         }
 
         await ctx.runMutation(internal.images.removeGeneratedImageInternal, { id: args.id })
