@@ -137,7 +137,13 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
     }
 
     return (
-        <div className="relative flex h-[calc(100dvh-64px)] flex-col">
+        <motion.div
+            key={threadId || "new-chat"}
+            initial={{ opacity: 0, filter: "blur(4px)", y: 10 }}
+            animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="relative flex h-[calc(100dvh-64px)] flex-col"
+        >
             <FullPageDropOverlay onDrop={handleFileDrop} />
 
             <Messages
@@ -209,7 +215,7 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
                     </motion.div>
                 )}
             </AnimatePresence>
-        </div>
+        </motion.div>
     )
 }
 

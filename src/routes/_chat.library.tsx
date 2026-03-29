@@ -603,7 +603,12 @@ function LibraryPage() {
     }
 
     return (
-        <div className="flex h-dvh w-full overflow-hidden">
+        <motion.div
+            initial={{ opacity: 0, filter: "blur(4px)", y: 10 }}
+            animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="flex h-dvh w-full overflow-hidden"
+        >
             <div ref={galleryRef} className="flex-1 overflow-y-auto p-6">
                 <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div>
@@ -780,6 +785,6 @@ function LibraryPage() {
                     setDeletedImageIds((prev) => new Set(prev).add(id))
                 }}
             />
-        </div>
+        </motion.div>
     )
 }
