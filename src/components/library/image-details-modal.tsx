@@ -399,7 +399,7 @@ export function ImageDetailsModal({
                     </Button>
 
                     <div
-                        className="relative shrink-0 overflow-hidden rounded-3xl border border-border/60 bg-muted/35 shadow-2xl"
+                        className="relative shrink-0 overflow-hidden rounded-xl border border-border/60 bg-muted/35 shadow-2xl"
                         style={{
                             width: layout.imageWidth,
                             height: layout.imageHeight
@@ -409,7 +409,7 @@ export function ImageDetailsModal({
                             <div className="absolute inset-0 z-10 bg-gradient-to-br from-muted/85 via-muted/65 to-accent/20" />
                         )}
                         {loadState !== "ready" && (
-                            <div className="absolute inset-x-0 bottom-4 z-10 mx-4 space-y-2 rounded-2xl border border-border/50 bg-background/55 p-3 backdrop-blur-sm">
+                            <div className="absolute inset-x-0 bottom-4 z-10 mx-4 space-y-2 rounded-lg border border-border/50 bg-background/55 p-3 backdrop-blur-sm">
                                 <div className="h-3 w-32 rounded bg-background/70" />
                                 <div className="h-3 w-24 rounded bg-background/45" />
                             </div>
@@ -435,7 +435,7 @@ export function ImageDetailsModal({
                     </div>
 
                     <div
-                        className="flex shrink-0 flex-col overflow-hidden rounded-3xl border border-border/60 bg-background/95 shadow-2xl backdrop-blur-md"
+                        className="flex shrink-0 flex-col overflow-hidden rounded-xl border border-border/60 bg-background/95 shadow-2xl backdrop-blur-md"
                         style={{
                             width: layout.infoWidth,
                             height: layout.isDesktop ? layout.imageHeight : undefined,

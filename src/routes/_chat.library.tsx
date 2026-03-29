@@ -57,7 +57,7 @@ type ImageSortOption = "newest" | "oldest"
 type ImageLoadPlaceholder = "tiles" | "skeleton"
 
 const GalleryImageSkeleton = memo(() => (
-    <div className="relative h-full w-full overflow-hidden rounded-xl border border-border/60 bg-muted/40">
+    <div className="relative h-full w-full overflow-hidden rounded-lg border border-border/60 bg-muted/40">
         <div className="absolute inset-0 bg-gradient-to-br from-muted/90 via-muted/70 to-accent/50" />
         <div className="absolute inset-0 backdrop-blur-[1px]" />
         <div className="absolute inset-x-0 bottom-0 space-y-2 p-3">
@@ -97,7 +97,7 @@ const PendingImageItem = memo(({ aspectRatio }: { aspectRatio: string }) => {
 
     return (
         <div
-            className="group relative overflow-hidden rounded-xl border bg-background"
+            className="group relative overflow-hidden rounded-lg border bg-background"
             style={{ aspectRatio: cssAspectRatio }}
         >
             <ImageSkeleton
@@ -107,7 +107,7 @@ const PendingImageItem = memo(({ aspectRatio }: { aspectRatio: string }) => {
                 gap={4}
                 loadingDuration={99999}
                 autoLoop={false}
-                className="h-full w-full rounded-xl border-0 bg-transparent"
+                className="h-full w-full rounded-lg border-0 bg-transparent"
             />
         </div>
     )
@@ -249,7 +249,7 @@ const GeneratedImageItem = memo(
         if (isError) {
             return (
                 <div
-                    className="group relative overflow-hidden rounded-xl border bg-muted/50"
+                    className="group relative overflow-hidden rounded-lg border bg-muted/50"
                     style={{ aspectRatio: cssAspectRatio }}
                 >
                     <div className="flex h-full items-center justify-center">
@@ -268,7 +268,7 @@ const GeneratedImageItem = memo(
                     <button
                         type="button"
                         className={cn(
-                            "group relative w-full appearance-none overflow-hidden rounded-xl border bg-background text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                            "group relative w-full appearance-none overflow-hidden rounded-lg border bg-background text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                             isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background"
                         )}
                         style={{ aspectRatio: cssAspectRatio }}
@@ -648,7 +648,7 @@ function LibraryPage() {
                                 className="mb-4 break-inside-avoid"
                                 style={{ height: `${Math.random() * 150 + 250}px` }}
                             >
-                                <Skeleton className="h-full w-full rounded-xl" />
+                                <Skeleton className="h-full w-full rounded-lg" />
                             </div>
                         ))}
                     </div>
