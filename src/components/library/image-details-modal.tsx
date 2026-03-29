@@ -79,11 +79,18 @@ export function ImageDetailsModal({
         image ? { key: image.storageKey } : "skip"
     )
 
+    const [localImage, setLocalImage] = useState(image)
+    useEffect(() => {
+        if (image) {
+            setLocalImage(image)
+        }
+    }, [image])
+
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
     const [loadState, setLoadState] = useState<"loading" | "revealing" | "ready">("loading")
     const [viewportSize, setViewportSize] = useState({ width: 1440, height: 900 })
     const revealTimeoutRef = useRef<number | null>(null)
-    const aspectRatio = image?.aspectRatio || "1:1"
+    const aspectRatio = localImage?.aspectRatio || "1:1"
     const cssAspectRatio = useMemo(() => {
         if (aspectRatio.includes("x")) {
             const [width, height] = aspectRatio.split("x").map(Number)
@@ -95,10 +102,11 @@ export function ImageDetailsModal({
         }
         return "1/1"
     }, [aspectRatio])
+
     const aspectRatioValue = useMemo(() => getAspectRatioValue(aspectRatio), [aspectRatio])
 
     useEffect(() => {
-        if (!image) return
+        if (!localImage) return
 
         setLoadState("loading")
 
@@ -107,7 +115,7 @@ export function ImageDetailsModal({
                 window.clearTimeout(revealTimeoutRef.current)
             }
         }
-    }, [image?._id])
+    }, [localImage?._id])
 
     useEffect(() => {
         if (!isOpen || typeof window === "undefined") return
@@ -177,16 +185,16 @@ export function ImageDetailsModal({
         }
     }, [aspectRatioValue, viewportSize.height, viewportSize.width])
 
-    if (!image) return null
+    if (!localImage) return null
 
     const imageUrl = getExpandedImageUrl({
-        storageKey: image.storageKey,
-        aspectRatio: image.aspectRatio
+        storageKey: localImage.storageKey,
+        aspectRatio: localImage.aspectRatio
     })
-    const fullResolutionUrl = metadata?.url || getGeneratedImageProxyUrl(image.storageKey)
-    const model = models.find((m) => m.id === image.modelId)
-    const formattedDate = new Date(image.createdAt).toLocaleDateString()
-    const resolutionLabel = image.resolution || "1K"
+    const fullResolutionUrl = metadata?.url || getGeneratedImageProxyUrl(localImage.storageKey)
+    const model = models.find((m) => m.id === localImage.modelId)
+    const formattedDate = new Date(localImage.createdAt).toLocaleDateString()
+    const resolutionLabel = localImage.resolution || "1K"
 
     const handleImageLoad = () => {
         setLoadState("revealing")
@@ -214,7 +222,7 @@ export function ImageDetailsModal({
     }
 
     const handleDelete = () => {
-        const imageId = image._id as Id<"generatedImages">
+        const imageId = localImage._id as Id<"generatedImages">
         setShowDeleteDialog(false)
         onClose()
         if (onDeleteStart) {
@@ -226,7 +234,6 @@ export function ImageDetailsModal({
             console.error("Failed to delete image", error)
         })
     }
-
     const sharedAlertDialog = (
         <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
             <AlertDialogContent>
@@ -374,7 +381,7 @@ export function ImageDetailsModal({
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent
                 showCloseButton={false}
-                className="max-w-none border-0 bg-transparent p-0 shadow-none sm:max-w-none"
+                className="w-fit max-w-none border-0 bg-transparent p-0 shadow-none sm:max-w-none"
             >
                 <DialogHeader className="sr-only">
                     <DialogTitle>Image Details</DialogTitle>
@@ -391,7 +398,7 @@ export function ImageDetailsModal({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="-top-14 absolute right-0 z-20 rounded-full border border-border/60 bg-background/90 shadow-lg backdrop-blur-sm hover:bg-accent"
+                        className="-top-14 absolute right-0 z-20 border border-border/60 bg-background/90 shadow-lg backdrop-blur-sm hover:bg-accent"
                         onClick={onClose}
                     >
                         <span className="sr-only">Close</span>
