@@ -125,7 +125,8 @@ const GeneratedImageItem = memo(
         onToggleSelection,
         onStartSelection,
         selectedCount = 0,
-        onBulkDelete
+        onBulkDelete,
+        onBulkDownload
     }: {
         image: Doc<"generatedImages">
         onClick: () => void
@@ -138,6 +139,7 @@ const GeneratedImageItem = memo(
         onStartSelection?: () => void
         selectedCount?: number
         onBulkDelete?: () => void
+        onBulkDownload?: () => void
     }) => {
         const [isError, setIsError] = useState(false)
         const [loadState, setLoadState] = useState<"loading" | "revealing" | "ready">("loading")
