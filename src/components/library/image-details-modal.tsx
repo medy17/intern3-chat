@@ -38,6 +38,7 @@ interface ImageDetailsModalProps {
     image: Doc<"generatedImages"> | null
     isOpen: boolean
     onClose: () => void
+    onDeleteStart?: (id: Id<"generatedImages">) => void
 }
 
 const DESKTOP_BREAKPOINT = 1100
@@ -64,7 +65,12 @@ function getAspectRatioValue(aspectRatio: string) {
     return 1
 }
 
-export function ImageDetailsModal({ image, isOpen, onClose }: ImageDetailsModalProps) {
+export function ImageDetailsModal({
+    image,
+    isOpen,
+    onClose,
+    onDeleteStart
+}: ImageDetailsModalProps) {
     const isMobile = useIsMobile()
     const { models } = useSharedModels()
     const deleteImage = useAction(api.images_node.deleteGeneratedImage)
@@ -72,7 +78,7 @@ export function ImageDetailsModal({ image, isOpen, onClose }: ImageDetailsModalP
         api.attachments.getFileMetadata,
         image ? { key: image.storageKey } : "skip"
     )
-    const [isDeleting, setIsDeleting] = useState(false)
+
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
     const [loadState, setLoadState] = useState<"loading" | "revealing" | "ready">("loading")
     const [viewportSize, setViewportSize] = useState({ width: 1440, height: 900 })
@@ -207,17 +213,18 @@ export function ImageDetailsModal({ image, isOpen, onClose }: ImageDetailsModalP
         window.open(fullResolutionUrl, "_blank")
     }
 
-    const handleDelete = async () => {
-        setIsDeleting(true)
-        try {
-            await deleteImage({ id: image._id as Id<"generatedImages"> })
-            setShowDeleteDialog(false)
-            onClose()
-        } catch (error) {
-            console.error("Failed to delete image", error)
-        } finally {
-            setIsDeleting(false)
+    const handleDelete = () => {
+        const imageId = image._id as Id<"generatedImages">
+        setShowDeleteDialog(false)
+        onClose()
+        if (onDeleteStart) {
+            onDeleteStart(imageId)
         }
+
+        // Fire and forget deletion
+        deleteImage({ id: imageId }).catch((error) => {
+            console.error("Failed to delete image", error)
+        })
     }
 
     const sharedAlertDialog = (
@@ -231,13 +238,12 @@ export function ImageDetailsModal({ image, isOpen, onClose }: ImageDetailsModalP
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                         onClick={handleDelete}
-                        disabled={isDeleting}
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
-                        {isDeleting ? "Deleting..." : "Delete"}
+                        Delete
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
@@ -351,7 +357,6 @@ export function ImageDetailsModal({ image, isOpen, onClose }: ImageDetailsModalP
                                         size="icon"
                                         className="h-10 w-10 shrink-0"
                                         onClick={() => setShowDeleteDialog(true)}
-                                        disabled={isDeleting}
                                     >
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
@@ -497,7 +502,6 @@ export function ImageDetailsModal({ image, isOpen, onClose }: ImageDetailsModalP
                                     variant="destructive"
                                     size="icon"
                                     onClick={() => setShowDeleteDialog(true)}
-                                    disabled={isDeleting}
                                 >
                                     <Trash2 className="h-4 w-4" />
                                 </Button>

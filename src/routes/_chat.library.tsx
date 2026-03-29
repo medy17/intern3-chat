@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils"
 import { createFileRoute } from "@tanstack/react-router"
 import { useAction, useQuery } from "convex/react"
 import { Image as ImageIcon, ImageOff } from "lucide-react"
+import { AnimatePresence, motion } from "motion/react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 export const Route = createFileRoute("/_chat/library")({
@@ -273,7 +274,8 @@ function LibraryPage() {
     }, [session.user?.id, migrateImages])
 
     const [selectedImage, setSelectedImage] = useState<Doc<"generatedImages"> | null>(null)
-    const images = imagePage?.page ?? []
+    const [deletedImageIds, setDeletedImageIds] = useState<Set<string>>(new Set())
+    const images = (imagePage?.page ?? []).filter((img) => !deletedImageIds.has(img._id))
     const pageNumber = previousCursors.length + 1
     const totalPages =
         totalImages === undefined
@@ -436,26 +438,44 @@ function LibraryPage() {
                 ) : (
                     <>
                         <div className="columns-1 gap-4 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5">
-                            {showPendingGenerations &&
-                                pendingGenerations.map((pending) => (
-                                    <div key={pending.id} className="mb-4 break-inside-avoid">
-                                        <PendingImageItem aspectRatio={pending.aspectRatio} />
-                                    </div>
+                            <AnimatePresence>
+                                {showPendingGenerations &&
+                                    pendingGenerations.map((pending) => (
+                                        <motion.div
+                                            key={pending.id}
+                                            layout
+                                            initial={{ opacity: 0, scale: 0.95 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.9, filter: "blur(8px)" }}
+                                            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                                            className="mb-4 break-inside-avoid"
+                                        >
+                                            <PendingImageItem aspectRatio={pending.aspectRatio} />
+                                        </motion.div>
+                                    ))}
+                                {images.map((image) => (
+                                    <motion.div
+                                        key={image._id}
+                                        layout
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.9, filter: "blur(8px)" }}
+                                        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                                        className="mb-4 break-inside-avoid"
+                                    >
+                                        <GeneratedImageItem
+                                            image={image}
+                                            placeholder={
+                                                animatedImageIds.includes(image._id)
+                                                    ? "tiles"
+                                                    : "skeleton"
+                                            }
+                                            onClick={() => setSelectedImage(image)}
+                                            onImageSettled={() => handleImageSettled(image._id)}
+                                        />
+                                    </motion.div>
                                 ))}
-                            {images.map((image) => (
-                                <div key={image._id} className="mb-4 break-inside-avoid">
-                                    <GeneratedImageItem
-                                        image={image}
-                                        placeholder={
-                                            animatedImageIds.includes(image._id)
-                                                ? "tiles"
-                                                : "skeleton"
-                                        }
-                                        onClick={() => setSelectedImage(image)}
-                                        onImageSettled={() => handleImageSettled(image._id)}
-                                    />
-                                </div>
-                            ))}
+                            </AnimatePresence>
                         </div>
 
                         {(canGoPrevious ||
@@ -521,6 +541,9 @@ function LibraryPage() {
                 image={selectedImage}
                 isOpen={!!selectedImage}
                 onClose={() => setSelectedImage(null)}
+                onDeleteStart={(id) => {
+                    setDeletedImageIds((prev) => new Set(prev).add(id))
+                }}
             />
         </div>
     )
