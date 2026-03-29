@@ -7,9 +7,11 @@ import {
 } from "@/components/ui/context-menu"
 import { SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
 import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 import { Link, useParams } from "@tanstack/react-router"
-import { useAction, useMutation } from "convex/react"
+import { useAction, useConvex, useMutation } from "convex/react"
 import {
     Check,
     CheckSquare2,
@@ -75,7 +77,10 @@ export const ThreadItem = memo(
         const longPressTimeoutRef = useRef<number | null>(null)
         const longPressStartPointRef = useRef<{ x: number; y: number } | null>(null)
         const longPressTriggeredRef = useRef(false)
+        const hasPrefetchedRef = useRef(false)
 
+        const convex = useConvex()
+        const isMobile = useIsMobile()
         const togglePinMutation = useMutation(api.threads.togglePinThread)
         const regenerateThreadTitle = useAction(api.threads.regenerateThreadTitle)
         const params = useParams({ strict: false }) as { threadId?: string }
@@ -197,6 +202,16 @@ export const ThreadItem = memo(
                 clearLongPressTimer()
                 longPressStartPointRef.current = null
             }
+        }
+
+        const handleMouseEnter = () => {
+            if (isMobile || hasPrefetchedRef.current) return
+            hasPrefetchedRef.current = true
+
+            // Prefetch thread data seamlessly on hover
+            const threadId = thread._id as Id<"threads">
+            convex.query(api.threads.getThreadMessages, { threadId }).catch(() => {})
+            convex.query(api.threads.getThread, { threadId }).catch(() => {})
         }
 
         const handleLinkClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
@@ -354,6 +369,7 @@ export const ThreadItem = memo(
                                 className="flex h-full w-full min-w-0 items-center"
                                 onClick={handleLinkClick}
                                 onContextMenu={handleContextMenu}
+                                onMouseEnter={handleMouseEnter}
                                 onPointerDown={handlePointerDown}
                                 onPointerUp={handlePointerUp}
                                 onPointerLeave={handlePointerUp}
