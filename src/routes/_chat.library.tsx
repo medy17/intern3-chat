@@ -610,7 +610,7 @@ function LibraryPage() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                className="flex min-h-0 w-full flex-1 overflow-hidden"
+                className="flex h-dvh min-h-0 w-full overflow-hidden"
             >
                 <motion.div
                     ref={galleryRef}
