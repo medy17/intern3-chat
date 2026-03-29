@@ -89,6 +89,23 @@ export function ImageGenerationSidebar() {
         }
     }
 
+    const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        const items = Array.from(e.clipboardData.items)
+        const imageItems = items.filter((item) => item.type.startsWith("image/"))
+
+        if (imageItems.length > 0) {
+            e.preventDefault()
+            const files = imageItems
+                .map((item) => item.getAsFile())
+                .filter((f): f is File => f !== null)
+            const newRefs = files.map((file) => ({
+                file,
+                preview: URL.createObjectURL(file)
+            }))
+            setReferenceFiles((prev) => [...prev, ...newRefs])
+        }
+    }
+
     const removeReferenceImage = (index: number) => {
         setReferenceFiles((prev) => {
             const newArray = [...prev]
@@ -272,6 +289,7 @@ export function ImageGenerationSidebar() {
                     placeholder="Describe your image..."
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
+                    onPaste={handlePaste}
                     className="min-h-[100px] resize-none rounded-md border-0 bg-muted/30 px-4 py-3 text-foreground placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-primary/30"
                 />
             </div>
