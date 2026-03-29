@@ -196,16 +196,18 @@ export function ThreadsSidebar() {
 
     const isLoading = auth.isLoading && allThreads.length === 0 && resolvedProjects.length === 0
 
-    const hasPrefetchedMobileRef = useRef(false)
+    const hasPrefetchedBackgroundRef = useRef(false)
     useEffect(() => {
-        if (!isMobile || allThreads.length === 0 || hasPrefetchedMobileRef.current) return
-        hasPrefetchedMobileRef.current = true
+        if (allThreads.length === 0 || hasPrefetchedBackgroundRef.current) return
+        hasPrefetchedBackgroundRef.current = true
 
         let cancelled = false
-        const prefetchRecent = async () => {
-            const recentThreads = allThreads.slice(0, 10)
+        const prefetchBackground = async () => {
+            const pinnedThreads = allThreads.filter((t) => t.pinned).slice(0, 10)
+            const recentThreads = allThreads.filter((t) => !t.pinned).slice(0, 10)
+            const threadsToPrefetch = [...pinnedThreads, ...recentThreads]
 
-            for (const thread of recentThreads) {
+            for (const thread of threadsToPrefetch) {
                 if (cancelled) break
                 // Stagger requests to prevent overwhelming the device/network
                 await new Promise((resolve) => setTimeout(resolve, 800))
@@ -217,12 +219,12 @@ export function ThreadsSidebar() {
             }
         }
 
-        prefetchRecent()
+        prefetchBackground()
 
         return () => {
             cancelled = true
         }
-    }, [allThreads, isMobile, convex])
+    }, [allThreads, convex])
 
     const sentinelRef = useInfiniteScroll({
         hasMore: status === "CanLoadMore",

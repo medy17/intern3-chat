@@ -1,9 +1,11 @@
 import { Button, buttonVariants } from "@/components/ui/button"
 import { SidebarHeader } from "@/components/ui/sidebar"
+import { api } from "@/convex/_generated/api"
 import { cn } from "@/lib/utils"
 import { Link, useNavigate } from "@tanstack/react-router"
+import { useConvex } from "convex/react"
 import { Image as ImageIcon, MessageSquare, Search } from "lucide-react"
-import type { MouseEvent } from "react"
+import { type MouseEvent, useRef } from "react"
 import { LogoMark } from "../logo"
 import { ImportThreadButton } from "./import-thread-button"
 
@@ -21,6 +23,22 @@ export function ThreadsSidebarHeader({
     isLibraryMode?: boolean
 }) {
     const navigate = useNavigate()
+    const convex = useConvex()
+    const hasPrefetchedLibraryRef = useRef(false)
+
+    const handleLibraryHover = () => {
+        if (hasPrefetchedLibraryRef.current || isLibraryMode) return
+        hasPrefetchedLibraryRef.current = true
+
+        // Fire and forget queries into the Convex cache
+        convex.query(api.images.getGeneratedImagesCount, {}).catch(() => {})
+        convex
+            .query(api.images.paginateGeneratedImages, {
+                paginationOpts: { numItems: 50, cursor: null },
+                sortBy: "newest"
+            })
+            .catch(() => {})
+    }
 
     return (
         <SidebarHeader>
@@ -47,6 +65,7 @@ export function ThreadsSidebarHeader({
                     variant="ghost"
                     size="icon"
                     onClick={() => navigate({ to: "/library" })}
+                    onMouseEnter={handleLibraryHover}
                     className={cn(
                         "h-8 w-8 transition-colors",
                         isLibraryMode
