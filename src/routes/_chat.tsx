@@ -24,7 +24,7 @@ function ChatLayout() {
                 <ThreadsSidebar />
                 <SidebarInset>
                     <div
-                        className="flex min-h-svh flex-col"
+                        className="flex min-h-svh flex-1 flex-col overflow-hidden"
                         style={{
                             backgroundImage: "url(https://t3.chat/images/noise.png)",
                             backgroundRepeat: "repeat",
@@ -32,7 +32,9 @@ function ChatLayout() {
                         }}
                     >
                         <Header threadId={threadId} />
-                        <Outlet />
+                        <div className="flex min-h-0 flex-1 flex-col">
+                            <Outlet />
+                        </div>
                     </div>
                 </SidebarInset>
             </SidebarProvider>

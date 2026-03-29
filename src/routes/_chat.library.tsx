@@ -610,12 +610,12 @@ function LibraryPage() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                className="flex w-full flex-1 overflow-hidden"
+                className="flex min-h-0 w-full flex-1 overflow-hidden"
             >
                 <motion.div
                     ref={galleryRef}
                     layoutScroll
-                    className="flex-1 overflow-y-auto p-6 pt-16"
+                    className="min-h-0 flex-1 overflow-y-auto p-6 pt-16"
                 >
                     <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                         <div className="shrink-0">
