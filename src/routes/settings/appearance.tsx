@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useThemeManagement } from "@/hooks/use-theme-management"
 import { useChatWidthStore } from "@/lib/chat-width-store"
+import { DEFAULT_THEME_PRESET } from "@/lib/theme-store"
 import { type FetchedTheme, extractThemeColors } from "@/lib/theme-utils"
 import { cn } from "@/lib/utils"
 import { createFileRoute } from "@tanstack/react-router"
@@ -151,6 +152,7 @@ function AppearanceSettings() {
         searchQuery,
         setSearchQuery,
         selectedThemeUrl,
+        isDefaultThemeSelected,
         isLoadingThemes,
         filteredThemes,
         customThemes,
@@ -159,8 +161,10 @@ function AppearanceSettings() {
         handleThemeSelect,
         handleThemeDelete,
         toggleMode,
+        resetToDefaultTheme,
         randomizeTheme
     } = useThemeManagement()
+    const defaultThemeColors = extractThemeColors(DEFAULT_THEME_PRESET, themeState.currentMode)
 
     if (!session.user?.id) {
         return (
@@ -372,6 +376,51 @@ function AppearanceSettings() {
                         </div>
                     ) : (
                         <div className="space-y-8">
+                            <div className="space-y-3">
+                                <h4 className="font-medium text-muted-foreground text-sm">Core</h4>
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <Card
+                                        className={cn(
+                                            "group relative overflow-hidden p-0",
+                                            isDefaultThemeSelected
+                                                ? "bg-primary/5 ring-1 ring-primary/20"
+                                                : "hover:ring-1 hover:ring-border"
+                                        )}
+                                    >
+                                        <button
+                                            type="button"
+                                            className="flex w-full items-center justify-between p-4 pb-0 text-left"
+                                            onClick={resetToDefaultTheme}
+                                        >
+                                            <div className="min-w-0 flex-1">
+                                                <div className="mb-3 flex items-center gap-2">
+                                                    <h4 className="truncate font-medium text-foreground text-sm">
+                                                        Default
+                                                    </h4>
+                                                    {isDefaultThemeSelected && (
+                                                        <CheckCircle className="size-4 flex-shrink-0 text-primary" />
+                                                    )}
+                                                </div>
+                                                <p className="mb-3 text-muted-foreground text-xs">
+                                                    Restore SilkChat&apos;s original palette.
+                                                </p>
+                                                <div className="-mx-4 flex h-3 overflow-hidden rounded-sm bg-background/50">
+                                                    {defaultThemeColors.map((color, index) => (
+                                                        <div
+                                                            key={index}
+                                                            className="flex-1"
+                                                            style={{
+                                                                backgroundColor: color
+                                                            }}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </button>
+                                    </Card>
+                                </div>
+                            </div>
+
                             {customThemes.length > 0 && (
                                 <div className="space-y-3">
                                     <h4 className="font-medium text-muted-foreground text-sm">

@@ -1,6 +1,6 @@
 import { api } from "@/convex/_generated/api"
 import { useSession } from "@/hooks/auth-hooks"
-import { useThemeStore } from "@/lib/theme-store"
+import { DEFAULT_THEME_PRESET, useThemeStore } from "@/lib/theme-store"
 import {
     type FetchedTheme,
     THEME_URLS,
@@ -11,14 +11,20 @@ import { toggleThemeMode } from "@/lib/toggle-theme-mode"
 import { useConvexQuery } from "@convex-dev/react-query"
 import { useQuery } from "@tanstack/react-query"
 import { useMutation } from "convex/react"
-import { useMemo, useState } from "react"
+import isEqual from "fast-deep-equal"
+import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 export function useThemeManagement() {
     const session = useSession()
-    const { themeState, setThemeState } = useThemeStore()
+    const {
+        themeState,
+        selectedThemeUrl,
+        setThemeState,
+        setSelectedThemeUrl,
+        resetThemeToDefault
+    } = useThemeStore()
     const [searchQuery, setSearchQuery] = useState("")
-    const [selectedThemeUrl, setSelectedThemeUrl] = useState<string | null>(null)
 
     // Fetch user settings to retrieve custom theme URLs
     const userSettings = useConvexQuery(
@@ -45,6 +51,35 @@ export function useThemeManagement() {
         staleTime: 5 * 60 * 1000, // 5 minutes
         gcTime: 10 * 60 * 1000 // 10 minutes
     })
+
+    const resolvedSelectedThemeUrl = useMemo(() => {
+        if (selectedThemeUrl) {
+            return selectedThemeUrl
+        }
+
+        const matchedTheme = fetchedThemes.find(
+            (theme) =>
+                !("error" in theme && theme.error) &&
+                isEqual(theme.preset.cssVars, themeState.cssVars)
+        )
+
+        return matchedTheme?.url ?? null
+    }, [fetchedThemes, selectedThemeUrl, themeState.cssVars])
+
+    const isDefaultThemeSelected = useMemo(
+        () =>
+            isEqual(themeState.cssVars, DEFAULT_THEME_PRESET.cssVars) &&
+            resolvedSelectedThemeUrl === null,
+        [resolvedSelectedThemeUrl, themeState.cssVars]
+    )
+
+    useEffect(() => {
+        if (selectedThemeUrl || !resolvedSelectedThemeUrl) {
+            return
+        }
+
+        setSelectedThemeUrl(resolvedSelectedThemeUrl)
+    }, [resolvedSelectedThemeUrl, selectedThemeUrl, setSelectedThemeUrl])
 
     const applyThemePreset = (preset: ThemePreset) => {
         setThemeState({
@@ -88,6 +123,10 @@ export function useThemeManagement() {
         toggleThemeMode()
     }
 
+    const resetToDefaultTheme = () => {
+        resetThemeToDefault()
+    }
+
     const randomizeTheme = () => {
         const availableThemes = fetchedThemes.filter((theme) => !("error" in theme && theme.error))
         if (availableThemes.length > 0) {
@@ -108,8 +147,8 @@ export function useThemeManagement() {
         themeState,
         searchQuery,
         setSearchQuery,
-        selectedThemeUrl,
-        setSelectedThemeUrl,
+        selectedThemeUrl: resolvedSelectedThemeUrl,
+        isDefaultThemeSelected,
         isLoadingThemes,
         fetchedThemes,
         filteredThemes,
@@ -122,6 +161,7 @@ export function useThemeManagement() {
         handleThemeDelete,
         toggleMode,
         randomizeTheme,
+        resetToDefaultTheme,
         applyThemePreset,
 
         // User session

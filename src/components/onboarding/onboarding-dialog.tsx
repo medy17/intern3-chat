@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { useThemeManagement } from "@/hooks/use-theme-management"
+import { DEFAULT_THEME_PRESET } from "@/lib/theme-store"
 import { extractThemeColors } from "@/lib/theme-utils"
 import { cn } from "@/lib/utils"
 import {
@@ -281,10 +282,18 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
 ]
 
 function ThemeSelector() {
-    const { themeState, filteredThemes, handleThemeSelect, toggleMode, selectedThemeUrl } =
-        useThemeManagement()
+    const {
+        themeState,
+        filteredThemes,
+        handleThemeSelect,
+        toggleMode,
+        selectedThemeUrl,
+        isDefaultThemeSelected,
+        resetToDefaultTheme
+    } = useThemeManagement()
 
-    const popularThemes = filteredThemes.filter((theme) => theme.type === "built-in").slice(0, 6)
+    const popularThemes = filteredThemes.filter((theme) => theme.type === "built-in").slice(0, 5)
+    const defaultThemeColors = extractThemeColors(DEFAULT_THEME_PRESET, themeState.currentMode)
 
     return (
         <div className="w-full max-w-md space-y-4">
@@ -307,6 +316,32 @@ function ThemeSelector() {
                     </Button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
+                    <button
+                        type="button"
+                        onClick={resetToDefaultTheme}
+                        className={cn(
+                            "relative overflow-hidden rounded-lg border p-2 text-left transition-all hover:scale-[1.02]",
+                            isDefaultThemeSelected
+                                ? "border-primary ring-2 ring-primary/20"
+                                : "border-border hover:border-primary/50"
+                        )}
+                    >
+                        <div className="mb-1 flex items-center justify-between">
+                            <span className="truncate font-medium text-xs">Default</span>
+                            {isDefaultThemeSelected && (
+                                <CheckCircle className="h-3 w-3 flex-shrink-0 text-primary" />
+                            )}
+                        </div>
+                        <div className="flex h-1.5 overflow-hidden rounded">
+                            {defaultThemeColors.slice(0, 4).map((color, index) => (
+                                <div
+                                    key={index}
+                                    className="flex-1"
+                                    style={{ backgroundColor: color }}
+                                />
+                            ))}
+                        </div>
+                    </button>
                     {popularThemes.map((theme) => {
                         const colors =
                             "error" in theme && theme.error

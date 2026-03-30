@@ -1,4 +1,5 @@
 import { useThemeManagement } from "@/hooks/use-theme-management"
+import { DEFAULT_THEME_PRESET } from "@/lib/theme-store"
 import { type FetchedTheme, extractThemeColors } from "@/lib/theme-utils"
 import { cn } from "@/lib/utils"
 import {
@@ -99,13 +100,16 @@ export function ThemeSwitcher() {
         searchQuery,
         setSearchQuery,
         selectedThemeUrl,
+        isDefaultThemeSelected,
         isLoadingThemes,
         filteredThemes,
         handleThemeImported,
         handleThemeSelect,
         toggleMode,
+        resetToDefaultTheme,
         randomizeTheme
     } = useThemeManagement()
+    const defaultThemeColors = extractThemeColors(DEFAULT_THEME_PRESET, themeState.currentMode)
 
     return (
         <>
@@ -163,7 +167,9 @@ export function ThemeSwitcher() {
                         {/* Theme Count and Controls */}
                         <div className="flex items-center justify-between px-3 py-2">
                             <div className="text-muted-foreground text-sm">
-                                {isLoadingThemes ? "Loading..." : `${filteredThemes.length} themes`}
+                                {isLoadingThemes
+                                    ? "Loading..."
+                                    : `${filteredThemes.length + 1} themes`}
                             </div>
                             <div className="flex items-center gap-1">
                                 {/* Randomizer */}
@@ -206,6 +212,50 @@ export function ThemeSwitcher() {
                                     </div>
                                 ) : (
                                     <>
+                                        <div className="mb-6">
+                                            <h4 className="mb-1 text-muted-foreground text-xs">
+                                                Core
+                                            </h4>
+                                            <div className="mt-1 grid grid-cols-1 gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={resetToDefaultTheme}
+                                                    className={cn(
+                                                        "w-full cursor-pointer overflow-hidden rounded-lg border transition-all duration-200 hover:scale-[1.02] hover:shadow-md",
+                                                        isDefaultThemeSelected
+                                                            ? "border-primary shadow-sm ring-2 ring-primary/20"
+                                                            : "border-border hover:border-primary/50"
+                                                    )}
+                                                >
+                                                    <div className="flex items-center justify-between p-3">
+                                                        <div className="text-left">
+                                                            <div className="font-medium text-sm">
+                                                                Default
+                                                            </div>
+                                                            <div className="text-muted-foreground text-xs">
+                                                                SilkChat base colors
+                                                            </div>
+                                                        </div>
+                                                        {isDefaultThemeSelected && (
+                                                            <div className="flex h-5 w-5 shrink-0 items-center justify-center">
+                                                                <CheckCircle className="size-4 text-primary" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex h-2">
+                                                        {defaultThemeColors.map((color, index) => (
+                                                            <div
+                                                                key={index}
+                                                                className="flex-1"
+                                                                style={{
+                                                                    backgroundColor: color
+                                                                }}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                </button>
+                                            </div>
+                                        </div>
                                         {filteredThemes.filter((theme) => theme.type === "custom")
                                             .length > 0 && (
                                             <div className="mt-2 mb-6">

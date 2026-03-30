@@ -1,6 +1,6 @@
 export const THEME_URLS = [
-    "https://tweakcn.com/themes/cmn1jwd1c000104i63jf7gjsp", // Anthropic-ish theme
     "https://tweakcn.com/editor/theme?theme=mono",
+    "https://tweakcn.com/themes/cmn60bwp8000004kzgfz9f93r",
     "https://tweakcn.com/editor/theme?theme=t3-chat",
     "https://tweakcn.com/editor/theme?theme=tangerine",
     "https://tweakcn.com/editor/theme?theme=perpetuity",
@@ -8,12 +8,8 @@ export const THEME_URLS = [
     "https://tweakcn.com/r/themes/vintage-paper.json",
     "https://tweakcn.com/r/themes/amethyst-haze.json",
     "https://tweakcn.com/editor/theme?theme=caffeine",
-    "https://tweakcn.com/editor/theme?theme=quantum-rose",
-    "https://tweakcn.com/editor/theme?theme=claymorphism",
-    "https://tweakcn.com/editor/theme?theme=pastel-dreams",
-    "https://tweakcn.com/editor/theme?theme=supabase",
-    "https://tweakcn.com/editor/theme?theme=vercel",
-    "https://tweakcn.com/editor/theme?theme=cyberpunk"
+    "https://tweakcn.com/themes/cmmdxhg6d000804l5f6xlcbh3",
+    "https://tweakcn.com/editor/theme?theme=vercel"
 ]
 
 export type ThemePreset = {
