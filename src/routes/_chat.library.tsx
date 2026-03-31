@@ -354,11 +354,11 @@ const GeneratedImageItem = memo(
                                 sizes={visibleImageSources.sizes}
                                 alt={image.prompt || "AI generation"}
                                 className={cn(
-                                    "absolute inset-0 h-full w-full object-cover transition-[opacity,transform,filter] duration-300",
+                                    "absolute inset-0 h-full w-full object-cover transition-[opacity,transform,filter] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]",
                                     loadState === "loading" && "scale-[1.04] opacity-0 blur-xl",
                                     loadState === "revealing" && "scale-[1.02] opacity-100 blur-md",
                                     loadState === "ready" &&
-                                        "scale-100 opacity-100 blur-0 group-hover:scale-105",
+                                        "scale-100 opacity-100 blur-0 group-hover:scale-[1.03]",
                                     useCssBlurFallback && "scale-[1.08] blur-2xl"
                                 )}
                                 onLoad={handleImageLoad}
@@ -374,8 +374,8 @@ const GeneratedImageItem = memo(
                                 alt=""
                                 aria-hidden="true"
                                 className={cn(
-                                    "pointer-events-none absolute inset-0 z-10 h-full w-full object-cover brightness-75 saturate-50 transition-[opacity,transform] duration-300",
-                                    loadState === "ready" && "group-hover:scale-105",
+                                    "pointer-events-none absolute inset-0 z-10 h-full w-full object-cover brightness-70 saturate-[0.35] transition-[opacity,transform] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                                    loadState === "ready" && "group-hover:scale-[1.03]",
                                     isImageHidden && isBlurVariantReady
                                         ? "opacity-100"
                                         : "opacity-0"

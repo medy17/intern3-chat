@@ -1,6 +1,6 @@
 export type PrivateBlurFormat = "avif" | "webp"
 
-const PRIVATE_BLUR_VERSION = "v1"
+const PRIVATE_BLUR_VERSION = "v3"
 const PRIVATE_BLUR_LONG_EDGES = [576, 720] as const
 
 export const normalizeAspectRatio = (aspectRatio?: string) => {

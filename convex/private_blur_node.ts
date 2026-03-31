@@ -61,12 +61,12 @@ export const ensurePrivateBlur = internalAction({
                 fit: "inside",
                 withoutEnlargement: true
             })
-            .blur(20)
+            .blur(36)
 
         const outputBuffer =
             format === "avif"
-                ? await transformer.avif({ quality: 42, effort: 6 }).toBuffer()
-                : await transformer.webp({ quality: 54 }).toBuffer()
+                ? await transformer.avif({ quality: 55, effort: 7 }).toBuffer()
+                : await transformer.webp({ quality: 60 }).toBuffer()
 
         await r2.store(ctx, new Uint8Array(outputBuffer), {
             authorId: getPrivateBlurAuthorId(key),
