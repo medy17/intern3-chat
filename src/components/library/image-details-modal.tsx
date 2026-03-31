@@ -78,8 +78,8 @@ export function ImageDetailsModal({
     const deleteImage = useAction(api.images_node.deleteGeneratedImage)
     const privateViewingEnabled = usePrivateViewingStore((state) => state.privateViewingEnabled)
     const imageOverrides = usePrivateViewingStore((state) => state.imageOverrides)
-    const toggleImageVisibility = usePrivateViewingStore((state) => state.toggleImageVisibility)
     const [localImage, setLocalImage] = useState(image)
+    const [isModalImageHidden, setIsModalImageHidden] = useState(false)
     useEffect(() => {
         if (image) {
             setLocalImage(image)
@@ -190,20 +190,12 @@ export function ImageDetailsModal({
         }
     }, [aspectRatioValue, viewportSize.height, viewportSize.width])
 
-    if (!localImage) return null
-
-    const isImageHidden = getIsImageHidden({
-        privateViewingEnabled,
-        override: imageOverrides[localImage._id]
-    })
-    const imageUrl = getExpandedImageUrl({
-        storageKey: localImage.storageKey,
-        aspectRatio: localImage.aspectRatio
-    })
-    const fullResolutionUrl = metadata?.url || getGeneratedImageProxyUrl(localImage.storageKey)
-    const model = models.find((m) => m.id === localImage.modelId)
-    const formattedDate = new Date(localImage.createdAt).toLocaleDateString()
-    const resolutionLabel = localImage.resolution || "1K"
+    const initialImageHidden = localImage
+        ? getIsImageHidden({
+              privateViewingEnabled,
+              override: imageOverrides[localImage._id]
+          })
+        : false
 
     const handleImageLoad = () => {
         setLoadState("revealing")
@@ -231,8 +223,26 @@ export function ImageDetailsModal({
     }
 
     const handleToggleImageVisibility = () => {
-        toggleImageVisibility(localImage._id)
+        setIsModalImageHidden((current) => !current)
     }
+
+    useEffect(() => {
+        if (!isOpen || !localImage) return
+
+        setIsModalImageHidden(initialImageHidden)
+    }, [initialImageHidden, isOpen, localImage])
+
+    if (!localImage) return null
+
+    const isImageHidden = isModalImageHidden
+    const imageUrl = getExpandedImageUrl({
+        storageKey: localImage.storageKey,
+        aspectRatio: localImage.aspectRatio
+    })
+    const fullResolutionUrl = metadata?.url || getGeneratedImageProxyUrl(localImage.storageKey)
+    const model = models.find((m) => m.id === localImage.modelId)
+    const formattedDate = new Date(localImage.createdAt).toLocaleDateString()
+    const resolutionLabel = localImage.resolution || "1K"
 
     const handleDelete = () => {
         const imageId = localImage._id as Id<"generatedImages">
@@ -301,7 +311,11 @@ export function ImageDetailsModal({
                             )}
                             <button
                                 type="button"
-                                className="relative flex max-h-full max-w-full items-center justify-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                                className="relative flex shrink-0 items-center justify-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                                style={{
+                                    width: layout.imageWidth,
+                                    height: layout.imageHeight
+                                }}
                                 onClick={handleToggleImageVisibility}
                             >
                                 <span className="sr-only">
@@ -311,7 +325,7 @@ export function ImageDetailsModal({
                                     src={imageUrl}
                                     alt={localImage.prompt || "Generated Image"}
                                     className={cn(
-                                        "max-h-full max-w-full rounded-lg object-contain shadow-sm transition-all duration-500",
+                                        "h-full w-full rounded-lg object-contain shadow-sm transition-all duration-500",
                                         loadState === "loading" && "scale-[1.02] opacity-0 blur-xl",
                                         loadState === "revealing" &&
                                             "scale-[1.01] opacity-100 blur-md",
