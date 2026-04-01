@@ -57,14 +57,14 @@ cors.route({
     handler: transcribeAudio
 })
 
-http.route({
+cors.route({
     path: "/r2",
     method: "GET",
     handler: getFile
 })
 
 if (isPrivateBlurEnabled) {
-    http.route({
+    cors.route({
         path: "/private-blur",
         method: "GET",
         handler: getPrivateBlur

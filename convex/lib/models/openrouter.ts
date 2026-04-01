@@ -42,6 +42,7 @@ export const OPENROUTER_MODELS: SharedModel[] = [
         supportsReferenceImages: true,
         openrouterImageModalities: ["image"],
         supportedImageSizes: [...OPENROUTER_IMAGE_SIZES],
+        supportedImageResolutions: ["1K", "2K", "4K"],
         prototypeCreditTier: "pro"
     }
 ]

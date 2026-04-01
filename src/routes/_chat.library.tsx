@@ -57,10 +57,14 @@ import {
     type GeneratedImageOrientation,
     hasActiveGeneratedImageFilters
 } from "@/lib/generated-image-filters"
-import { getGeneratedImageProxyUrl, getLibraryImageSources } from "@/lib/generated-image-urls"
+import {
+    getGeneratedImageCopyUrl,
+    getGeneratedImageProxyUrl,
+    getLibraryImageSources
+} from "@/lib/generated-image-urls"
 import { getIsImageHidden } from "@/lib/private-viewing"
 import { useSharedModels } from "@/lib/shared-models"
-import { cn } from "@/lib/utils"
+import { cn, copyImageUrlToClipboard } from "@/lib/utils"
 import { createFileRoute } from "@tanstack/react-router"
 import { useAction, useQuery } from "convex/react"
 import {
@@ -506,24 +510,27 @@ const GeneratedImageItem = memo(
             return { rows: calculatedRows, cols: baseSize }
         }, [cssAspectRatio])
 
-        const fullResolutionUrl = metadata?.url || getGeneratedImageProxyUrl(image.storageKey)
+        const sourceImageUrl = getGeneratedImageProxyUrl(image.storageKey)
+        const copyImageUrl = getGeneratedImageCopyUrl(image.storageKey)
+        const fullResolutionUrl = metadata?.url || sourceImageUrl
 
         const handleDownload = () => {
             window.open(fullResolutionUrl, "_blank")
         }
 
         const handleCopyImage = async () => {
+            const copyPromise = copyImageUrlToClipboard(copyImageUrl)
+
+            toast.promise(copyPromise, {
+                loading: "Copying image...",
+                success: "Image copied to clipboard",
+                error: "Failed to copy image"
+            })
+
             try {
-                const response = await fetch(fullResolutionUrl)
-                const blob = await response.blob()
-                await navigator.clipboard.write([
-                    new ClipboardItem({
-                        [blob.type]: blob
-                    })
-                ])
-                toast.success("Image copied to clipboard")
+                await copyPromise
             } catch (err) {
-                toast.error("Failed to copy image")
+                console.error("Failed to copy image:", err)
             }
         }
 

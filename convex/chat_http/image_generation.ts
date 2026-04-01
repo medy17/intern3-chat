@@ -85,6 +85,10 @@ type ImageExecutionPath =
 
 type OpenRouterImageRequestOptions = {
     modalities?: Array<"image" | "text">
+    image_config?: {
+        aspect_ratio?: `${number}:${number}`
+        image_size?: ImageResolution
+    }
     provider?: {
         only?: string[]
         allow_fallbacks?: boolean
@@ -94,7 +98,9 @@ type OpenRouterImageRequestOptions = {
 
 function buildOpenRouterImageRequestOptions(
     appModelId: string,
-    modalities?: Array<"image" | "text">
+    modalities?: Array<"image" | "text">,
+    aspectRatio?: `${number}:${number}`,
+    imageResolution?: ImageResolution
 ): OpenRouterImageRequestOptions {
     const options: OpenRouterImageRequestOptions = {
         provider: {
@@ -104,6 +110,13 @@ function buildOpenRouterImageRequestOptions(
 
     if (modalities?.length) {
         options.modalities = [...modalities]
+    }
+
+    if (aspectRatio || imageResolution) {
+        options.image_config = {
+            ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}),
+            ...(imageResolution ? { image_size: imageResolution } : {})
+        }
     }
 
     // Prefer the model vendor's own OpenRouter endpoint when available.
@@ -482,7 +495,9 @@ export async function generateAndStoreImage({
                                     providerOptions: {
                                         openrouter: buildOpenRouterImageRequestOptions(
                                             modelId,
-                                            sharedModel.openrouterImageModalities
+                                            sharedModel.openrouterImageModalities,
+                                            aspectRatio,
+                                            requestedImageResolution
                                         )
                                     }
                                 }

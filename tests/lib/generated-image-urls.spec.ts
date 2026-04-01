@@ -10,6 +10,7 @@ vi.mock("@/lib/browser-env", () => ({
 
 import {
     getExpandedImageUrl,
+    getGeneratedImageCopyUrl,
     getGeneratedImageProxyUrl,
     getLibraryImageSources,
     getOptimizedGeneratedImageUrl,
@@ -25,6 +26,12 @@ describe("generated-image-urls", () => {
     it("builds the base Convex proxy URL with an encoded storage key", () => {
         expect(getGeneratedImageProxyUrl("folder/image key.png")).toBe(
             "https://api.example.com/r2?key=folder%2Fimage%20key.png"
+        )
+    })
+
+    it("builds a same-origin dev proxy URL for clipboard copies", () => {
+        expect(getGeneratedImageCopyUrl("folder/image key.png")).toBe(
+            "/convex-http/r2?key=folder%2Fimage%20key.png"
         )
     })
 
@@ -121,7 +128,7 @@ describe("generated-image-urls", () => {
         })
     })
 
-    it("uses the private blur route for hidden tiles when avif is supported", () => {
+    it("still falls back to css blur for hidden tiles in the Vitest dev environment", () => {
         vi.stubGlobal("window", {
             location: {
                 hostname: "silkchat.app"
@@ -144,13 +151,13 @@ describe("generated-image-urls", () => {
                 hidden: true
             })
         ).toEqual({
-            src: "https://api.example.com/private-blur?key=generated%2Fkey-5&w=540&fmt=avif",
+            src: "https://api.example.com/r2?key=generated%2Fkey-5",
             srcSet: [
-                "https://api.example.com/private-blur?key=generated%2Fkey-5&w=432&fmt=avif 432w",
-                "https://api.example.com/private-blur?key=generated%2Fkey-5&w=540&fmt=avif 540w"
+                "https://api.example.com/r2?key=generated%2Fkey-5 432w",
+                "https://api.example.com/r2?key=generated%2Fkey-5 540w"
             ].join(", "),
             sizes: "(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw",
-            useCssBlurFallback: false
+            useCssBlurFallback: true
         })
     })
 })

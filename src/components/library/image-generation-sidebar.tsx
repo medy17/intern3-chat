@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button"
+import { Slider } from "@/components/ui/slider"
 import { Textarea } from "@/components/ui/textarea"
 import { api } from "@/convex/_generated/api"
 import type { SharedModel } from "@/convex/lib/models"
@@ -33,19 +34,25 @@ export function ImageGenerationSidebar() {
     const { token } = useToken()
     const { models } = useSharedModels()
     const imageModels = useMemo(() => models.filter((m) => m.mode === "image"), [models])
-    const { addPendingGeneration, removePendingGeneration } = useGenerationStore()
+    const {
+        addPendingGeneration,
+        removePendingGeneration,
+        prompt,
+        setPrompt,
+        selectedModelIds,
+        setSelectedModelIds,
+        selectedModelCounts,
+        setSelectedModelCounts,
+        aspectRatio,
+        setAspectRatio,
+        resolution,
+        setResolution
+    } = useGenerationStore()
+    const isDevMode = import.meta.env.DEV
 
-    const [prompt, setPrompt] = useState("")
-    const [selectedModelIds, setSelectedModelIds] = useState<string[]>(
-        imageModels.length > 0 ? [imageModels[0].id] : []
-    )
-    const [selectedModelCounts, setSelectedModelCounts] = useState<Record<string, number>>(
-        imageModels.length > 0 ? { [imageModels[0].id]: DEFAULT_VARIANTS_PER_MODEL } : {}
-    )
-    const [aspectRatio, setAspectRatio] = useState("1:1")
-    const [resolution, setResolution] = useState("1K")
     const [referenceFiles, setReferenceFiles] = useState<{ file: File; preview: string }[]>([])
     const [showGradient, setShowGradient] = useState(false)
+    const [fakeResponseTimeSeconds, setFakeResponseTimeSeconds] = useState(15)
     const scrollContainerRef = useRef<HTMLDivElement>(null)
     const referenceFilesRef = useRef(referenceFiles)
 
@@ -65,7 +72,7 @@ export function ImageGenerationSidebar() {
             const fallbackSelection = imageModels.length > 0 ? [imageModels[0].id] : []
             return areStringArraysEqual(prev, fallbackSelection) ? prev : fallbackSelection
         })
-    }, [imageModels])
+    }, [imageModels, setSelectedModelIds])
 
     useEffect(() => {
         setSelectedModelCounts((prev) => {
@@ -86,7 +93,7 @@ export function ImageGenerationSidebar() {
                 imageModels.length > 0 ? { [imageModels[0].id]: DEFAULT_VARIANTS_PER_MODEL } : {}
             return areModelCountsEqual(prev, fallbackCounts) ? prev : fallbackCounts
         })
-    }, [imageModels])
+    }, [imageModels, setSelectedModelCounts])
 
     useEffect(() => {
         const container = scrollContainerRef.current
@@ -119,8 +126,10 @@ export function ImageGenerationSidebar() {
     }, [])
 
     const generateImage = useAction(api.images_node.generateStandaloneImage)
-    const [isGenerating, setIsGenerating] = useState(false)
+    const generateFakeImage = useAction(api.images_node.generateFakeStandaloneImage)
+    const [generationMode, setGenerationMode] = useState<"real" | "fake" | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const isGenerating = generationMode !== null
 
     useEffect(() => {
         return () => {
@@ -269,7 +278,7 @@ export function ImageGenerationSidebar() {
         if (commonImageSizes.length > 0 && !commonImageSizes.includes(aspectRatio)) {
             setAspectRatio(commonImageSizes[0])
         }
-    }, [commonImageSizes, aspectRatio])
+    }, [commonImageSizes, aspectRatio, setAspectRatio])
 
     const commonImageResolutions = useMemo(() => {
         if (selectedModelIds.length === 0) return ["1K"]
@@ -299,7 +308,7 @@ export function ImageGenerationSidebar() {
         if (commonImageResolutions.length > 0 && !commonImageResolutions.includes(resolution)) {
             setResolution(commonImageResolutions[0] || "1K")
         }
-    }, [commonImageResolutions, resolution])
+    }, [commonImageResolutions, resolution, setResolution])
 
     const selectedModels = useMemo(
         () => imageModels.filter((model) => selectedModelIds.includes(model.id)),
@@ -313,55 +322,61 @@ export function ImageGenerationSidebar() {
         [selectedModels]
     )
 
+    const canGenerateBase =
+        selectedModelIds.length > 0 && !isGenerating && commonImageSizes.length > 0
+    const normalizedPrompt = prompt.trim()
+    const canSubmitGeneration = canGenerateBase && Boolean(normalizedPrompt)
+
+    const uploadReferenceKeys = async () => {
+        if (referenceFiles.length === 0) {
+            return []
+        }
+
+        return await Promise.all(
+            referenceFiles.map(async ({ file }) => {
+                const jwt = await resolveJwtToken(token)
+                if (!jwt) {
+                    throw new Error("Authentication token unavailable")
+                }
+
+                const formData = new FormData()
+                formData.append("file", file)
+                formData.append("fileName", file.name)
+
+                const response = await fetch(`${browserEnv("VITE_CONVEX_API_URL")}/upload`, {
+                    method: "POST",
+                    body: formData,
+                    headers: {
+                        Authorization: `Bearer ${jwt}`
+                    }
+                })
+
+                const payload = (await response.json()) as {
+                    error?: string
+                    key?: string
+                }
+
+                if (!response.ok || !payload.key) {
+                    throw new Error(
+                        payload.error || `Failed to upload reference image "${file.name}"`
+                    )
+                }
+
+                return payload.key
+            })
+        )
+    }
+
     const handleGenerate = async () => {
-        if (!prompt || selectedModelIds.length === 0) return
+        if (!normalizedPrompt || selectedModelIds.length === 0) return
         if (referenceFiles.length > 0 && !supportsReferenceImagesForSelection) {
             toast.error("Reference images are not supported for the selected model set")
             return
         }
 
-        setIsGenerating(true)
+        setGenerationMode("real")
         try {
-            const uploadedReferenceKeys =
-                referenceFiles.length > 0
-                    ? await Promise.all(
-                          referenceFiles.map(async ({ file }) => {
-                              const jwt = await resolveJwtToken(token)
-                              if (!jwt) {
-                                  throw new Error("Authentication token unavailable")
-                              }
-
-                              const formData = new FormData()
-                              formData.append("file", file)
-                              formData.append("fileName", file.name)
-
-                              const response = await fetch(
-                                  `${browserEnv("VITE_CONVEX_API_URL")}/upload`,
-                                  {
-                                      method: "POST",
-                                      body: formData,
-                                      headers: {
-                                          Authorization: `Bearer ${jwt}`
-                                      }
-                                  }
-                              )
-
-                              const payload = (await response.json()) as {
-                                  error?: string
-                                  key?: string
-                              }
-
-                              if (!response.ok || !payload.key) {
-                                  throw new Error(
-                                      payload.error ||
-                                          `Failed to upload reference image "${file.name}"`
-                                  )
-                              }
-
-                              return payload.key
-                          })
-                      )
-                    : []
+            const uploadedReferenceKeys = await uploadReferenceKeys()
 
             const results = await Promise.allSettled(
                 selectedModelIds
@@ -378,7 +393,7 @@ export function ImageGenerationSidebar() {
 
                             try {
                                 await generateImage({
-                                    prompt,
+                                    prompt: normalizedPrompt,
                                     modelId,
                                     aspectRatio,
                                     referenceImageIds: uploadedReferenceKeys,
@@ -404,7 +419,64 @@ export function ImageGenerationSidebar() {
                 error instanceof Error ? error.message : "Failed to generate image with references"
             )
         } finally {
-            setIsGenerating(false)
+            setGenerationMode(null)
+        }
+    }
+
+    const handleFakeGenerate = async () => {
+        if (!isDevMode || !normalizedPrompt || selectedModelIds.length === 0) return
+        if (referenceFiles.length > 0 && !supportsReferenceImagesForSelection) {
+            toast.error("Reference images are not supported for the selected model set")
+            return
+        }
+
+        setGenerationMode("fake")
+        try {
+            const uploadedReferenceKeys = await uploadReferenceKeys()
+            const results = await Promise.allSettled(
+                selectedModelIds
+                    .flatMap((modelId) => {
+                        const model = imageModels.find((m) => m.id === modelId)
+                        const supportsResolution =
+                            model?.supportedImageResolutions &&
+                            model.supportedImageResolutions.length > 0
+                        const count = selectedModelCounts[modelId] ?? DEFAULT_VARIANTS_PER_MODEL
+
+                        return Array.from({ length: count }, (_, index) => async () => {
+                            const id = Math.random().toString(36).substring(2, 11)
+                            addPendingGeneration({ id, aspectRatio })
+
+                            try {
+                                await generateFakeImage({
+                                    prompt: normalizedPrompt,
+                                    modelId,
+                                    aspectRatio,
+                                    variantIndex: index + 1,
+                                    referenceImageIds: uploadedReferenceKeys,
+                                    responseTimeSeconds: fakeResponseTimeSeconds,
+                                    ...(supportsResolution ? { resolution } : {})
+                                })
+                            } finally {
+                                removePendingGeneration(id)
+                            }
+                        })
+                    })
+                    .map((runGeneration) => runGeneration())
+            )
+
+            const failedResult = results.find(
+                (result): result is PromiseRejectedResult => result.status === "rejected"
+            )
+            if (failedResult) {
+                throw failedResult.reason
+            }
+        } catch (error) {
+            console.error("Failed to run fake image generation:", error)
+            toast.error(
+                error instanceof Error ? error.message : "Failed to run fake image generation"
+            )
+        } finally {
+            setGenerationMode(null)
         }
     }
 
@@ -752,17 +824,63 @@ export function ImageGenerationSidebar() {
 
             {/* Bottom Generate Button */}
             <div className="sticky bottom-0 z-10 border-t bg-sidebar p-4">
+                {isDevMode && (
+                    <div className="mb-3 rounded-md border border-border/60 bg-background/50 p-3">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                            <span className="font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+                                Time To Respond
+                            </span>
+                            <span className="font-medium text-foreground text-sm">
+                                {fakeResponseTimeSeconds}s
+                            </span>
+                        </div>
+                        <Slider
+                            value={[fakeResponseTimeSeconds]}
+                            min={5}
+                            max={90}
+                            step={1}
+                            disabled={isGenerating}
+                            onValueChange={(value) => {
+                                const nextValue = value[0]
+                                if (typeof nextValue === "number") {
+                                    setFakeResponseTimeSeconds(nextValue)
+                                }
+                            }}
+                        />
+                        <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
+                            <span>5s min</span>
+                            <span>90s max</span>
+                        </div>
+                    </div>
+                )}
+                {isDevMode && (
+                    <Button
+                        onClick={handleFakeGenerate}
+                        disabled={!canSubmitGeneration}
+                        variant="outline"
+                        className="mb-2 flex h-11 w-full items-center justify-center gap-2 rounded-md border-border border-dashed bg-background font-medium hover:bg-muted/50"
+                    >
+                        {generationMode === "fake" ? (
+                            <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Fake Generating...
+                            </>
+                        ) : (
+                            <>
+                                <Sparkles className="h-4 w-4 text-muted-foreground" />
+                                {totalRequestedGenerations > 1
+                                    ? `Fake Generation (${totalRequestedGenerations})`
+                                    : "Fake Generation"}
+                            </>
+                        )}
+                    </Button>
+                )}
                 <Button
                     onClick={handleGenerate}
-                    disabled={
-                        !prompt ||
-                        selectedModelIds.length === 0 ||
-                        isGenerating ||
-                        commonImageSizes.length === 0
-                    }
+                    disabled={!canSubmitGeneration}
                     className="flex h-11 w-full items-center justify-center gap-2 rounded-md border border-border bg-secondary font-medium text-secondary-foreground hover:bg-secondary/80"
                 >
-                    {isGenerating ? (
+                    {generationMode === "real" ? (
                         <>
                             <Loader2 className="h-4 w-4 animate-spin" />
                             Generating...

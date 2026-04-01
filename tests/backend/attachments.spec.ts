@@ -259,17 +259,31 @@ describe("attachments", () => {
         expect(result.map((file: { key: string }) => file.key)).toEqual(["b", "c", "a"])
     })
 
-    it("redirects file fetches to the resolved storage URL", async () => {
+    it("proxies file fetches through the resolved storage URL", async () => {
         ;(r2.getUrl as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
             "https://files.example.com/file-1"
         )
+        const upstreamResponse = new Response(new Uint8Array([1, 2, 3]), {
+            status: 200,
+            headers: {
+                "content-type": "image/png",
+                "content-length": "3",
+                "cache-control": "public, max-age=60"
+            }
+        })
+        const fetchMock = vi.fn().mockResolvedValueOnce(upstreamResponse)
+        vi.stubGlobal("fetch", fetchMock)
 
         const response = await getFile(
             createHttpCtx(),
             new Request("https://example.com/file?key=file-1")
         )
 
-        expect(response.status).toBe(302)
-        expect(response.headers.get("location")).toBe("https://files.example.com/file-1")
+        expect(fetchMock).toHaveBeenCalledWith("https://files.example.com/file-1")
+        expect(response.status).toBe(200)
+        expect(response.headers.get("content-type")).toBe("image/png")
+        expect(response.headers.get("content-length")).toBe("3")
+        expect(response.headers.get("cache-control")).toBe("public, max-age=60")
+        await expect(response.arrayBuffer()).resolves.toEqual(new Uint8Array([1, 2, 3]).buffer)
     })
 })

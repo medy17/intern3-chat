@@ -2,6 +2,7 @@ import { browserEnv } from "@/lib/browser-env"
 import { type PrivateBlurFormat, getConstrainedWidth } from "@/lib/private-blur-variants"
 
 const LOCAL_IMAGE_HOSTS = new Set(["localhost", "127.0.0.1"])
+const DEV_CONVEX_HTTP_PROXY_PREFIX = "/convex-http"
 
 let preferredPrivateBlurFormat: PrivateBlurFormat | null | undefined
 
@@ -70,6 +71,14 @@ export const getPreferredPrivateBlurFormat = (): PrivateBlurFormat | null => {
 export const getGeneratedImageProxyUrl = (storageKey: string) => {
     const apiBase = browserEnv("VITE_CONVEX_API_URL").replace(/\/$/, "")
     return `${apiBase}/r2?key=${encodeURIComponent(storageKey)}`
+}
+
+export const getGeneratedImageCopyUrl = (storageKey: string) => {
+    if (import.meta.env.DEV) {
+        return `${DEV_CONVEX_HTTP_PROXY_PREFIX}/r2?key=${encodeURIComponent(storageKey)}`
+    }
+
+    return getGeneratedImageProxyUrl(storageKey)
 }
 
 export const getOptimizedGeneratedImageUrl = ({

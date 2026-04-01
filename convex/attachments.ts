@@ -365,6 +365,37 @@ export const getFile = httpAction(async (ctx, req) => {
     const { searchParams } = new URL(req.url)
     const key = searchParams.get("key")
     if (!key) return new Response(null, { status: 400 })
-    const file = await r2.getUrl(key)
-    return Response.redirect(file)
+    try {
+        const fileUrl = await r2.getUrl(key)
+        const upstream = await fetch(fileUrl)
+
+        if (!upstream.ok) {
+            return new Response(null, { status: upstream.status })
+        }
+
+        const headers = new Headers()
+        const passthroughHeaders = [
+            "content-type",
+            "content-length",
+            "content-disposition",
+            "cache-control",
+            "etag",
+            "last-modified"
+        ]
+
+        for (const headerName of passthroughHeaders) {
+            const headerValue = upstream.headers.get(headerName)
+            if (headerValue) {
+                headers.set(headerName, headerValue)
+            }
+        }
+
+        return new Response(upstream.body, {
+            status: upstream.status,
+            headers
+        })
+    } catch (error) {
+        console.error("Error fetching file:", error)
+        return new Response(null, { status: 500 })
+    }
 })

@@ -1,4 +1,5 @@
 import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/sonner"
 import { authClient } from "@/lib/auth-client"
 import { ConvexQueryClient } from "@convex-dev/react-query"
 import { AuthQueryProvider } from "@daveyplate/better-auth-tanstack"
@@ -8,7 +9,6 @@ import { ClientOnly, Link, useRouter } from "@tanstack/react-router"
 import { ConvexQueryCacheProvider } from "convex-helpers/react/cache"
 import { PostHogProvider } from "posthog-js/react"
 import type { ReactNode } from "react"
-import { Toaster } from "sonner"
 import { browserEnv, optionalBrowserEnv } from "./lib/browser-env"
 
 let convexQueryClientSingleton: ConvexQueryClient | null = null

@@ -379,21 +379,21 @@
 @layer components {
     /* Sonner Toast Theme Overrides */
     [data-sonner-toaster] [data-sonner-toast] {
-        background: hsl(var(--background)) !important;
-        color: hsl(var(--foreground)) !important;
-        border-color: hsl(var(--border)) !important;
+        background: var(--background) !important;
+        color: var(--foreground) !important;
+        border-color: var(--border) !important;
         border-radius: var(--radius) !important;
     }
 
     [data-sonner-toaster] [data-sonner-toast][data-type="error"] {
-        background: hsl(var(--destructive)) !important;
-        color: hsl(var(--destructive-foreground)) !important;
-        border-color: hsl(var(--destructive)) !important;
+        background: var(--destructive) !important;
+        color: var(--destructive-foreground) !important;
+        border-color: var(--destructive) !important;
     }
 
     [data-sonner-toaster] [data-sonner-toast][data-type="success"] {
-        background: hsl(var(--primary)) !important;
-        color: hsl(var(--primary-foreground)) !important;
-        border-color: hsl(var(--primary)) !important;
+        background: var(--primary) !important;
+        color: var(--primary-foreground) !important;
+        border-color: var(--primary) !important;
     }
 }
