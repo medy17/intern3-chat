@@ -1,6 +1,7 @@
 import { Button, buttonVariants } from "@/components/ui/button"
 import { SidebarHeader, SidebarTrigger } from "@/components/ui/sidebar"
 import { api } from "@/convex/_generated/api"
+import { getLastChatRoute } from "@/lib/last-chat-route"
 import { DEFAULT_LIBRARY_SEARCH } from "@/lib/library-search"
 import { cn } from "@/lib/utils"
 import { Link, useNavigate } from "@tanstack/react-router"
@@ -41,6 +42,15 @@ export function ThreadsSidebarHeader({
             .catch(() => {})
     }
 
+    const handleLibraryToggle = () => {
+        if (isLibraryMode) {
+            navigate({ href: getLastChatRoute() })
+            return
+        }
+
+        navigate({ to: "/library", search: DEFAULT_LIBRARY_SEARCH })
+    }
+
     return (
         <SidebarHeader>
             <div className="flex w-full items-center justify-between px-2 pt-2">
@@ -54,13 +64,7 @@ export function ThreadsSidebarHeader({
                 <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() =>
-                        navigate(
-                            isLibraryMode
-                                ? { to: "/" }
-                                : { to: "/library", search: DEFAULT_LIBRARY_SEARCH }
-                        )
-                    }
+                    onClick={handleLibraryToggle}
                     onMouseEnter={handleLibraryHover}
                     className="h-8 w-8 text-muted-foreground transition-colors hover:text-foreground"
                 >

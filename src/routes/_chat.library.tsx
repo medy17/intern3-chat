@@ -68,6 +68,7 @@ import {
     DEFAULT_LIBRARY_SEARCH,
     type ImageSortOption,
     type LibraryFiltersState,
+    type LibrarySearchState,
     cloneLibraryFilters,
     getLibraryFiltersFromSearch,
     validateLibrarySearch
@@ -75,7 +76,7 @@ import {
 import { getIsImageHidden } from "@/lib/private-viewing"
 import { useSharedModels } from "@/lib/shared-models"
 import { cn, copyImageUrlToClipboard } from "@/lib/utils"
-import { createFileRoute, stripSearchParams } from "@tanstack/react-router"
+import { createFileRoute, stripSearchParams, useNavigate } from "@tanstack/react-router"
 import { useAction, useQuery } from "convex/react"
 import {
     Check,
@@ -102,7 +103,7 @@ export const Route = createFileRoute("/_chat/library")({
     search: {
         middlewares: [stripSearchParams(DEFAULT_LIBRARY_SEARCH)]
     },
-    component: LibraryPage
+    component: LibraryRouteComponent
 })
 
 const IMAGES_PER_PAGE = 50
@@ -905,9 +906,14 @@ const GeneratedImageItem = memo(
 )
 GeneratedImageItem.displayName = "GeneratedImageItem"
 
-function LibraryPage() {
-    const navigate = Route.useNavigate()
+function LibraryRouteComponent() {
     const search = Route.useSearch()
+
+    return <LibraryView search={search} />
+}
+
+export function LibraryView({ search }: { search: LibrarySearchState }) {
+    const navigate = useNavigate({ from: "/library" })
     const session = useSession()
     const isMobile = useIsMobile()
     const { models: sharedModels } = useSharedModels()
