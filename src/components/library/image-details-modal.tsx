@@ -33,13 +33,17 @@ import { getIsImageHidden } from "@/lib/private-viewing"
 import { useSharedModels } from "@/lib/shared-models"
 import { cn } from "@/lib/utils"
 import { useAction, useQuery } from "convex/react"
-import { Download, ExternalLink, Trash2, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, Download, ExternalLink, Trash2, X } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 interface ImageDetailsModalProps {
     image: Doc<"generatedImages"> | null
     isOpen: boolean
     onClose: () => void
+    onPrevious?: () => void
+    onNext?: () => void
+    canNavigatePrevious?: boolean
+    canNavigateNext?: boolean
     onDeleteStart?: (id: Id<"generatedImages">) => void
 }
 
@@ -52,6 +56,8 @@ const DESKTOP_MAX_IMAGE_HEIGHT = 920
 const MOBILE_HORIZONTAL_CHROME = 32
 const MOBILE_VERTICAL_CHROME = 160
 const MOBILE_MAX_IMAGE_HEIGHT_RATIO = 0.52
+const DESKTOP_NAV_BUTTON_SPACE = 176
+const loadedDetailImageUrls = new Set<string>()
 
 function getAspectRatioValue(aspectRatio: string) {
     if (aspectRatio.includes("x")) {
@@ -71,6 +77,10 @@ export function ImageDetailsModal({
     image,
     isOpen,
     onClose,
+    onPrevious,
+    onNext,
+    canNavigatePrevious = false,
+    canNavigateNext = false,
     onDeleteStart
 }: ImageDetailsModalProps) {
     const isMobile = useIsMobile()
@@ -95,6 +105,7 @@ export function ImageDetailsModal({
     const [loadState, setLoadState] = useState<"loading" | "revealing" | "ready">("loading")
     const [viewportSize, setViewportSize] = useState({ width: 1440, height: 900 })
     const revealTimeoutRef = useRef<number | null>(null)
+    const imageRef = useRef<HTMLImageElement | null>(null)
     const aspectRatio = localImage?.aspectRatio || "1:1"
     const cssAspectRatio = useMemo(() => {
         if (aspectRatio.includes("x")) {
@@ -109,18 +120,46 @@ export function ImageDetailsModal({
     }, [aspectRatio])
 
     const aspectRatioValue = useMemo(() => getAspectRatioValue(aspectRatio), [aspectRatio])
+    const imageUrl = localImage
+        ? getExpandedImageUrl({
+              storageKey: localImage.storageKey,
+              aspectRatio: localImage.aspectRatio
+          })
+        : ""
 
     useEffect(() => {
-        if (!localImage) return
+        if (!localImage || !isOpen) return
+
+        if (revealTimeoutRef.current !== null) {
+            window.clearTimeout(revealTimeoutRef.current)
+            revealTimeoutRef.current = null
+        }
+
+        if (loadedDetailImageUrls.has(imageUrl)) {
+            setLoadState("ready")
+            return
+        }
 
         setLoadState("loading")
 
+        const syncCachedImageState = window.requestAnimationFrame(() => {
+            const imageElement = imageRef.current
+            if (!imageElement?.complete || imageElement.naturalWidth <= 0) {
+                return
+            }
+
+            loadedDetailImageUrls.add(imageUrl)
+            setLoadState("ready")
+        })
+
         return () => {
+            window.cancelAnimationFrame(syncCachedImageState)
             if (revealTimeoutRef.current !== null) {
                 window.clearTimeout(revealTimeoutRef.current)
+                revealTimeoutRef.current = null
             }
         }
-    }, [localImage?._id])
+    }, [imageUrl, isOpen, localImage])
 
     useEffect(() => {
         if (!isOpen || typeof window === "undefined") return
@@ -190,6 +229,11 @@ export function ImageDetailsModal({
         }
     }, [aspectRatioValue, viewportSize.height, viewportSize.width])
 
+    const showDesktopNavButtons =
+        layout.isDesktop &&
+        viewportSize.width >= layout.shellWidth + DESKTOP_NAV_BUTTON_SPACE &&
+        (canNavigatePrevious || canNavigateNext)
+
     const initialImageHidden = localImage
         ? getIsImageHidden({
               privateViewingEnabled,
@@ -198,6 +242,12 @@ export function ImageDetailsModal({
         : false
 
     const handleImageLoad = () => {
+        if (loadedDetailImageUrls.has(imageUrl)) {
+            setLoadState("ready")
+            return
+        }
+
+        loadedDetailImageUrls.add(imageUrl)
         setLoadState("revealing")
 
         if (revealTimeoutRef.current !== null) {
@@ -211,6 +261,7 @@ export function ImageDetailsModal({
     }
 
     const handleImageError = () => {
+        loadedDetailImageUrls.delete(imageUrl)
         setLoadState("ready")
     }
 
@@ -232,13 +283,46 @@ export function ImageDetailsModal({
         setIsModalImageHidden(initialImageHidden)
     }, [initialImageHidden, isOpen, localImage])
 
+    useEffect(() => {
+        if (!isOpen || isMobile) return
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) {
+                return
+            }
+
+            const target = event.target
+            if (
+                target instanceof HTMLElement &&
+                (target.isContentEditable ||
+                    target.tagName === "INPUT" ||
+                    target.tagName === "TEXTAREA" ||
+                    target.tagName === "SELECT")
+            ) {
+                return
+            }
+
+            if (event.key === "ArrowLeft" && canNavigatePrevious && onPrevious) {
+                event.preventDefault()
+                onPrevious()
+            }
+
+            if (event.key === "ArrowRight" && canNavigateNext && onNext) {
+                event.preventDefault()
+                onNext()
+            }
+        }
+
+        window.addEventListener("keydown", handleKeyDown)
+
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown)
+        }
+    }, [canNavigateNext, canNavigatePrevious, isMobile, isOpen, onNext, onPrevious])
+
     if (!localImage) return null
 
     const isImageHidden = isModalImageHidden
-    const imageUrl = getExpandedImageUrl({
-        storageKey: localImage.storageKey,
-        aspectRatio: localImage.aspectRatio
-    })
     const fullResolutionUrl = metadata?.url || getGeneratedImageProxyUrl(localImage.storageKey)
     const model = models.find((m) => m.id === localImage.modelId)
     const formattedDate = new Date(localImage.createdAt).toLocaleDateString()
@@ -324,6 +408,7 @@ export function ImageDetailsModal({
                                     {isImageHidden ? "Unhide image" : "Hide image"}
                                 </span>
                                 <img
+                                    ref={imageRef}
                                     src={imageUrl}
                                     alt={localImage.prompt || "Generated Image"}
                                     className={cn(
@@ -442,6 +527,32 @@ export function ImageDetailsModal({
                     )}
                     style={{ width: layout.shellWidth }}
                 >
+                    {showDesktopNavButtons && (
+                        <>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="-left-[72px] -translate-y-1/2 absolute top-1/2 z-20 h-11 w-11 rounded-lg border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-md hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-35"
+                                onClick={onPrevious}
+                                disabled={!canNavigatePrevious}
+                            >
+                                <span className="sr-only">Previous image</span>
+                                <ChevronLeft className="h-5 w-5" />
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="-right-[72px] -translate-y-1/2 absolute top-1/2 z-20 h-11 w-11 rounded-lg border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-md hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-35"
+                                onClick={onNext}
+                                disabled={!canNavigateNext}
+                            >
+                                <span className="sr-only">Next image</span>
+                                <ChevronRight className="h-5 w-5" />
+                            </Button>
+                        </>
+                    )}
                     <Button
                         type="button"
                         variant="ghost"
@@ -481,6 +592,7 @@ export function ImageDetailsModal({
                                 {isImageHidden ? "Unhide image" : "Hide image"}
                             </span>
                             <img
+                                ref={imageRef}
                                 src={imageUrl}
                                 alt={localImage.prompt || "Generated Image"}
                                 className={cn(

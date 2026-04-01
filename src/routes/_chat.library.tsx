@@ -917,6 +917,13 @@ function LibraryPage() {
     const deleteImageAction = useAction(api.images_node.deleteGeneratedImage)
 
     const images = (imagePage?.page ?? []).filter((img) => !deletedImageIds.has(img._id))
+    const selectedImageIndex = useMemo(
+        () => (selectedImage ? images.findIndex((image) => image._id === selectedImage._id) : -1),
+        [images, selectedImage]
+    )
+    const canNavigateSelectedImagePrevious = selectedImageIndex > 0
+    const canNavigateSelectedImageNext =
+        selectedImageIndex >= 0 && selectedImageIndex < images.length - 1
     const modelNameById = useMemo(
         () => new Map(sharedModels.map((model) => [model.id, model.name])),
         [sharedModels]
@@ -1165,6 +1172,18 @@ function LibraryPage() {
         },
         [deleteImageAction]
     )
+
+    const handleSelectPreviousImage = useCallback(() => {
+        if (!canNavigateSelectedImagePrevious) return
+
+        setSelectedImage(images[selectedImageIndex - 1] ?? null)
+    }, [canNavigateSelectedImagePrevious, images, selectedImageIndex])
+
+    const handleSelectNextImage = useCallback(() => {
+        if (!canNavigateSelectedImageNext) return
+
+        setSelectedImage(images[selectedImageIndex + 1] ?? null)
+    }, [canNavigateSelectedImageNext, images, selectedImageIndex])
 
     const handleBulkDelete = useCallback(() => {
         if (selectedImageIds.size === 0) return
@@ -1638,6 +1657,10 @@ function LibraryPage() {
                     image={selectedImage}
                     isOpen={!!selectedImage}
                     onClose={() => setSelectedImage(null)}
+                    onPrevious={handleSelectPreviousImage}
+                    onNext={handleSelectNextImage}
+                    canNavigatePrevious={canNavigateSelectedImagePrevious}
+                    canNavigateNext={canNavigateSelectedImageNext}
                     onDeleteStart={(id) => {
                         setDeletedImageIds((prev) => new Set(prev).add(id))
                     }}
