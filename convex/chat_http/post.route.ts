@@ -555,6 +555,81 @@ export const chatPOST = httpAction(async (ctx, req) => {
         if (streamMetrics.firstVisibleAtMs !== undefined) return
         streamMetrics.firstVisibleAtMs = Date.now()
     }
+    const cloneStreamParts = () =>
+        (typeof structuredClone === "function"
+            ? structuredClone(parts)
+            : JSON.parse(JSON.stringify(parts))) as typeof parts
+    let livePersistTimeout: ReturnType<typeof setTimeout> | null = null
+    let livePersistInFlight: Promise<void> | null = null
+    let livePersistQueued = false
+    let lastLivePersistAt = 0
+    let lastLivePersistSignature = ""
+
+    const persistLiveAssistantMessage = async (force = false): Promise<void> => {
+        if (parts.length === 0) return
+
+        const now = Date.now()
+        const throttleMs = 250
+        const remainingThrottleMs = throttleMs - (now - lastLivePersistAt)
+
+        if (!force && remainingThrottleMs > 0) {
+            if (!livePersistTimeout) {
+                livePersistTimeout = setTimeout(() => {
+                    livePersistTimeout = null
+                    void persistLiveAssistantMessage()
+                }, remainingThrottleMs)
+            }
+            return
+        }
+
+        if (livePersistInFlight) {
+            livePersistQueued = true
+            return
+        }
+
+        const partsSnapshot = cloneStreamParts()
+        const signature = JSON.stringify(partsSnapshot)
+
+        if (signature === lastLivePersistSignature) {
+            return
+        }
+
+        livePersistInFlight = ctx
+            .runMutation(internal.messages.patchMessage, {
+                threadId: mutationResult.threadId,
+                messageId: mutationResult.assistantMessageId,
+                parts: partsSnapshot,
+                metadata: {
+                    serverDurationMs: Date.now() - streamStartTime,
+                    timeToFirstVisibleMs: getTimeToFirstVisibleMs()
+                }
+            })
+            .then(() => {
+                lastLivePersistSignature = signature
+                lastLivePersistAt = Date.now()
+            })
+            .catch((error) => {
+                console.error("[cvx][chat][stream] Failed to persist live assistant parts", {
+                    threadId: mutationResult.threadId,
+                    messageId: mutationResult.assistantMessageId,
+                    error
+                })
+            })
+            .finally(async () => {
+                livePersistInFlight = null
+
+                if (livePersistQueued) {
+                    livePersistQueued = false
+                    await persistLiveAssistantMessage(force)
+                }
+            })
+
+        await livePersistInFlight
+    }
+
+    const scheduleLiveAssistantPersist = () => {
+        void persistLiveAssistantMessage()
+    }
 
     const stream = createUIMessageStream({
         execute: async ({ writer }) => {
@@ -794,6 +869,7 @@ export const chatPOST = httpAction(async (ctx, req) => {
                     while (true) {
                         const { done } = await reader.read()
                         if (done) break
+                        scheduleLiveAssistantPersist()
                     }
 
                     await Promise.allSettled(uploadPromises)
@@ -887,21 +963,30 @@ export const chatPOST = httpAction(async (ctx, req) => {
                               }
                     })
 
-                    writer.merge(
-                        result.fullStream.pipeThrough(
-                            manualStreamTransform(
-                                parts,
-                                totalTokenUsage,
-                                uploadPromises,
-                                user.id,
-                                ctx,
-                                streamMetrics,
-                                {
-                                    allowReasoning: effectiveReasoningEffort !== "off"
-                                }
-                            )
+                    const transformedStream = result.fullStream.pipeThrough(
+                        manualStreamTransform(
+                            parts,
+                            totalTokenUsage,
+                            uploadPromises,
+                            user.id,
+                            ctx,
+                            streamMetrics,
+                            {
+                                allowReasoning: effectiveReasoningEffort !== "off"
+                            }
                         )
                     )
+
+                    const [streamForWriter, streamForBlocking] = transformedStream.tee()
+
+                    writer.merge(streamForWriter)
+
+                    const reader = streamForBlocking.getReader()
+                    while (true) {
+                        const { done } = await reader.read()
+                        if (done) break
+                        scheduleLiveAssistantPersist()
+                    }
 
                     await Promise.allSettled(uploadPromises)
 
@@ -931,6 +1016,12 @@ export const chatPOST = httpAction(async (ctx, req) => {
             }
             remoteCancel.abort()
             console.log()
+
+            if (livePersistTimeout) {
+                clearTimeout(livePersistTimeout)
+                livePersistTimeout = null
+            }
+            await persistLiveAssistantMessage(true)
 
             await ctx.runMutation(internal.messages.patchMessage, {
                 threadId: mutationResult.threadId,

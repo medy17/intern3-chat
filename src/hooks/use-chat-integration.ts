@@ -55,6 +55,42 @@ const normalizeUserMessageParts = (
     }, [])
 }
 
+const getMessageContentScore = (message: UIMessage | undefined) => {
+    if (!message?.parts?.length) return 0
+
+    return message.parts.reduce((score, part) => {
+        switch (part.type) {
+            case "text":
+                return score + part.text.length
+            case "reasoning":
+                return score + part.text.length
+            case "file":
+                return score + 500
+            case "dynamic-tool":
+                return score + 250
+            default:
+                return part.type.startsWith("tool-") ? score + 250 : score
+        }
+    }, 0)
+}
+
+const getLatestAssistantMessage = (messages: UIMessage[]) =>
+    [...messages].reverse().find((message) => message.role === "assistant")
+
+const shouldHydrateLiveMessages = (currentMessages: UIMessage[], backendMessages: UIMessage[]) => {
+    if (backendMessages.length === 0) return false
+    if (currentMessages.length === 0) return true
+    if (backendMessages.length > currentMessages.length) return true
+
+    const currentAssistant = getLatestAssistantMessage(currentMessages)
+    const backendAssistant = getLatestAssistantMessage(backendMessages)
+
+    if (!backendAssistant) return false
+    if (!currentAssistant) return true
+
+    return getMessageContentScore(backendAssistant) > getMessageContentScore(currentAssistant)
+}
+
 export function useChatIntegration<IsShared extends boolean>({
     threadId,
     sharedThreadId,
@@ -247,6 +283,25 @@ export function useChatIntegration<IsShared extends boolean>({
             hydratedThreadIdRef.current = threadId
         }
     }, [isShared, threadId, threadMessages, initialMessages, chatHelpers.setMessages])
+
+    useEffect(() => {
+        if (isShared) return
+        if (!threadId) return
+        if (!thread?.isLive) return
+        if (!threadMessages || "error" in threadMessages) return
+
+        if (shouldHydrateLiveMessages(chatHelpers.messages, initialMessages)) {
+            chatHelpers.setMessages(initialMessages)
+        }
+    }, [
+        isShared,
+        threadId,
+        thread?.isLive,
+        threadMessages,
+        initialMessages,
+        chatHelpers.messages,
+        chatHelpers.setMessages
+    ])
 
     const customResume = useCallback(() => {
         console.log("[UCI:custom_resume]", {

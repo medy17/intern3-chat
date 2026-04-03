@@ -394,4 +394,63 @@ describe("useChatIntegration", () => {
         expect(setMessages).toHaveBeenCalledWith(initialMessages)
         expect(resumeStream).toHaveBeenCalledTimes(1)
     })
+
+    it("hydrates newer persisted live assistant content into a stale local buffer", () => {
+        const emptyAssistantMessage = [
+            {
+                id: "assistant-1",
+                role: "assistant",
+                parts: []
+            }
+        ]
+        const partialAssistantMessage = [
+            {
+                id: "assistant-1",
+                role: "assistant",
+                parts: [{ type: "text", text: "Partial reply" }]
+            }
+        ]
+        const setMessages = vi.fn()
+        const queryResults: Record<string, unknown> = {
+            getThreadMessages: [{ id: "backend-message-1", role: "assistant", parts: [] }],
+            getThread: {
+                _id: "thread-1",
+                isLive: true,
+                currentStreamId: "stream-1"
+            }
+        }
+
+        backendToUiMessagesMock.mockImplementation((messages: unknown) => {
+            const typedMessages = messages as Array<{ parts?: Array<{ text?: string }> }>
+            return typedMessages[0]?.parts?.[0]?.text
+                ? partialAssistantMessage
+                : emptyAssistantMessage
+        })
+        useConvexQueryMock.mockImplementation((query: string) => queryResults[query])
+        useChatMock.mockImplementation(() => ({
+            status: "streaming",
+            messages: emptyAssistantMessage,
+            setMessages,
+            resumeStream: vi.fn()
+        }))
+
+        const { rerender } = renderHook(() =>
+            useChatIntegration({
+                threadId: "thread-1"
+            })
+        )
+
+        setMessages.mockClear()
+        queryResults.getThreadMessages = [
+            {
+                id: "backend-message-1",
+                role: "assistant",
+                parts: [{ type: "text", text: "Partial reply" }]
+            }
+        ]
+
+        rerender()
+
+        expect(setMessages).toHaveBeenCalledWith(partialAssistantMessage)
+    })
 })

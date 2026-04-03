@@ -671,6 +671,115 @@ describe("chatPOST", () => {
         })
     })
 
+    it("persists partial assistant parts before the final stream patch", async () => {
+        const ctx = createCtx()
+        ctx.runMutation.mockImplementation(async (name: string) => {
+            switch (name) {
+                case "createThreadOrInsertMessages":
+                    return {
+                        threadId: "thread-1",
+                        assistantMessageId: "assistant-1",
+                        assistantMessageConvexId: 42
+                    }
+                case "appendStreamId":
+                    return "stream-1"
+                case "updateThreadStreamingState":
+                case "patchMessage":
+                case "recordCreditEventForMessage":
+                    return null
+                default:
+                    throw new Error(`Unexpected mutation: ${name}`)
+            }
+        })
+        ctx.runQuery.mockImplementation(async (name: string) => {
+            switch (name) {
+                case "getMessagesByThreadId":
+                    return [{ _id: "db-message-1" }]
+                case "getUserSettingsInternal":
+                    return {
+                        mcpServers: []
+                    }
+                default:
+                    throw new Error(`Unexpected query: ${name}`)
+            }
+        })
+
+        getUserIdentityMock.mockResolvedValueOnce({ id: "user-1", creditPlan: "pro" })
+        getModelMock.mockResolvedValueOnce({
+            model: { modelType: "text" },
+            modelId: "gpt-5.4-mini",
+            modelName: "GPT 5.4 Mini",
+            runtimeProvider: "openai",
+            providerSource: "internal",
+            abilities: [],
+            registry: {
+                models: {
+                    "shared-text": {}
+                }
+            },
+            prototypeCreditTier: "basic",
+            prototypeCreditTierWithReasoning: undefined
+        })
+
+        streamTextMock.mockReturnValueOnce({
+            fullStream: createObjectStream([
+                { type: "text-start", id: "text-1" },
+                { type: "text-delta", id: "text-1", text: "Hello" },
+                { type: "text-end", id: "text-1" }
+            ]),
+            finishReason: Promise.resolve("stop")
+        })
+
+        const response = await chatPOST(
+            ctx,
+            createRequest({
+                model: "shared-text",
+                proposedNewAssistantId: "assistant-1",
+                message: {
+                    role: "user",
+                    parts: [{ type: "text", text: "hello" }]
+                },
+                enabledTools: []
+            })
+        )
+
+        expect(response.status).toBe(200)
+        await response.text()
+
+        const patchCalls = ctx.runMutation.mock.calls.filter(([name]) => name === "patchMessage")
+
+        expect(patchCalls).toHaveLength(2)
+        expect(patchCalls[0]?.[1]).toEqual({
+            threadId: "thread-1",
+            messageId: "assistant-1",
+            parts: [
+                {
+                    type: "text",
+                    text: "Hello"
+                }
+            ],
+            metadata: expect.objectContaining({
+                serverDurationMs: expect.any(Number)
+            })
+        })
+        expect(patchCalls[0]?.[1]?.metadata).not.toHaveProperty("modelId")
+        expect(patchCalls[1]?.[1]).toEqual(
+            expect.objectContaining({
+                threadId: "thread-1",
+                messageId: "assistant-1",
+                parts: [
+                    {
+                        type: "text",
+                        text: "Hello"
+                    }
+                ],
+                metadata: expect.objectContaining({
+                    modelId: "shared-text"
+                })
+            })
+        )
+    })
+
     it("wraps resumable SSE sources so upstream stream errors become terminal error events", async () => {
         const ctx = createCtx()
         ctx.runMutation.mockImplementation(async (name: string) => {
