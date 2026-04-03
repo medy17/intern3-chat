@@ -15,7 +15,10 @@ import { manualStreamTransform } from "../../convex/chat_http/manual_stream_tran
 type StoredParts = Parameters<typeof manualStreamTransform>[0]
 type ActionCtx = Parameters<typeof manualStreamTransform>[4]
 
-const collectChunks = async (chunks: unknown[], options?: { userId?: string }) => {
+const collectChunks = async (
+    chunks: unknown[],
+    options?: { userId?: string; allowReasoning?: boolean }
+) => {
     const parts: StoredParts = []
     const totalTokenUsage = {
         promptTokens: 0,
@@ -36,7 +39,10 @@ const collectChunks = async (chunks: unknown[], options?: { userId?: string }) =
         uploadPromises,
         options?.userId ?? "user-1",
         {} as ActionCtx,
-        streamMetrics
+        streamMetrics,
+        {
+            allowReasoning: options?.allowReasoning
+        }
     )
 
     const writer = transform.writable.getWriter()
@@ -97,6 +103,28 @@ describe("manualStreamTransform", () => {
                 delta: "\n\n[Image payload omitted from live text stream.]"
             },
             { type: "text-delta", id: "txt-1", delta: "Visible text" },
+            { type: "text-end", id: "txt-1" }
+        ])
+    })
+
+    it("persists long normal text responses without truncating them", async () => {
+        const longText = "This is a long normal response with spaces and punctuation. ".repeat(700)
+
+        const result = await collectChunks([
+            { type: "text-start", id: "txt-1" },
+            { type: "text-delta", id: "txt-1", text: longText },
+            { type: "text-end", id: "txt-1" }
+        ])
+
+        expect(result.parts).toEqual([
+            {
+                type: "text",
+                text: longText
+            }
+        ])
+        expect(result.output).toEqual([
+            { type: "text-start", id: "txt-1" },
+            { type: "text-delta", id: "txt-1", delta: longText },
             { type: "text-end", id: "txt-1" }
         ])
     })
@@ -267,6 +295,32 @@ describe("manualStreamTransform", () => {
             { type: "reasoning-end", id: "r-1" },
             { type: "finish-step" }
         ])
+    })
+
+    it("drops redacted and blank reasoning chunks entirely", async () => {
+        const result = await collectChunks([
+            { type: "reasoning-start", id: "r-1" },
+            { type: "reasoning-delta", id: "r-1", text: "   " },
+            { type: "reasoning-delta", id: "r-1", text: "[REDACTED]" },
+            { type: "reasoning-end", id: "r-1" }
+        ])
+
+        expect(result.parts).toEqual([])
+        expect(result.output).toEqual([])
+    })
+
+    it("suppresses reasoning output when reasoning is disabled", async () => {
+        const result = await collectChunks(
+            [
+                { type: "reasoning-start", id: "r-1" },
+                { type: "reasoning-delta", id: "r-1", text: "Hidden chain of thought" },
+                { type: "reasoning-end", id: "r-1" }
+            ],
+            { allowReasoning: false }
+        )
+
+        expect(result.parts).toEqual([])
+        expect(result.output).toEqual([])
     })
 
     it("captures first visible time from the first text delta only once", async () => {

@@ -56,13 +56,17 @@ export const manualStreamTransform = (
     actionCtx: GenericActionCtx<DataModel>,
     streamMetrics?: {
         firstVisibleAtMs?: number
+    },
+    options?: {
+        allowReasoning?: boolean
     }
 ) => {
-    const MAX_STORED_TEXT_CHARS = 32_000
     let reasoningStartedAt = -1
-    let storedTextChars = 0
-    let hasTruncatedStoredText = false
     let hasSuppressedInlinePayloadNotice = false
+    let pendingReasoningStartId: string | null = null
+    let activeReasoningId: string | null = null
+    const allowReasoning = options?.allowReasoning ?? true
+    const REDACTED_REASONING_PATTERN = /^\[REDACTED\]$/i
 
     const isLikelyInlineImagePayload = (text: string) => {
         if (text.includes("data:image/")) return true
@@ -73,17 +77,6 @@ export const manualStreamTransform = (
 
     const canStoreTextChunk = (text: string, type: "text" | "reasoning") => {
         if (type === "text" && isLikelyInlineImagePayload(text)) {
-            return false
-        }
-
-        if (storedTextChars >= MAX_STORED_TEXT_CHARS) {
-            if (!hasTruncatedStoredText) {
-                parts.push({
-                    type: "text",
-                    text: "\n\n[Output truncated in persisted message due to payload size.]"
-                })
-                hasTruncatedStoredText = true
-            }
             return false
         }
 
@@ -122,24 +115,28 @@ export const manualStreamTransform = (
         })
     }
 
+    const getReasoningChunkText = (chunk: { text?: string; delta?: string }) => {
+        const rawText = chunk.text ?? chunk.delta ?? ""
+        const trimmed = rawText.trim()
+        if (!trimmed || REDACTED_REASONING_PATTERN.test(trimmed)) {
+            return ""
+        }
+        return rawText
+    }
+
     const appendTextPart = (text: string, type: "text" | "reasoning") => {
         if (!canStoreTextChunk(text, type)) {
             return
         }
-
-        const allowedText = text.slice(0, Math.max(0, MAX_STORED_TEXT_CHARS - storedTextChars))
-        if (!allowedText) return
-
-        storedTextChars += allowedText.length
         const lastPart = parts[parts.length - 1]
 
         if (type === "text" && lastPart?.type === "text") {
-            lastPart.text += allowedText
+            lastPart.text += text
             return
         }
 
         if (type === "reasoning" && lastPart?.type === "reasoning") {
-            lastPart.reasoning += allowedText
+            lastPart.reasoning += text
             lastPart.duration = Date.now() - reasoningStartedAt
             return
         }
@@ -147,7 +144,7 @@ export const manualStreamTransform = (
         if (type === "text") {
             parts.push({
                 type: "text",
-                text: allowedText
+                text
             })
             return
         }
@@ -158,7 +155,7 @@ export const manualStreamTransform = (
 
         parts.push({
             type: "reasoning",
-            reasoning: allowedText,
+            reasoning: text,
             details: []
         })
     }
@@ -189,7 +186,8 @@ export const manualStreamTransform = (
         return costDetails
     }
 
-    return new TransformStream<TextStreamPart<unknown>, UIMessageChunk>({
+    // biome-ignore lint/suspicious/noExplicitAny: AI SDK stream chunks are provider-polymorphic here
+    return new TransformStream<TextStreamPart<any>, UIMessageChunk>({
         transform: async (chunk, controller) => {
             chunkCount++
             // TEMP DIAGNOSTIC: log chunk type and approximate size
@@ -226,20 +224,45 @@ export const manualStreamTransform = (
                     controller.enqueue({ type: "text-end", id: chunk.id })
                     break
                 case "reasoning-start":
-                    controller.enqueue({ type: "reasoning-start", id: chunk.id })
-                    if (reasoningStartedAt === -1) reasoningStartedAt = Date.now()
+                    if (!allowReasoning) break
+                    pendingReasoningStartId = chunk.id
                     break
-                case "reasoning-delta":
+                case "reasoning-delta": {
+                    if (!allowReasoning) break
+
+                    const reasoningText = getReasoningChunkText(chunk)
+                    if (!reasoningText) break
+
+                    if (activeReasoningId !== chunk.id) {
+                        if (reasoningStartedAt === -1) reasoningStartedAt = Date.now()
+                        controller.enqueue({
+                            type: "reasoning-start",
+                            id: pendingReasoningStartId ?? chunk.id
+                        })
+                        activeReasoningId = chunk.id
+                        pendingReasoningStartId = null
+                    }
+
                     markFirstVisible()
                     controller.enqueue({
                         type: "reasoning-delta",
                         id: chunk.id,
-                        delta: chunk.text
+                        delta: reasoningText
                     })
-                    appendTextPart(chunk.text, "reasoning")
+                    appendTextPart(reasoningText, "reasoning")
                     break
+                }
                 case "reasoning-end":
-                    controller.enqueue({ type: "reasoning-end", id: chunk.id })
+                    if (!allowReasoning) break
+
+                    if (activeReasoningId === chunk.id) {
+                        controller.enqueue({ type: "reasoning-end", id: chunk.id })
+                        activeReasoningId = null
+                    }
+                    if (pendingReasoningStartId === chunk.id) {
+                        pendingReasoningStartId = null
+                    }
+                    reasoningStartedAt = -1
                     break
                 case "file": {
                     const mediaType = chunk.file.mediaType
@@ -422,7 +445,6 @@ export const manualStreamTransform = (
                     break
                 }
                 case "tool-input-end":
-                case "tool-output-denied":
                 case "tool-approval-request":
                 case "start":
                 case "finish":
@@ -430,8 +452,7 @@ export const manualStreamTransform = (
                 case "raw":
                     break
                 default: {
-                    const exhaustiveCheck: never = chunk
-                    console.log("[cvx][chat][stream] ignored chunk", exhaustiveCheck)
+                    console.log("[cvx][chat][stream] ignored chunk", chunk)
                 }
             }
         }

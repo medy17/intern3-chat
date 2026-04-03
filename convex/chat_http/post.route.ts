@@ -779,7 +779,10 @@ export const chatPOST = httpAction(async (ctx, req) => {
                             uploadPromises,
                             user.id,
                             ctx,
-                            streamMetrics
+                            streamMetrics,
+                            {
+                                allowReasoning: effectiveReasoningEffort !== "off"
+                            }
                         )
                     )
 
@@ -892,7 +895,10 @@ export const chatPOST = httpAction(async (ctx, req) => {
                                 uploadPromises,
                                 user.id,
                                 ctx,
-                                streamMetrics
+                                streamMetrics,
+                                {
+                                    allowReasoning: effectiveReasoningEffort !== "off"
+                                }
                             )
                         )
                     )
