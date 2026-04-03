@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { getUrlMock, fetchMock } = vi.hoisted(() => ({
-    getUrlMock: vi.fn(),
-    fetchMock: vi.fn()
+const { getUrlMock } = vi.hoisted(() => ({
+    getUrlMock: vi.fn()
 }))
 
 vi.mock("@convex-dev/r2", () => ({
@@ -22,17 +21,9 @@ import { dbMessagesToCore } from "../../convex/lib/db_to_core_messages"
 describe("dbMessagesToCore", () => {
     beforeEach(() => {
         getUrlMock.mockReset().mockResolvedValue("https://files.example/image.png")
-        fetchMock.mockReset().mockResolvedValue({
-            ok: true,
-            arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer),
-            headers: new Headers({
-                "content-type": "image/png"
-            })
-        })
-        vi.stubGlobal("fetch", fetchMock)
     })
 
-    it("loads internal image attachments into inline bytes", async () => {
+    it("uses the public asset base URL for internal image attachments when provided", async () => {
         const result = await dbMessagesToCore(
             [
                 {
@@ -48,7 +39,10 @@ describe("dbMessagesToCore", () => {
                     ]
                 }
             ] as never,
-            []
+            [],
+            {
+                publicAssetBaseUrl: "https://convex.example"
+            }
         )
 
         expect(result).toEqual([
@@ -58,12 +52,12 @@ describe("dbMessagesToCore", () => {
                 content: [
                     {
                         type: "image",
-                        image: new Uint8Array([1, 2, 3]).buffer,
+                        image: "https://convex.example/r2?key=attachments%2Fuser-1%2Fimage.png",
                         mediaType: "image/png"
                     }
                 ]
             }
         ])
-        expect(fetchMock).toHaveBeenCalledWith("https://files.example/image.png")
+        expect(getUrlMock).not.toHaveBeenCalled()
     })
 })

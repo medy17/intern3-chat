@@ -23,9 +23,19 @@ const r2 = new R2(components.r2)
 const isExternalFileReference = (value: string) =>
     value.startsWith("http://") || value.startsWith("https://") || value.startsWith("data:")
 
+const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "")
+
+const buildInternalFileProxyUrl = (key: string, publicAssetBaseUrl?: string) => {
+    if (!publicAssetBaseUrl) return undefined
+    return `${trimTrailingSlash(publicAssetBaseUrl)}/r2?key=${encodeURIComponent(key)}`
+}
+
 export const dbMessagesToCore = async (
     messages: Infer<typeof Message>[],
-    modelAbilities: ModelAbility[]
+    modelAbilities: ModelAbility[],
+    options?: {
+        publicAssetBaseUrl?: string
+    }
 ): Promise<CoreMessage[]> => {
     const mapped_messages: CoreMessage[] = []
     for await (const message of messages) {
@@ -54,25 +64,15 @@ export const dbMessagesToCore = async (
                     const fileTypeInfo = getFileTypeInfo(filename, p.mimeType)
                     const fileUrl = isExternalFileReference(p.data)
                         ? p.data
-                        : await r2.getUrl(p.data)
+                        : buildInternalFileProxyUrl(p.data, options?.publicAssetBaseUrl) ||
+                          (await r2.getUrl(p.data))
 
                     if (fileTypeInfo.isVisionImage && !fileTypeInfo.isSvg) {
                         try {
-                            const data = await fetch(fileUrl)
-
-                            if (!data.ok) {
-                                console.warn(
-                                    `[cvx][chat] Failed to fetch image file ${p.data}: ${data.status} ${data.statusText}`
-                                )
-                                failedFileFetch("image", filename)
-                                continue
-                            }
-
                             mapped_content.push({
                                 type: "image",
-                                image: await data.arrayBuffer(),
-                                mediaType:
-                                    p.mimeType || data.headers.get("content-type") || "image/*"
+                                image: fileUrl,
+                                mediaType: p.mimeType || "image/*"
                             })
                         } catch (error) {
                             console.warn(

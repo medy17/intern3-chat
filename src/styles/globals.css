@@ -235,11 +235,13 @@
 
 .footer-marquee-track[data-overflowing="true"] {
     animation: footer-marquee var(--footer-marquee-duration, 12s) linear infinite;
+    animation-play-state: paused;
 }
 
-.footer-marquee-mask:hover .footer-marquee-track[data-overflowing="true"],
-.footer-marquee-mask:focus-within .footer-marquee-track[data-overflowing="true"] {
-    animation-play-state: paused;
+.group:hover .footer-marquee-track[data-overflowing="true"],
+.group:focus-within .footer-marquee-track[data-overflowing="true"],
+.group:focus .footer-marquee-track[data-overflowing="true"] {
+    animation-play-state: running;
 }
 
 @media (prefers-reduced-motion: reduce) {

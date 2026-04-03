@@ -493,7 +493,9 @@ export const chatPOST = httpAction(async (ctx, req) => {
         threadId: mutationResult.threadId
     })
 
-    const mapped_messages = await dbMessagesToCore(dbMessages, modelData.abilities)
+    const mapped_messages = await dbMessagesToCore(dbMessages, modelData.abilities, {
+        publicAssetBaseUrl: new URL(req.url).origin
+    })
 
     const streamStartTime = Date.now()
 

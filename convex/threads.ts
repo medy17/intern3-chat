@@ -732,7 +732,9 @@ export const regenerateThreadTitle = action({
         const settings = await ctx.runQuery(internal.settings.getUserSettingsInternal, {
             userId: user.id
         })
-        const titleMessages = await dbMessagesToCore(dbMessages, [])
+        const titleMessages = await dbMessagesToCore(dbMessages, [], {
+            publicAssetBaseUrl: process.env.VITE_CONVEX_API_URL
+        })
 
         const title = await generateThreadName(ctx, threadId, titleMessages, user.id, settings)
 
