@@ -224,7 +224,12 @@ describe("chatPOST", () => {
                     estimatedCostUsd?: number
                     estimatedPromptCostUsd?: number
                     estimatedCompletionCostUsd?: number
-                }
+                },
+                _uploadPromises: Promise<void>[],
+                _userId: string,
+                _ctx: unknown,
+                _streamMetrics?: { firstVisibleAtMs?: number },
+                options?: { onPartsChanged?: () => void }
             ) =>
                 new TransformStream({
                     transform(
@@ -252,6 +257,7 @@ describe("chatPOST", () => {
                                 type: "text",
                                 text: chunk.text
                             })
+                            options?.onPartsChanged?.()
                         }
 
                         if (chunk.type === "finish-step") {
@@ -747,9 +753,18 @@ describe("chatPOST", () => {
         await response.text()
 
         const patchCalls = ctx.runMutation.mock.calls.filter(([name]) => name === "patchMessage")
+        const patchPayloads = patchCalls.map(([, payload]) => payload)
+        const livePatch = patchPayloads.find(
+            (payload) =>
+                !("modelId" in ((payload as { metadata?: Record<string, unknown> }).metadata ?? {}))
+        )
+        const finalPatch = patchPayloads.find(
+            (payload) =>
+                "modelId" in ((payload as { metadata?: Record<string, unknown> }).metadata ?? {})
+        )
 
         expect(patchCalls).toHaveLength(2)
-        expect(patchCalls[0]?.[1]).toEqual({
+        expect(livePatch).toEqual({
             threadId: "thread-1",
             messageId: "assistant-1",
             parts: [
@@ -762,22 +777,17 @@ describe("chatPOST", () => {
                 serverDurationMs: expect.any(Number)
             })
         })
-        expect(patchCalls[0]?.[1]?.metadata).not.toHaveProperty("modelId")
-        expect(patchCalls[1]?.[1]).toEqual(
-            expect.objectContaining({
-                threadId: "thread-1",
-                messageId: "assistant-1",
-                parts: [
-                    {
-                        type: "text",
-                        text: "Hello"
-                    }
-                ],
-                metadata: expect.objectContaining({
-                    modelId: "shared-text"
-                })
-            })
-        )
+        expect((finalPatch as { threadId?: string } | undefined)?.threadId).toBe("thread-1")
+        expect((finalPatch as { messageId?: string } | undefined)?.messageId).toBe("assistant-1")
+        expect(
+            (finalPatch as { parts?: Array<{ type?: string; text?: string }> } | undefined)?.parts
+        ).toContainEqual({
+            type: "text",
+            text: "Hello"
+        })
+        expect(
+            (finalPatch as { metadata?: { modelId?: string } } | undefined)?.metadata?.modelId
+        ).toBe("shared-text")
     })
 
     it("wraps resumable SSE sources so upstream stream errors become terminal error events", async () => {

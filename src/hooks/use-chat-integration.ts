@@ -91,6 +91,9 @@ const shouldHydrateLiveMessages = (currentMessages: UIMessage[], backendMessages
     return getMessageContentScore(backendAssistant) > getMessageContentScore(currentAssistant)
 }
 
+const hasMeaningfulAssistantContent = (messages: UIMessage[]) =>
+    getMessageContentScore(getLatestAssistantMessage(messages)) > 0
+
 export function useChatIntegration<IsShared extends boolean>({
     threadId,
     sharedThreadId,
@@ -304,11 +307,17 @@ export function useChatIntegration<IsShared extends boolean>({
     ])
 
     const customResume = useCallback(() => {
+        const effectiveMessages =
+            chatHelpers.messages.length === 0 && initialMessages.length > 0
+                ? initialMessages
+                : chatHelpers.messages
+
         console.log("[UCI:custom_resume]", {
             threadId: threadId?.slice(0, 8),
             backendMsgs: threadMessages && !("error" in threadMessages) ? threadMessages.length : 0,
             currentUIMsgs: chatHelpers.messages.length,
-            initialMsgs: initialMessages.length
+            initialMsgs: initialMessages.length,
+            hasPersistedAssistantContent: hasMeaningfulAssistantContent(effectiveMessages)
         })
 
         if (chatHelpers.messages.length === 0 && initialMessages.length > 0) {
@@ -316,14 +325,18 @@ export function useChatIntegration<IsShared extends boolean>({
             console.log("[UCI:messages_restored]", { count: initialMessages.length })
         }
 
+        if (hasMeaningfulAssistantContent(effectiveMessages)) {
+            return
+        }
+
         void chatHelpers.resumeStream()
     }, [
         chatHelpers.setMessages,
         chatHelpers.resumeStream,
+        chatHelpers.messages,
         initialMessages,
         threadMessages,
-        threadId,
-        chatHelpers.messages.length
+        threadId
     ])
 
     useAutoResume({

@@ -350,7 +350,7 @@ describe("useChatIntegration", () => {
             {
                 id: "ui-message-1",
                 role: "assistant",
-                parts: [{ type: "text", text: "hello" }]
+                parts: []
             }
         ]
         const setMessages = vi.fn()
@@ -393,6 +393,56 @@ describe("useChatIntegration", () => {
 
         expect(setMessages).toHaveBeenCalledWith(initialMessages)
         expect(resumeStream).toHaveBeenCalledTimes(1)
+    })
+
+    it("does not resume when persisted assistant content is already available", async () => {
+        const initialMessages = [
+            {
+                id: "ui-message-1",
+                role: "assistant",
+                parts: [{ type: "text", text: "partial reply" }]
+            }
+        ]
+        const setMessages = vi.fn()
+        const resumeStream = vi.fn()
+
+        backendToUiMessagesMock.mockReturnValue(initialMessages)
+        useConvexQueryMock.mockImplementation((query: string) => {
+            if (query === "getThreadMessages") {
+                return [{ id: "backend-message-1", role: "assistant", parts: [] }]
+            }
+
+            if (query === "getThread") {
+                return {
+                    _id: "thread-1",
+                    isLive: true,
+                    currentStreamId: "stream-1"
+                }
+            }
+
+            return undefined
+        })
+        useChatMock.mockImplementation(() => ({
+            status: "idle",
+            messages: [],
+            setMessages,
+            resumeStream
+        }))
+
+        renderHook(() =>
+            useChatIntegration({
+                threadId: "thread-1"
+            })
+        )
+
+        setMessages.mockClear()
+
+        await act(async () => {
+            await latestAutoResumeProps?.experimental_resume?.()
+        })
+
+        expect(setMessages).toHaveBeenCalledWith(initialMessages)
+        expect(resumeStream).not.toHaveBeenCalled()
     })
 
     it("hydrates newer persisted live assistant content into a stale local buffer", () => {

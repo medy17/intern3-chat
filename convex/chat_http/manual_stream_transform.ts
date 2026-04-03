@@ -59,6 +59,7 @@ export const manualStreamTransform = (
     },
     options?: {
         allowReasoning?: boolean
+        onPartsChanged?: () => void
     }
 ) => {
     let reasoningStartedAt = -1
@@ -67,6 +68,9 @@ export const manualStreamTransform = (
     let activeReasoningId: string | null = null
     const allowReasoning = options?.allowReasoning ?? true
     const REDACTED_REASONING_PATTERN = /^\[REDACTED\]$/i
+    const notifyPartsChanged = () => {
+        options?.onPartsChanged?.()
+    }
 
     const isLikelyInlineImagePayload = (text: string) => {
         if (text.includes("data:image/")) return true
@@ -132,12 +136,14 @@ export const manualStreamTransform = (
 
         if (type === "text" && lastPart?.type === "text") {
             lastPart.text += text
+            notifyPartsChanged()
             return
         }
 
         if (type === "reasoning" && lastPart?.type === "reasoning") {
             lastPart.reasoning += text
             lastPart.duration = Date.now() - reasoningStartedAt
+            notifyPartsChanged()
             return
         }
 
@@ -146,6 +152,7 @@ export const manualStreamTransform = (
                 type: "text",
                 text
             })
+            notifyPartsChanged()
             return
         }
 
@@ -158,6 +165,7 @@ export const manualStreamTransform = (
             reasoning: text,
             details: []
         })
+        notifyPartsChanged()
     }
 
     let totalBytesTracked = 0
@@ -283,6 +291,7 @@ export const manualStreamTransform = (
                                 mimeType: mediaType,
                                 data: storedKey
                             })
+                            notifyPartsChanged()
 
                             controller.enqueue({
                                 type: "file",
@@ -303,6 +312,7 @@ export const manualStreamTransform = (
                         mimeType: mediaType,
                         data: dataUrl
                     })
+                    notifyPartsChanged()
                     controller.enqueue({
                         type: "file",
                         mediaType,
@@ -353,6 +363,7 @@ export const manualStreamTransform = (
                             toolName: chunk.toolName
                         }
                     })
+                    notifyPartsChanged()
                     controller.enqueue({
                         type: "tool-input-available",
                         toolCallId: chunk.toolCallId,
@@ -374,6 +385,7 @@ export const manualStreamTransform = (
                         >
                         part.toolInvocation.state = "result"
                         part.toolInvocation.result = chunk.output
+                        notifyPartsChanged()
                     }
 
                     controller.enqueue({
@@ -407,6 +419,7 @@ export const manualStreamTransform = (
                             message: errorText
                         }
                     })
+                    notifyPartsChanged()
                     controller.enqueue({
                         type: "error",
                         errorText

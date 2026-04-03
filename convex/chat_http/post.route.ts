@@ -630,6 +630,18 @@ export const chatPOST = httpAction(async (ctx, req) => {
     const scheduleLiveAssistantPersist = () => {
         void persistLiveAssistantMessage()
     }
+    const forwardStreamToWriter = async (
+        sourceStream: ReadableStream<unknown>,
+        writer: { write: (chunk: unknown) => void | Promise<void> }
+    ) => {
+        const reader = sourceStream.getReader()
+
+        while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            await writer.write(value)
+        }
+    }
 
     const stream = createUIMessageStream({
         execute: async ({ writer }) => {
@@ -856,21 +868,13 @@ export const chatPOST = httpAction(async (ctx, req) => {
                             ctx,
                             streamMetrics,
                             {
-                                allowReasoning: effectiveReasoningEffort !== "off"
+                                allowReasoning: effectiveReasoningEffort !== "off",
+                                onPartsChanged: scheduleLiveAssistantPersist
                             }
                         )
                     )
 
-                    const [streamForWriter, streamForBlocking] = transformedStream.tee()
-
-                    writer.merge(streamForWriter)
-
-                    const reader = streamForBlocking.getReader()
-                    while (true) {
-                        const { done } = await reader.read()
-                        if (done) break
-                        scheduleLiveAssistantPersist()
-                    }
+                    await forwardStreamToWriter(transformedStream, writer)
 
                     await Promise.allSettled(uploadPromises)
 
@@ -972,21 +976,13 @@ export const chatPOST = httpAction(async (ctx, req) => {
                             ctx,
                             streamMetrics,
                             {
-                                allowReasoning: effectiveReasoningEffort !== "off"
+                                allowReasoning: effectiveReasoningEffort !== "off",
+                                onPartsChanged: scheduleLiveAssistantPersist
                             }
                         )
                     )
 
-                    const [streamForWriter, streamForBlocking] = transformedStream.tee()
-
-                    writer.merge(streamForWriter)
-
-                    const reader = streamForBlocking.getReader()
-                    while (true) {
-                        const { done } = await reader.read()
-                        if (done) break
-                        scheduleLiveAssistantPersist()
-                    }
+                    await forwardStreamToWriter(transformedStream, writer)
 
                     await Promise.allSettled(uploadPromises)
 
