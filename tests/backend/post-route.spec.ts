@@ -220,6 +220,10 @@ describe("chatPOST", () => {
                     promptTokens: number
                     completionTokens: number
                     reasoningTokens: number
+                    totalTokens: number
+                    estimatedCostUsd?: number
+                    estimatedPromptCostUsd?: number
+                    estimatedCompletionCostUsd?: number
                 }
             ) =>
                 new TransformStream({
@@ -231,6 +235,14 @@ describe("chatPOST", () => {
                                 inputTokens?: number
                                 outputTokens?: number
                                 outputTokenDetails?: { reasoningTokens?: number }
+                                totalTokens?: number
+                                raw?: {
+                                    cost_details?: {
+                                        upstream_inference_cost?: number
+                                        upstream_inference_prompt_cost?: number
+                                        upstream_inference_completions_cost?: number
+                                    }
+                                }
                             }
                         },
                         controller
@@ -247,6 +259,20 @@ describe("chatPOST", () => {
                             totalTokenUsage.completionTokens += chunk.usage?.outputTokens ?? 0
                             totalTokenUsage.reasoningTokens +=
                                 chunk.usage?.outputTokenDetails?.reasoningTokens ?? 0
+                            totalTokenUsage.totalTokens +=
+                                chunk.usage?.totalTokens ??
+                                (chunk.usage?.inputTokens ?? 0) + (chunk.usage?.outputTokens ?? 0)
+                            totalTokenUsage.estimatedCostUsd =
+                                (totalTokenUsage.estimatedCostUsd ?? 0) +
+                                (chunk.usage?.raw?.cost_details?.upstream_inference_cost ?? 0)
+                            totalTokenUsage.estimatedPromptCostUsd =
+                                (totalTokenUsage.estimatedPromptCostUsd ?? 0) +
+                                (chunk.usage?.raw?.cost_details?.upstream_inference_prompt_cost ??
+                                    0)
+                            totalTokenUsage.estimatedCompletionCostUsd =
+                                (totalTokenUsage.estimatedCompletionCostUsd ?? 0) +
+                                (chunk.usage?.raw?.cost_details
+                                    ?.upstream_inference_completions_cost ?? 0)
                         }
 
                         controller.enqueue(chunk)
@@ -490,6 +516,16 @@ describe("chatPOST", () => {
                     promptTokens: number
                     completionTokens: number
                     reasoningTokens: number
+                    totalTokens: number
+                    estimatedCostUsd?: number
+                    estimatedPromptCostUsd?: number
+                    estimatedCompletionCostUsd?: number
+                },
+                _uploadPromises: Promise<void>[],
+                _userId: string,
+                _ctx: unknown,
+                streamMetrics?: {
+                    firstVisibleAtMs?: number
                 }
             ) => {
                 parts.push({
@@ -499,6 +535,13 @@ describe("chatPOST", () => {
                 totalTokenUsage.promptTokens = 12
                 totalTokenUsage.completionTokens = 34
                 totalTokenUsage.reasoningTokens = 5
+                totalTokenUsage.totalTokens = 46
+                totalTokenUsage.estimatedCostUsd = 0.001552
+                totalTokenUsage.estimatedPromptCostUsd = 0.000757
+                totalTokenUsage.estimatedCompletionCostUsd = 0.000795
+                if (streamMetrics) {
+                    streamMetrics.firstVisibleAtMs = Date.now()
+                }
 
                 return new TransformStream()
             }
@@ -538,7 +581,7 @@ describe("chatPOST", () => {
         )
 
         expect(response.status).toBe(200)
-        await response.text()
+        const responseText = await response.text()
 
         expect(generateThreadNameMock).toHaveBeenCalledTimes(1)
         expect(buildPromptMock).toHaveBeenCalledWith(["web_search"], {
@@ -594,13 +637,21 @@ describe("chatPOST", () => {
                 promptTokens: 12,
                 completionTokens: 34,
                 reasoningTokens: 5,
+                totalTokens: 46,
+                estimatedCostUsd: 0.001552,
+                estimatedPromptCostUsd: 0.000757,
+                estimatedCompletionCostUsd: 0.000795,
                 creditProviderSource: "internal",
                 creditFeature: "tool",
                 creditBucket: "pro",
                 creditUnits: 1,
-                creditCounted: true
+                creditCounted: true,
+                timeToFirstVisibleMs: expect.any(Number)
             })
         })
+        expect(responseText).toContain('"totalTokens":46')
+        expect(responseText).toContain('"estimatedCostUsd":0.001552')
+        expect(responseText).toMatch(/"timeToFirstVisibleMs":\d+/)
         expect(ctx.runMutation).toHaveBeenCalledWith("recordCreditEventForMessage", {
             userId: "user-1",
             threadId: "thread-1",

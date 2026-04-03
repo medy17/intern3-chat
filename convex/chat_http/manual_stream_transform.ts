@@ -46,10 +46,17 @@ export const manualStreamTransform = (
         promptTokens: number
         completionTokens: number
         reasoningTokens: number
+        totalTokens: number
+        estimatedCostUsd?: number
+        estimatedPromptCostUsd?: number
+        estimatedCompletionCostUsd?: number
     },
     uploadPromises: Promise<void>[],
     userId: string,
-    actionCtx: GenericActionCtx<DataModel>
+    actionCtx: GenericActionCtx<DataModel>,
+    streamMetrics?: {
+        firstVisibleAtMs?: number
+    }
 ) => {
     const MAX_STORED_TEXT_CHARS = 32_000
     let reasoningStartedAt = -1
@@ -98,9 +105,16 @@ export const manualStreamTransform = (
 
     let currentTextChunkId: string | null = null
     let textNoticeController: TransformStreamDefaultController<UIMessageChunk> | null = null
+    const markFirstVisible = () => {
+        if (streamMetrics?.firstVisibleAtMs !== undefined) return
+        if (streamMetrics) {
+            streamMetrics.firstVisibleAtMs = Date.now()
+        }
+    }
 
     const controllerSafeNotice = () => {
         if (!textNoticeController || !currentTextChunkId) return
+        markFirstVisible()
         textNoticeController.enqueue({
             type: "text-delta",
             id: currentTextChunkId,
@@ -151,8 +165,31 @@ export const manualStreamTransform = (
 
     let totalBytesTracked = 0
     let chunkCount = 0
+    const isValidCost = (value: unknown): value is number =>
+        typeof value === "number" && Number.isFinite(value) && value >= 0
+    const appendCost = (
+        key: "estimatedCostUsd" | "estimatedPromptCostUsd" | "estimatedCompletionCostUsd",
+        value: unknown
+    ) => {
+        if (!isValidCost(value)) return
+        totalTokenUsage[key] = (totalTokenUsage[key] ?? 0) + value
+    }
+    const getRawCostDetails = (
+        raw: unknown
+    ):
+        | {
+              upstream_inference_cost?: unknown
+              upstream_inference_prompt_cost?: unknown
+              upstream_inference_completions_cost?: unknown
+          }
+        | undefined => {
+        if (!raw || typeof raw !== "object" || !("cost_details" in raw)) return undefined
+        const costDetails = raw.cost_details
+        if (!costDetails || typeof costDetails !== "object") return undefined
+        return costDetails
+    }
 
-    return new TransformStream<TextStreamPart<any>, UIMessageChunk>({
+    return new TransformStream<TextStreamPart<unknown>, UIMessageChunk>({
         transform: async (chunk, controller) => {
             chunkCount++
             // TEMP DIAGNOSTIC: log chunk type and approximate size
@@ -178,6 +215,7 @@ export const manualStreamTransform = (
                 case "text-delta":
                     textNoticeController = controller
                     if (shouldForwardTextChunk(chunk.text)) {
+                        markFirstVisible()
                         controller.enqueue({ type: "text-delta", id: chunk.id, delta: chunk.text })
                     }
                     appendTextPart(chunk.text, "text")
@@ -192,6 +230,7 @@ export const manualStreamTransform = (
                     if (reasoningStartedAt === -1) reasoningStartedAt = Date.now()
                     break
                 case "reasoning-delta":
+                    markFirstVisible()
                     controller.enqueue({
                         type: "reasoning-delta",
                         id: chunk.id,
@@ -227,6 +266,7 @@ export const manualStreamTransform = (
                                 mediaType,
                                 url: `/r2?key=${storedKey}`
                             })
+                            markFirstVisible()
                         })()
 
                         uploadPromises.push(upload)
@@ -245,6 +285,7 @@ export const manualStreamTransform = (
                         mediaType,
                         url: dataUrl
                     })
+                    markFirstVisible()
                     break
                 }
                 case "source":
@@ -317,9 +358,11 @@ export const manualStreamTransform = (
                         toolCallId: chunk.toolCallId,
                         output: chunk.output
                     })
+                    markFirstVisible()
                     break
                 }
                 case "tool-error":
+                    markFirstVisible()
                     controller.enqueue({
                         type: "tool-output-error",
                         toolCallId: chunk.toolCallId,
@@ -350,13 +393,26 @@ export const manualStreamTransform = (
                 case "start-step":
                     controller.enqueue({ type: "start-step" })
                     break
-                case "finish-step":
+                case "finish-step": {
+                    const rawCostDetails = getRawCostDetails(chunk.usage.raw)
                     totalTokenUsage.promptTokens += chunk.usage.inputTokens || 0
                     totalTokenUsage.completionTokens += chunk.usage.outputTokens || 0
                     totalTokenUsage.reasoningTokens +=
                         chunk.usage.outputTokenDetails.reasoningTokens ||
                         chunk.usage.reasoningTokens ||
                         0
+                    totalTokenUsage.totalTokens +=
+                        chunk.usage.totalTokens ||
+                        (chunk.usage.inputTokens || 0) + (chunk.usage.outputTokens || 0)
+                    appendCost("estimatedCostUsd", rawCostDetails?.upstream_inference_cost)
+                    appendCost(
+                        "estimatedPromptCostUsd",
+                        rawCostDetails?.upstream_inference_prompt_cost
+                    )
+                    appendCost(
+                        "estimatedCompletionCostUsd",
+                        rawCostDetails?.upstream_inference_completions_cost
+                    )
 
                     console.log("[cvx][chat][stream] step-finish", {
                         finishReason: chunk.finishReason,
@@ -364,6 +420,7 @@ export const manualStreamTransform = (
                     })
                     controller.enqueue({ type: "finish-step" })
                     break
+                }
                 case "tool-input-end":
                 case "tool-output-denied":
                 case "tool-approval-request":

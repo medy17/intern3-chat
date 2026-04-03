@@ -15,8 +15,10 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useThemeManagement } from "@/hooks/use-theme-management"
 import { useChatWidthStore } from "@/lib/chat-width-store"
+import { useMessageFooterStore } from "@/lib/message-footer-store"
 import { DEFAULT_THEME_PRESET } from "@/lib/theme-store"
 import { type FetchedTheme, extractThemeColors } from "@/lib/theme-utils"
 import { cn } from "@/lib/utils"
@@ -145,6 +147,7 @@ const ThemeCard = memo(({ theme, isSelected, onSelect, onDelete, currentMode }: 
 function AppearanceSettings() {
     const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
     const { chatWidthState, setChatWidth } = useChatWidthStore()
+    const { footerMode, setFooterMode } = useMessageFooterStore()
 
     const {
         session,
@@ -254,6 +257,77 @@ function AppearanceSettings() {
                                 </div>
                             </div>
                         </Card>
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="font-semibold text-foreground">Assistant Message Footer</h3>
+                        <p className="mt-1 text-muted-foreground text-sm">
+                            Choose how much metadata to show at the end of assistant messages. This
+                            preference is saved only in this browser.
+                        </p>
+                    </div>
+
+                    <div className="max-w-xl">
+                        <RadioGroup
+                            value={footerMode}
+                            onValueChange={(value) => setFooterMode(value as typeof footerMode)}
+                            className="gap-3"
+                        >
+                            <label
+                                htmlFor="assistant-footer-simple"
+                                className="flex cursor-pointer items-start gap-3 rounded-md border bg-muted/20 px-4 py-3 transition-colors hover:bg-muted/40"
+                            >
+                                <RadioGroupItem
+                                    id="assistant-footer-simple"
+                                    value="simple"
+                                    className="mt-0.5"
+                                />
+                                <div className="space-y-1">
+                                    <div className="font-medium text-sm">Model only</div>
+                                    <p className="text-muted-foreground text-xs leading-5">
+                                        Keep the current compact footer with just the model name.
+                                    </p>
+                                </div>
+                            </label>
+
+                            <label
+                                htmlFor="assistant-footer-nerd"
+                                className="flex cursor-pointer items-start gap-3 rounded-md border bg-muted/20 px-4 py-3 transition-colors hover:bg-muted/40"
+                            >
+                                <RadioGroupItem
+                                    id="assistant-footer-nerd"
+                                    value="nerd"
+                                    className="mt-0.5"
+                                />
+                                <div className="space-y-1">
+                                    <div className="font-medium text-sm">Stats for nerds</div>
+                                    <p className="text-muted-foreground text-xs leading-5">
+                                        Show model, total tokens, input/output counts, throughput,
+                                        and time-to-first-token details.
+                                    </p>
+                                </div>
+                            </label>
+
+                            <label
+                                htmlFor="assistant-footer-extra-nerdy"
+                                className="flex cursor-pointer items-start gap-3 rounded-md border bg-muted/20 px-4 py-3 transition-colors hover:bg-muted/40"
+                            >
+                                <RadioGroupItem
+                                    id="assistant-footer-extra-nerdy"
+                                    value="extra-nerdy"
+                                    className="mt-0.5"
+                                />
+                                <div className="space-y-1">
+                                    <div className="font-medium text-sm">Extra nerdy</div>
+                                    <p className="text-muted-foreground text-xs leading-5">
+                                        Add the full reasoning-versus-regular token breakdown on top
+                                        of the standard stats.
+                                    </p>
+                                </div>
+                            </label>
+                        </RadioGroup>
                     </div>
                 </div>
 

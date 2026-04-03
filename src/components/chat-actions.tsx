@@ -1,12 +1,140 @@
+import {
+    ClaudeIcon,
+    FalAIIcon,
+    GeminiIcon,
+    GroqIcon,
+    OpenAIIcon,
+    OpenRouterIcon,
+    XAIIcon
+} from "@/components/brand-icons"
 import { browserEnv } from "@/lib/browser-env"
+import {
+    type AssistantMessageMetadata,
+    deriveMessageFooterStats,
+    formatFooterCost,
+    formatFooterCostBreakdown,
+    formatFooterReasoningEffort,
+    formatFooterSpeed,
+    formatFooterTTFT,
+    formatFooterTokenBreakdown,
+    formatFooterTokenTotal
+} from "@/lib/message-footer-stats"
+import { useMessageFooterStore } from "@/lib/message-footer-store"
 import { cn, copyToClipboard } from "@/lib/utils"
 import type { UIMessage } from "ai"
-import { Check, Copy, Download, Edit3 } from "lucide-react"
-import { memo, useMemo, useState } from "react"
+import { Check, Clock3, Copy, Cpu, DollarSign, Download, Edit3, Zap } from "lucide-react"
+import {
+    type CSSProperties,
+    type ComponentType,
+    memo,
+    useEffect,
+    useMemo,
+    useRef,
+    useState
+} from "react"
 import { RetryMenu } from "./retry-menu"
 import { Badge } from "./ui/badge"
 import { Button } from "./ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip"
+
+type FooterSegment = {
+    key: string
+    icon?: ComponentType<{ className?: string }>
+    text?: string
+    suffix?: string
+}
+
+type ImageGenerationAsset = {
+    imageUrl?: string
+}
+
+type ImageGenerationToolPart = {
+    type: "tool-image_generation"
+    state?: string
+    output?: {
+        assets?: ImageGenerationAsset[]
+    } | null
+}
+
+const AssistantFooterMarquee = memo(({ segments }: { segments: FooterSegment[] }) => {
+    const viewportRef = useRef<HTMLDivElement>(null)
+    const contentRef = useRef<HTMLDivElement>(null)
+    const [marqueeShift, setMarqueeShift] = useState(0)
+    const isOverflowing = marqueeShift > 0
+
+    useEffect(() => {
+        const viewport = viewportRef.current
+        const content = contentRef.current
+
+        if (!viewport || !content) return
+
+        const measure = () => {
+            const contentWidth = Math.ceil(content.scrollWidth)
+            const overflowPx = contentWidth - viewport.clientWidth
+            const nextShift = overflowPx > 12 ? contentWidth + 12 : 0
+            setMarqueeShift((currentShift) =>
+                currentShift === nextShift ? currentShift : nextShift
+            )
+        }
+
+        measure()
+
+        if (typeof ResizeObserver === "undefined") return
+
+        const resizeObserver = new ResizeObserver(measure)
+        resizeObserver.observe(viewport)
+        resizeObserver.observe(content)
+
+        return () => {
+            resizeObserver.disconnect()
+        }
+    }, [])
+
+    const marqueeStyle = useMemo(() => {
+        if (marqueeShift <= 0) return undefined
+
+        const durationSeconds = Math.min(Math.max(marqueeShift / 28, 8), 22)
+
+        return {
+            "--footer-marquee-shift": `${marqueeShift}px`,
+            "--footer-marquee-duration": `${durationSeconds}s`
+        } as CSSProperties
+    }, [marqueeShift])
+
+    const renderSegments = (keyPrefix: string) => (
+        <div className="inline-flex shrink-0 items-center gap-2.5 whitespace-nowrap">
+            {segments.map((segment) => (
+                <span
+                    key={`${keyPrefix}-${segment.key}`}
+                    className="inline-flex shrink-0 items-center gap-1.5"
+                >
+                    {segment.icon && <segment.icon className="size-3.5 shrink-0" />}
+                    <span className="whitespace-nowrap">
+                        {segment.text}
+                        {segment.suffix ? ` (${segment.suffix})` : ""}
+                    </span>
+                </span>
+            ))}
+        </div>
+    )
+
+    return (
+        <div className="ml-1 w-[clamp(12rem,58vw,22rem)] min-w-0 rounded-md border bg-background/80 px-2.5 py-1 text-muted-foreground text-xs shadow-sm backdrop-blur-sm sm:w-[clamp(13rem,50vw,24rem)] md:w-[clamp(14rem,38vw,26rem)]">
+            <div ref={viewportRef} className="footer-marquee-mask overflow-hidden">
+                <div
+                    data-overflowing={isOverflowing}
+                    style={marqueeStyle}
+                    className="footer-marquee-track inline-flex min-w-max items-center gap-3 whitespace-nowrap"
+                >
+                    <div ref={contentRef}>{renderSegments("primary")}</div>
+                    {isOverflowing && <div aria-hidden="true">{renderSegments("duplicate")}</div>}
+                </div>
+            </div>
+        </div>
+    )
+})
+
+AssistantFooterMarquee.displayName = "AssistantFooterMarquee"
 
 export const ChatActions = memo(
     ({
@@ -21,35 +149,140 @@ export const ChatActions = memo(
         onEdit?: (message: UIMessage) => void
     }) => {
         const [copied, setCopied] = useState(false)
+        const footerMode = useMessageFooterStore((state) => state.footerMode)
 
-        const modelName: string | undefined = useMemo(() => {
+        const metadata = useMemo((): AssistantMessageMetadata | undefined => {
             if (message.role !== "assistant") return undefined
             if ("metadata" in message && message.metadata) {
-                const casted = message.metadata as { modelName?: string }
-                if (casted.modelName) return casted.modelName
+                return message.metadata as AssistantMessageMetadata
             }
             return undefined
-        }, [(message as { metadata?: { modelName?: string } }).metadata])
+        }, [message])
+
+        const footerStats = useMemo(() => deriveMessageFooterStats(metadata), [metadata])
+
+        const ProviderIcon = useMemo(() => {
+            switch (footerStats?.displayProvider ?? footerStats?.runtimeProvider) {
+                case "openai":
+                    return OpenAIIcon
+                case "anthropic":
+                    return ClaudeIcon
+                case "google":
+                    return GeminiIcon
+                case "xai":
+                    return XAIIcon
+                case "groq":
+                    return GroqIcon
+                case "fal":
+                    return FalAIIcon
+                case "openrouter":
+                    return OpenRouterIcon
+                default:
+                    return undefined
+            }
+        }, [footerStats?.displayProvider, footerStats?.runtimeProvider])
+
+        const reasoningLabel = useMemo(
+            () => formatFooterReasoningEffort(footerStats?.reasoningEffort),
+            [footerStats?.reasoningEffort]
+        )
+
+        const footerSegments = useMemo<FooterSegment[]>(() => {
+            if (!footerStats) return []
+
+            const tokenBreakdown =
+                footerStats.totalTokens !== undefined
+                    ? footerMode === "extra-nerdy"
+                        ? [
+                              formatFooterTokenBreakdown(
+                                  "regular",
+                                  footerStats.regularOutputTokens
+                              ),
+                              formatFooterTokenBreakdown("reasoning", footerStats.reasoningTokens),
+                              formatFooterTokenBreakdown("in", footerStats.promptTokens),
+                              formatFooterTokenBreakdown("out", footerStats.completionTokens)
+                          ]
+                        : [
+                              formatFooterTokenBreakdown("in", footerStats.promptTokens),
+                              formatFooterTokenBreakdown("out", footerStats.completionTokens)
+                          ]
+                    : []
+
+            return [
+                {
+                    key: "model",
+                    icon: ProviderIcon,
+                    text: footerStats.modelName,
+                    suffix: reasoningLabel
+                },
+                {
+                    key: "speed",
+                    icon: Zap,
+                    text: formatFooterSpeed(footerStats.tokensPerSecond)
+                },
+                {
+                    key: "tokens",
+                    icon: Cpu,
+                    text: formatFooterTokenTotal(footerStats.totalTokens),
+                    suffix:
+                        footerStats.totalTokens !== undefined
+                            ? tokenBreakdown
+                                  .filter((segment): segment is string => Boolean(segment))
+                                  .join(", ")
+                            : undefined
+                },
+                {
+                    key: "ttft",
+                    icon: Clock3,
+                    text: formatFooterTTFT(footerStats.timeToFirstVisibleMs)
+                },
+                {
+                    key: "cost",
+                    icon: DollarSign,
+                    text:
+                        footerMode === "extra-nerdy"
+                            ? formatFooterCost(footerStats.estimatedCostUsd)
+                            : undefined,
+                    suffix:
+                        footerMode === "extra-nerdy" && footerStats.estimatedCostUsd !== undefined
+                            ? [
+                                  formatFooterCostBreakdown(
+                                      "in",
+                                      footerStats.estimatedPromptCostUsd
+                                  ),
+                                  formatFooterCostBreakdown(
+                                      "out",
+                                      footerStats.estimatedCompletionCostUsd
+                                  )
+                              ]
+                                  .filter((segment): segment is string => Boolean(segment))
+                                  .join(", ")
+                            : undefined
+                }
+            ].filter((segment) => Boolean(segment.text))
+        }, [ProviderIcon, footerMode, footerStats, reasoningLabel])
 
         const imageGenerationAssets = useMemo(() => {
             const assets: string[] = []
-            ;(
-                message.parts.filter((part) => part.type === "tool-image_generation") as Array<any>
-            ).forEach((part) => {
-                if (
-                    part.state === "output-available" &&
-                    part.output &&
-                    typeof part.output === "object" &&
-                    "assets" in part.output &&
-                    Array.isArray(part.output.assets)
-                ) {
-                    part.output.assets.forEach((asset: any) => {
-                        if (asset.imageUrl) {
-                            assets.push(asset.imageUrl)
-                        }
-                    })
-                }
-            })
+            message.parts
+                .filter(
+                    (part): part is ImageGenerationToolPart => part.type === "tool-image_generation"
+                )
+                .forEach((part) => {
+                    if (
+                        part.state === "output-available" &&
+                        part.output &&
+                        typeof part.output === "object" &&
+                        "assets" in part.output &&
+                        Array.isArray(part.output.assets)
+                    ) {
+                        part.output.assets.forEach((asset) => {
+                            if (asset.imageUrl) {
+                                assets.push(asset.imageUrl)
+                            }
+                        })
+                    }
+                })
             return assets
         }, [message.parts])
 
@@ -150,11 +383,22 @@ export const ChatActions = memo(
                     </Tooltip>
                 )}
 
-                {modelName && (
+                {footerMode === "simple" && footerStats?.modelName && (
                     <Badge variant="secondary" className="ml-1 h-7">
-                        {modelName}
+                        <span className="inline-flex items-center gap-1.5">
+                            {ProviderIcon && <ProviderIcon className="size-3.5" />}
+                            <span>
+                                {footerStats.modelName}
+                                {reasoningLabel ? ` (${reasoningLabel})` : ""}
+                            </span>
+                        </span>
                     </Badge>
                 )}
+
+                {(footerMode === "nerd" || footerMode === "extra-nerdy") &&
+                    footerSegments.length > 0 && (
+                        <AssistantFooterMarquee segments={footerSegments} />
+                    )}
             </div>
         )
     }

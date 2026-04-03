@@ -25,6 +25,7 @@ import { dbMessagesToCore } from "../lib/db_to_core_messages"
 import { getGoogleAuthMode } from "../lib/google_provider"
 import { getUserIdentity } from "../lib/identity"
 import {
+    type CoreProvider,
     type ImageResolution,
     type ImageSize,
     MODELS_SHARED,
@@ -93,6 +94,64 @@ const GOOGLE_MINIMUM_SAFETY_SETTINGS = [
         threshold: "OFF"
     }
 ] as const
+
+const normalizeDisplayProvider = (providerId: string | undefined) => {
+    switch (providerId) {
+        case "x-ai":
+            return "xai"
+        case "google":
+        case "openai":
+        case "anthropic":
+        case "xai":
+        case "groq":
+        case "fal":
+        case "openrouter":
+            return providerId
+        default:
+            return providerId
+    }
+}
+
+const resolveDisplayProvider = (
+    modelId: string,
+    runtimeProvider: CoreProvider | "openrouter" | "custom" | "unknown"
+) => {
+    const sharedModel = MODELS_SHARED.find((candidate) => candidate.id === modelId)
+    if (!sharedModel) {
+        if (runtimeProvider === "custom" || runtimeProvider === "unknown") {
+            return undefined
+        }
+        return normalizeDisplayProvider(runtimeProvider)
+    }
+
+    if (sharedModel.customIcon) {
+        return normalizeDisplayProvider(sharedModel.customIcon)
+    }
+
+    const providerAdapter = sharedModel.adapters.find((adapter) => {
+        const providerId = adapter.split(":")[0]
+        return providerId.startsWith("i3-") || providerId === "openrouter" || providerId === "xai"
+    })
+
+    if (providerAdapter) {
+        const [providerId, providerModelId] = providerAdapter.split(":")
+        if (providerId === "openrouter") {
+            return normalizeDisplayProvider(providerModelId.split("/")[0])
+        }
+
+        if (providerId.startsWith("i3-")) {
+            return normalizeDisplayProvider(providerId.slice(3))
+        }
+
+        return normalizeDisplayProvider(providerId)
+    }
+
+    if (runtimeProvider === "custom" || runtimeProvider === "unknown") {
+        return undefined
+    }
+
+    return normalizeDisplayProvider(runtimeProvider)
+}
 
 const isGoogleImagePreviewModel = (modelId: string) => GOOGLE_IMAGE_PREVIEW_MODEL_IDS.has(modelId)
 
@@ -330,6 +389,7 @@ export const chatPOST = httpAction(async (ctx, req) => {
     const modelData = await getModel(ctx, body.model)
     if (modelData instanceof ChatError) return modelData.toResponse()
     const { model, modelName } = modelData
+    const displayProvider = resolveDisplayProvider(body.model, modelData.runtimeProvider)
     const configuredMaxTokens = modelData.registry.models[body.model]?.maxTokens
     const maxTokens =
         typeof configuredMaxTokens === "number" && configuredMaxTokens > 0
@@ -429,7 +489,22 @@ export const chatPOST = httpAction(async (ctx, req) => {
     const totalTokenUsage = {
         promptTokens: 0,
         completionTokens: 0,
-        reasoningTokens: 0
+        reasoningTokens: 0,
+        totalTokens: 0,
+        estimatedCostUsd: undefined as number | undefined,
+        estimatedPromptCostUsd: undefined as number | undefined,
+        estimatedCompletionCostUsd: undefined as number | undefined
+    }
+    const streamMetrics: {
+        firstVisibleAtMs?: number
+    } = {}
+    const getTimeToFirstVisibleMs = () =>
+        streamMetrics.firstVisibleAtMs !== undefined
+            ? Math.max(0, streamMetrics.firstVisibleAtMs - streamStartTime)
+            : undefined
+    const markFirstVisible = () => {
+        if (streamMetrics.firstVisibleAtMs !== undefined) return
+        streamMetrics.firstVisibleAtMs = Date.now()
     }
 
     const stream = createUIMessageStream({
@@ -459,7 +534,10 @@ export const chatPOST = httpAction(async (ctx, req) => {
                     threadId: mutationResult.threadId,
                     streamId,
                     modelId: body.model,
-                    modelName
+                    modelName,
+                    displayProvider,
+                    runtimeProvider: modelData.runtimeProvider,
+                    reasoningEffort: effectiveReasoningEffort
                 }
             })
 
@@ -487,6 +565,7 @@ export const chatPOST = httpAction(async (ctx, req) => {
                                 "No prompt provided for image generation. Please provide a description of the image you want to create."
                         }
                     })
+                    markFirstVisible()
                     writer.write({
                         type: "error",
                         errorText:
@@ -537,7 +616,15 @@ export const chatPOST = httpAction(async (ctx, req) => {
                         metadata: {
                             modelId: body.model,
                             modelName,
-                            serverDurationMs: Date.now() - streamStartTime
+                            displayProvider,
+                            runtimeProvider: modelData.runtimeProvider,
+                            reasoningEffort: effectiveReasoningEffort,
+                            totalTokens: totalTokenUsage.totalTokens,
+                            estimatedCostUsd: totalTokenUsage.estimatedCostUsd,
+                            estimatedPromptCostUsd: totalTokenUsage.estimatedPromptCostUsd,
+                            estimatedCompletionCostUsd: totalTokenUsage.estimatedCompletionCostUsd,
+                            serverDurationMs: Date.now() - streamStartTime,
+                            timeToFirstVisibleMs: getTimeToFirstVisibleMs()
                         }
                     })
 
@@ -557,6 +644,7 @@ export const chatPOST = httpAction(async (ctx, req) => {
                         })
 
                         // Send tool result
+                        markFirstVisible()
                         writer.write({
                             type: "tool-output-available",
                             toolCallId: mockToolCall.toolInvocation.toolCallId,
@@ -588,6 +676,7 @@ export const chatPOST = httpAction(async (ctx, req) => {
                         // Send error in tool result
                         const errorMessage =
                             error instanceof Error ? error.message : "Unknown error occurred"
+                        markFirstVisible()
                         writer.write({
                             type: "tool-output-available",
                             toolCallId: mockToolCall.toolInvocation.toolCallId,
@@ -635,7 +724,14 @@ export const chatPOST = httpAction(async (ctx, req) => {
                     const resultStream = await vertexStreamPromise
 
                     const transformedStream = resultStream.pipeThrough(
-                        manualStreamTransform(parts, totalTokenUsage, uploadPromises, user.id, ctx)
+                        manualStreamTransform(
+                            parts,
+                            totalTokenUsage,
+                            uploadPromises,
+                            user.id,
+                            ctx,
+                            streamMetrics
+                        )
                     )
 
                     const [streamForWriter, streamForBlocking] = transformedStream.tee()
@@ -658,10 +754,18 @@ export const chatPOST = httpAction(async (ctx, req) => {
                             streamId,
                             modelId: body.model,
                             modelName,
+                            displayProvider,
+                            runtimeProvider: modelData.runtimeProvider,
+                            reasoningEffort: effectiveReasoningEffort,
                             promptTokens: totalTokenUsage.promptTokens,
                             completionTokens: totalTokenUsage.completionTokens,
                             reasoningTokens: Math.max(0, totalTokenUsage.reasoningTokens),
-                            serverDurationMs: Date.now() - streamStartTime
+                            totalTokens: totalTokenUsage.totalTokens,
+                            estimatedCostUsd: totalTokenUsage.estimatedCostUsd,
+                            estimatedPromptCostUsd: totalTokenUsage.estimatedPromptCostUsd,
+                            estimatedCompletionCostUsd: totalTokenUsage.estimatedCompletionCostUsd,
+                            serverDurationMs: Date.now() - streamStartTime,
+                            timeToFirstVisibleMs: getTimeToFirstVisibleMs()
                         }
                     })
                 } else {
@@ -738,7 +842,8 @@ export const chatPOST = httpAction(async (ctx, req) => {
                                 totalTokenUsage,
                                 uploadPromises,
                                 user.id,
-                                ctx
+                                ctx,
+                                streamMetrics
                             )
                         )
                     )
@@ -753,10 +858,18 @@ export const chatPOST = httpAction(async (ctx, req) => {
                             streamId,
                             modelId: body.model,
                             modelName,
+                            displayProvider,
+                            runtimeProvider: modelData.runtimeProvider,
+                            reasoningEffort: effectiveReasoningEffort,
                             promptTokens: totalTokenUsage.promptTokens,
                             completionTokens: totalTokenUsage.completionTokens,
                             reasoningTokens: totalTokenUsage.reasoningTokens,
-                            serverDurationMs: Date.now() - streamStartTime
+                            totalTokens: totalTokenUsage.totalTokens,
+                            estimatedCostUsd: totalTokenUsage.estimatedCostUsd,
+                            estimatedPromptCostUsd: totalTokenUsage.estimatedPromptCostUsd,
+                            estimatedCompletionCostUsd: totalTokenUsage.estimatedCompletionCostUsd,
+                            serverDurationMs: Date.now() - streamStartTime,
+                            timeToFirstVisibleMs: getTimeToFirstVisibleMs()
                         }
                     })
                 }
@@ -783,15 +896,23 @@ export const chatPOST = httpAction(async (ctx, req) => {
                 metadata: {
                     modelId: body.model,
                     modelName,
+                    displayProvider,
+                    runtimeProvider: modelData.runtimeProvider,
+                    reasoningEffort: effectiveReasoningEffort,
                     promptTokens: totalTokenUsage.promptTokens,
                     completionTokens: totalTokenUsage.completionTokens,
                     reasoningTokens: totalTokenUsage.reasoningTokens,
+                    totalTokens: totalTokenUsage.totalTokens,
+                    estimatedCostUsd: totalTokenUsage.estimatedCostUsd,
+                    estimatedPromptCostUsd: totalTokenUsage.estimatedPromptCostUsd,
+                    estimatedCompletionCostUsd: totalTokenUsage.estimatedCompletionCostUsd,
                     creditProviderSource: modelData.providerSource,
                     creditBucket: creditCharge.bucket,
                     creditFeature: creditCharge.feature,
                     creditUnits: creditCharge.units,
                     creditCounted: creditCharge.counted,
-                    serverDurationMs: Date.now() - streamStartTime
+                    serverDurationMs: Date.now() - streamStartTime,
+                    timeToFirstVisibleMs: getTimeToFirstVisibleMs()
                 }
             })
             await ctx.runMutation(internal.credits.recordCreditEventForMessage, {
@@ -816,10 +937,18 @@ export const chatPOST = httpAction(async (ctx, req) => {
                         streamId,
                         modelId: body.model,
                         modelName,
+                        displayProvider,
+                        runtimeProvider: modelData.runtimeProvider,
+                        reasoningEffort: effectiveReasoningEffort,
                         promptTokens: totalTokenUsage.promptTokens,
                         completionTokens: totalTokenUsage.completionTokens,
                         reasoningTokens: totalTokenUsage.reasoningTokens,
-                        serverDurationMs: Date.now() - streamStartTime
+                        totalTokens: totalTokenUsage.totalTokens,
+                        estimatedCostUsd: totalTokenUsage.estimatedCostUsd,
+                        estimatedPromptCostUsd: totalTokenUsage.estimatedPromptCostUsd,
+                        estimatedCompletionCostUsd: totalTokenUsage.estimatedCompletionCostUsd,
+                        serverDurationMs: Date.now() - streamStartTime,
+                        timeToFirstVisibleMs: getTimeToFirstVisibleMs()
                     }
                 })
             }

@@ -70,10 +70,20 @@ const countMirroredAttachmentsInMessages = (
 const MessageMetadata = v.object({
     modelId: v.optional(v.string()),
     modelName: v.optional(v.string()),
+    displayProvider: v.optional(v.string()),
+    runtimeProvider: v.optional(v.string()),
+    reasoningEffort: v.optional(
+        v.union(v.literal("off"), v.literal("low"), v.literal("medium"), v.literal("high"))
+    ),
     promptTokens: v.optional(v.number()),
     completionTokens: v.optional(v.number()),
     reasoningTokens: v.optional(v.number()),
+    totalTokens: v.optional(v.number()),
+    estimatedCostUsd: v.optional(v.number()),
+    estimatedPromptCostUsd: v.optional(v.number()),
+    estimatedCompletionCostUsd: v.optional(v.number()),
     serverDurationMs: v.optional(v.number()),
+    timeToFirstVisibleMs: v.optional(v.number()),
     creditProviderSource: v.optional(
         v.union(
             v.literal("internal"),

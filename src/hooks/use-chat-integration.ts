@@ -7,7 +7,7 @@ import { useAutoResume } from "@/hooks/use-auto-resume"
 import { resolveJwtToken } from "@/lib/auth-token"
 import { browserEnv } from "@/lib/browser-env"
 import { useChatStore } from "@/lib/chat-store"
-import { useModelStore } from "@/lib/model-store"
+import { type ReasoningEffort, useModelStore } from "@/lib/model-store"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport, type UIMessage } from "ai"
 import { useQuery as useConvexQuery } from "convex-helpers/react/cache"
@@ -103,10 +103,18 @@ export function useChatIntegration<IsShared extends boolean>({
     type ChatMessage = UIMessage<{
         modelId?: string
         modelName?: string
+        displayProvider?: string
+        runtimeProvider?: string
+        reasoningEffort?: ReasoningEffort
         promptTokens?: number
         completionTokens?: number
         reasoningTokens?: number
+        totalTokens?: number
+        estimatedCostUsd?: number
+        estimatedPromptCostUsd?: number
+        estimatedCompletionCostUsd?: number
         serverDurationMs?: number
+        timeToFirstVisibleMs?: number
         threadId?: string
         streamId?: string
         modelIdOverride?: string

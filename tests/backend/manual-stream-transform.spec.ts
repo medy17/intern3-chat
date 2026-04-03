@@ -20,15 +20,23 @@ const collectChunks = async (chunks: unknown[], options?: { userId?: string }) =
     const totalTokenUsage = {
         promptTokens: 0,
         completionTokens: 0,
-        reasoningTokens: 0
+        reasoningTokens: 0,
+        totalTokens: 0,
+        estimatedCostUsd: undefined as number | undefined,
+        estimatedPromptCostUsd: undefined as number | undefined,
+        estimatedCompletionCostUsd: undefined as number | undefined
     }
     const uploadPromises: Promise<void>[] = []
+    const streamMetrics: {
+        firstVisibleAtMs?: number
+    } = {}
     const transform = manualStreamTransform(
         parts,
         totalTokenUsage,
         uploadPromises,
         options?.userId ?? "user-1",
-        {} as ActionCtx
+        {} as ActionCtx,
+        streamMetrics
     )
 
     const writer = transform.writable.getWriter()
@@ -53,6 +61,7 @@ const collectChunks = async (chunks: unknown[], options?: { userId?: string }) =
     return {
         parts,
         totalTokenUsage,
+        streamMetrics,
         uploadPromises,
         output
     }
@@ -219,6 +228,14 @@ describe("manualStreamTransform", () => {
                     outputTokens: 20,
                     outputTokenDetails: {
                         reasoningTokens: 7
+                    },
+                    totalTokens: 30,
+                    raw: {
+                        cost_details: {
+                            upstream_inference_cost: 0.001552,
+                            upstream_inference_prompt_cost: 0.000757,
+                            upstream_inference_completions_cost: 0.000795
+                        }
                     }
                 }
             }
@@ -229,11 +246,19 @@ describe("manualStreamTransform", () => {
             type: "reasoning",
             reasoning: "Step 1 + Step 2"
         })
-        expect(typeof result.parts[0].duration).toBe("number")
+        const reasoningPart = result.parts[0] as Extract<
+            (typeof result.parts)[number],
+            { type: "reasoning" }
+        >
+        expect(typeof reasoningPart.duration).toBe("number")
         expect(result.totalTokenUsage).toEqual({
             promptTokens: 10,
             completionTokens: 20,
-            reasoningTokens: 7
+            reasoningTokens: 7,
+            totalTokens: 30,
+            estimatedCostUsd: 0.001552,
+            estimatedPromptCostUsd: 0.000757,
+            estimatedCompletionCostUsd: 0.000795
         })
         expect(result.output).toEqual([
             { type: "reasoning-start", id: "r-1" },
@@ -242,5 +267,62 @@ describe("manualStreamTransform", () => {
             { type: "reasoning-end", id: "r-1" },
             { type: "finish-step" }
         ])
+    })
+
+    it("captures first visible time from the first text delta only once", async () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date("2026-04-03T00:00:00.000Z"))
+        const firstVisibleAt = Date.now()
+
+        const result = await collectChunks([
+            { type: "text-start", id: "txt-1" },
+            { type: "text-delta", id: "txt-1", text: "hello" },
+            { type: "text-delta", id: "txt-1", text: " again" },
+            { type: "text-end", id: "txt-1" }
+        ])
+
+        expect(result.streamMetrics.firstVisibleAtMs).toBe(firstVisibleAt)
+
+        vi.useRealTimers()
+    })
+
+    it("captures first visible time from reasoning when no text delta arrives first", async () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date("2026-04-03T00:00:00.000Z"))
+        const firstVisibleAt = Date.now()
+
+        const result = await collectChunks([
+            { type: "reasoning-start", id: "r-1" },
+            { type: "reasoning-delta", id: "r-1", text: "thinking" },
+            { type: "reasoning-end", id: "r-1" }
+        ])
+
+        expect(result.streamMetrics.firstVisibleAtMs).toBe(firstVisibleAt)
+
+        vi.useRealTimers()
+    })
+
+    it("captures first visible time from tool output when no text exists", async () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date("2026-04-03T00:00:00.000Z"))
+        const firstVisibleAt = Date.now()
+
+        const result = await collectChunks([
+            {
+                type: "tool-call",
+                toolCallId: "call-1",
+                toolName: "web_search",
+                input: { query: "intern3" }
+            },
+            {
+                type: "tool-result",
+                toolCallId: "call-1",
+                output: { answer: "done" }
+            }
+        ])
+
+        expect(result.streamMetrics.firstVisibleAtMs).toBe(firstVisibleAt)
+
+        vi.useRealTimers()
     })
 })
