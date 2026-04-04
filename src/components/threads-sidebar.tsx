@@ -155,8 +155,14 @@ export function ThreadsSidebar() {
             ? { threadId: params.threadId as Id<"threads"> }
             : "skip"
     )
-    const usageSummary = useQuery(
+    const usageSummary = useDiskCachedQuery(
         api.credits.getMyCreditUsageSummary,
+        {
+            key: session?.user?.id
+                ? `prototype-credit-usage:${session.user.id}`
+                : "prototype-credit-usage:guest",
+            default: null
+        },
         session?.user?.id && !auth.isLoading ? {} : "skip"
     )
 
@@ -284,34 +290,41 @@ export function ThreadsSidebar() {
             ) ?? null,
         [importJobs]
     )
+    const resolvedUsageSummary =
+        usageSummary && typeof usageSummary === "object" && "error" in usageSummary
+            ? null
+            : usageSummary
 
     const prototypeCreditSummary = useMemo<PrototypeCreditSummary | null>(() => {
-        if (!prototypeCreditPlanSummary || !usageSummary) {
+        if (!prototypeCreditPlanSummary || !resolvedUsageSummary) {
             return null
         }
 
         return {
             enabled: prototypeCreditPlanSummary.enabled,
             plan: prototypeCreditPlanSummary.plan,
-            periodKey: usageSummary.periodKey,
-            periodStartsAt: usageSummary.periodStartsAt,
-            periodEndsAt: usageSummary.periodEndsAt,
+            periodKey: resolvedUsageSummary.periodKey,
+            periodStartsAt: resolvedUsageSummary.periodStartsAt,
+            periodEndsAt: resolvedUsageSummary.periodEndsAt,
             basic: {
                 limit: prototypeCreditPlanSummary.basic.limit,
-                used: usageSummary.basic.used,
+                used: resolvedUsageSummary.basic.used,
                 remaining: Math.max(
                     0,
-                    prototypeCreditPlanSummary.basic.limit - usageSummary.basic.used
+                    prototypeCreditPlanSummary.basic.limit - resolvedUsageSummary.basic.used
                 )
             },
             pro: {
                 limit: prototypeCreditPlanSummary.pro.limit,
-                used: usageSummary.pro.used,
-                remaining: Math.max(0, prototypeCreditPlanSummary.pro.limit - usageSummary.pro.used)
+                used: resolvedUsageSummary.pro.used,
+                remaining: Math.max(
+                    0,
+                    prototypeCreditPlanSummary.pro.limit - resolvedUsageSummary.pro.used
+                )
             },
-            requestCounts: usageSummary.requestCounts
+            requestCounts: resolvedUsageSummary.requestCounts
         }
-    }, [prototypeCreditPlanSummary, usageSummary])
+    }, [prototypeCreditPlanSummary, resolvedUsageSummary])
 
     useEffect(() => {
         if (!selectedThreadsQuery || selectedThreadIds.length === 0) {
@@ -370,8 +383,12 @@ export function ThreadsSidebar() {
     }, [importJobs])
 
     useEffect(() => {
-        if (!session?.user?.id || auth.isLoading) {
+        if (!session?.user?.id) {
             setPrototypeCreditPlanSummary(null)
+            return
+        }
+
+        if (auth.isLoading) {
             return
         }
 

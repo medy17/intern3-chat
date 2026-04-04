@@ -52,6 +52,7 @@ import { api } from "@/convex/_generated/api"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { useSession } from "@/hooks/auth-hooks"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useDiskCachedQuery } from "@/lib/convex-cached-query"
 import {
     type GeneratedImageFilters,
     type GeneratedImageOrientation,
@@ -142,6 +143,27 @@ const toGeneratedImageFilters = (filters: LibraryFiltersState): GeneratedImageFi
     aspectRatios: filters.aspectRatios,
     orientations: filters.orientations
 })
+
+const getLibraryCacheScope = ({
+    userId,
+    pageNumber,
+    sortBy,
+    filters
+}: {
+    userId: string
+    pageNumber: number
+    sortBy: ImageSortOption
+    filters: LibraryFiltersState
+}) =>
+    JSON.stringify({
+        userId,
+        pageNumber,
+        sortBy,
+        filters
+    })
+
+const isQueryErrorResult = (value: unknown): value is { error: unknown } =>
+    typeof value === "object" && value !== null && "error" in value
 
 const getFilterButtonLabel = ({
     emptyLabel,
@@ -1007,8 +1029,24 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
         () => countActiveLibraryFilters(draftFilters),
         [draftFilters]
     )
-    const imagePage = useQuery(
+    const libraryCacheScope = useMemo(
+        () =>
+            session.user?.id
+                ? getLibraryCacheScope({
+                      userId: session.user.id,
+                      pageNumber,
+                      sortBy,
+                      filters
+                  })
+                : null,
+        [filters, pageNumber, session.user?.id, sortBy]
+    )
+    const imagePage = useDiskCachedQuery(
         api.images.paginateGeneratedImages,
+        {
+            key: libraryCacheScope ? `library-page:${libraryCacheScope}` : "library-page:guest",
+            default: undefined
+        },
         session.user?.id
             ? {
                   paginationOpts: { numItems: IMAGES_PER_PAGE, cursor: currentCursor },
@@ -1017,12 +1055,22 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
               }
             : "skip"
     )
-    const totalImages = useQuery(
+    const totalImages = useDiskCachedQuery(
         api.images.getGeneratedImagesCount,
+        {
+            key: libraryCacheScope ? `library-count:${libraryCacheScope}` : "library-count:guest",
+            default: undefined
+        },
         session.user?.id ? { filters: activeFilters } : "skip"
     )
-    const filterOptions = useQuery(
+    const filterOptions = useDiskCachedQuery(
         api.images.getGeneratedImageFacetOptions,
+        {
+            key: session.user?.id
+                ? `library-filter-options:${session.user.id}`
+                : "library-filter-options:guest",
+            default: undefined
+        },
         session.user?.id ? {} : "skip"
     )
 
@@ -1056,7 +1104,11 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
     const [selectedImageIds, setSelectedImageIds] = useState<Set<Id<"generatedImages">>>(new Set())
     const deleteImageAction = useAction(api.images_node.deleteGeneratedImage)
 
-    const images = (imagePage?.page ?? []).filter((img) => !deletedImageIds.has(img._id))
+    const resolvedImagePage = isQueryErrorResult(imagePage) ? undefined : imagePage
+    const resolvedTotalImages = isQueryErrorResult(totalImages) ? undefined : totalImages
+    const resolvedFilterOptions = isQueryErrorResult(filterOptions) ? undefined : filterOptions
+
+    const images = (resolvedImagePage?.page ?? []).filter((img) => !deletedImageIds.has(img._id))
     const selectedImageIndex = useMemo(
         () => (selectedImage ? images.findIndex((image) => image._id === selectedImage._id) : -1),
         [images, selectedImage]
@@ -1089,42 +1141,42 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
     )
     const modelFilterOptions = useMemo(
         () =>
-            (filterOptions?.modelIds ?? []).map((modelId) => ({
+            (resolvedFilterOptions?.modelIds ?? []).map((modelId) => ({
                 value: modelId,
                 label: modelNameById.get(modelId) ?? modelId
             })),
-        [filterOptions?.modelIds, modelNameById]
+        [resolvedFilterOptions?.modelIds, modelNameById]
     )
     const resolutionFilterOptions = useMemo(
         () =>
-            (filterOptions?.resolutions ?? []).map((resolution) => ({
+            (resolvedFilterOptions?.resolutions ?? []).map((resolution) => ({
                 value: resolution,
                 label: resolution
             })),
-        [filterOptions?.resolutions]
+        [resolvedFilterOptions?.resolutions]
     )
     const aspectRatioFilterOptions = useMemo(
         () =>
-            (filterOptions?.aspectRatios ?? []).map((aspectRatio) => ({
+            (resolvedFilterOptions?.aspectRatios ?? []).map((aspectRatio) => ({
                 value: aspectRatio,
                 label: aspectRatio
             })),
-        [filterOptions?.aspectRatios]
+        [resolvedFilterOptions?.aspectRatios]
     )
     const orientationFilterOptions = useMemo(
         () =>
-            (filterOptions?.orientations ?? []).map((orientation) => ({
+            (resolvedFilterOptions?.orientations ?? []).map((orientation) => ({
                 value: orientation,
                 label: ORIENTATION_LABELS[orientation]
             })),
-        [filterOptions?.orientations]
+        [resolvedFilterOptions?.orientations]
     )
     const totalPages =
-        totalImages === undefined
+        resolvedTotalImages === undefined
             ? undefined
-            : Math.max(1, Math.ceil(totalImages / IMAGES_PER_PAGE))
+            : Math.max(1, Math.ceil(resolvedTotalImages / IMAGES_PER_PAGE))
     const canGoPrevious = pageNumber > 1
-    const canGoNext = imagePage ? !imagePage.isDone : false
+    const canGoNext = resolvedImagePage ? !resolvedImagePage.isDone : false
     const showPendingGenerations = pageNumber === 1 && !hasActiveFilters
     const scrollResetKey = JSON.stringify(search)
 
@@ -1245,7 +1297,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
     }, [draftFilters, draftSortBy, filters, navigate, sortBy])
 
     const handleNextPage = useCallback(() => {
-        if (!imagePage || imagePage.isDone) return
+        if (!resolvedImagePage || resolvedImagePage.isDone) return
 
         navigate({
             search: (prev) => ({
@@ -1253,7 +1305,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                 page: prev.page + 1
             })
         })
-    }, [imagePage, navigate])
+    }, [navigate, resolvedImagePage])
 
     const handlePreviousPage = useCallback(() => {
         navigate({
@@ -1404,9 +1456,9 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                 Your collection of AI-generated images
                             </p>
                             <div className="mt-2 text-muted-foreground text-sm">
-                                {totalImages === undefined
+                                {resolvedTotalImages === undefined
                                     ? "Loading image count..."
-                                    : `${totalImages} images${totalPages && totalPages > 1 ? ` · Page ${pageNumber} of ${totalPages}` : ""}`}
+                                    : `${resolvedTotalImages} images${totalPages && totalPages > 1 ? ` · Page ${pageNumber} of ${totalPages}` : ""}`}
                                 {pendingGenerations.length > 0
                                     ? !hasActiveFilters
                                         ? ` · ${pendingGenerations.length} pending`
@@ -1643,7 +1695,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                         </Drawer>
                     )}
 
-                    {!imagePage ? (
+                    {!resolvedImagePage ? (
                         <div className="columns-1 gap-4 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5">
                             {Array.from({ length: 12 }).map((_, i) => (
                                 <div
