@@ -551,8 +551,6 @@ const GeneratedImageItem = memo(
             const preloadImage = new window.Image()
             preloadImage.decoding = "async"
             preloadImage.src = retriedHiddenImageSources.src
-            preloadImage.srcset = retriedHiddenImageSources.srcSet
-            preloadImage.sizes = retriedHiddenImageSources.sizes
 
             preloadImage.onload = () => {
                 if (blurVariantRequestIdRef.current !== requestId) {
@@ -580,9 +578,7 @@ const GeneratedImageItem = memo(
             canUseBlurVariant,
             clearBlurVariantRetryTimeout,
             isImageHidden,
-            retriedHiddenImageSources.sizes,
-            retriedHiddenImageSources.src,
-            retriedHiddenImageSources.srcSet
+            retriedHiddenImageSources.src
         ])
 
         useEffect(() => {
@@ -778,6 +774,9 @@ const GeneratedImageItem = memo(
                                         loadState === "revealing" &&
                                             "scale-[1.02] opacity-100 blur-md",
                                         loadState === "ready" && "scale-100 opacity-100 blur-0",
+                                        isImageHidden &&
+                                            blurVariantStatus === "ready" &&
+                                            "opacity-0",
                                         useCssBlurFallback && "scale-[1.08] blur-2xl"
                                     )}
                                     onLoad={handleImageLoad}
@@ -788,8 +787,6 @@ const GeneratedImageItem = memo(
                                     <img
                                         key={`${image.storageKey}-${blurVariantRetryKey}`}
                                         src={retriedHiddenImageSources.src}
-                                        srcSet={retriedHiddenImageSources.srcSet}
-                                        sizes={retriedHiddenImageSources.sizes}
                                         alt=""
                                         aria-hidden="true"
                                         className={cn(
