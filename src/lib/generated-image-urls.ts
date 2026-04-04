@@ -3,6 +3,7 @@ import { type PrivateBlurFormat, getConstrainedWidth } from "@/lib/private-blur-
 
 const LOCAL_IMAGE_HOSTS = new Set(["localhost", "127.0.0.1"])
 const DEV_CONVEX_HTTP_PROXY_PREFIX = "/convex-http"
+const VERCEL_IMAGE_WIDTHS = [320, 384, 480, 576, 640, 768, 960, 1080, 1200, 1600] as const
 
 let preferredPrivateBlurFormat: PrivateBlurFormat | null | undefined
 
@@ -81,6 +82,16 @@ export const getGeneratedImageCopyUrl = (storageKey: string) => {
     return getGeneratedImageProxyUrl(storageKey)
 }
 
+const getVercelImageWidth = (targetWidth: number) => {
+    for (const allowedWidth of VERCEL_IMAGE_WIDTHS) {
+        if (targetWidth <= allowedWidth) {
+            return allowedWidth
+        }
+    }
+
+    return VERCEL_IMAGE_WIDTHS[VERCEL_IMAGE_WIDTHS.length - 1]
+}
+
 export const getOptimizedGeneratedImageUrl = ({
     storageKey,
     aspectRatio,
@@ -98,7 +109,7 @@ export const getOptimizedGeneratedImageUrl = ({
         return sourceUrl
     }
 
-    const width = getConstrainedWidth(aspectRatio, longEdge)
+    const width = getVercelImageWidth(getConstrainedWidth(aspectRatio, longEdge))
     return `/_vercel/image?url=${encodeURIComponent(sourceUrl)}&w=${width}&q=${quality}`
 }
 

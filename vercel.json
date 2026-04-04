@@ -3,10 +3,7 @@
     "installCommand": "bun install",
     "buildCommand": "bun run build",
     "images": {
-        "sizes": [
-            324, 384, 403, 405, 420, 432, 461, 480, 506, 540, 576, 608, 720, 759, 788, 810, 864,
-            1080
-        ],
+        "sizes": [320, 384, 480, 576, 640, 768, 960, 1080, 1200, 1600],
         "formats": ["image/avif", "image/webp"],
         "minimumCacheTTL": 2678400,
         "remotePatterns": [
