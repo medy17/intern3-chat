@@ -35,6 +35,7 @@ export const dbMessagesToCore = async (
     modelAbilities: ModelAbility[],
     options?: {
         publicAssetBaseUrl?: string
+        preferDirectAssetUrls?: boolean
     }
 ): Promise<CoreMessage[]> => {
     const mapped_messages: CoreMessage[] = []
@@ -62,10 +63,13 @@ export const dbMessagesToCore = async (
 
                     const filename = p.filename || extractedFileName
                     const fileTypeInfo = getFileTypeInfo(filename, p.mimeType)
+                    const shouldPreferDirectAssetUrls = options?.preferDirectAssetUrls ?? false
                     const fileUrl = isExternalFileReference(p.data)
                         ? p.data
-                        : buildInternalFileProxyUrl(p.data, options?.publicAssetBaseUrl) ||
-                          (await r2.getUrl(p.data))
+                        : shouldPreferDirectAssetUrls
+                          ? await r2.getUrl(p.data)
+                          : buildInternalFileProxyUrl(p.data, options?.publicAssetBaseUrl) ||
+                            (await r2.getUrl(p.data))
 
                     if (fileTypeInfo.isVisionImage && !fileTypeInfo.isSvg) {
                         try {

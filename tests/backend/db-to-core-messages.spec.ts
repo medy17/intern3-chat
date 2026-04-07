@@ -60,4 +60,43 @@ describe("dbMessagesToCore", () => {
         ])
         expect(getUrlMock).not.toHaveBeenCalled()
     })
+
+    it("uses direct storage URLs for internal image attachments when requested for model-facing payloads", async () => {
+        const result = await dbMessagesToCore(
+            [
+                {
+                    messageId: "message-1",
+                    role: "user",
+                    parts: [
+                        {
+                            type: "file",
+                            data: "attachments/user-1/image.png",
+                            filename: "image.png",
+                            mimeType: "image/png"
+                        }
+                    ]
+                }
+            ] as never,
+            [],
+            {
+                publicAssetBaseUrl: "https://convex.example",
+                preferDirectAssetUrls: true
+            }
+        )
+
+        expect(result).toEqual([
+            {
+                role: "user",
+                messageId: "message-1",
+                content: [
+                    {
+                        type: "image",
+                        image: "https://files.example/image.png",
+                        mediaType: "image/png"
+                    }
+                ]
+            }
+        ])
+        expect(getUrlMock).toHaveBeenCalledWith("attachments/user-1/image.png")
+    })
 })

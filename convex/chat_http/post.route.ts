@@ -494,7 +494,10 @@ export const chatPOST = httpAction(async (ctx, req) => {
     })
 
     const mapped_messages = await dbMessagesToCore(dbMessages, modelData.abilities, {
-        publicAssetBaseUrl: new URL(req.url).origin
+        publicAssetBaseUrl: new URL(req.url).origin,
+        // Provider-facing multimodal requests should fetch attachments directly from storage
+        // instead of bouncing through our /r2 proxy on every turn.
+        preferDirectAssetUrls: true
     })
 
     const streamStartTime = Date.now()
