@@ -696,6 +696,9 @@ const ModelInfoFlyout = ({
             type="button"
             aria-label={`Show details for ${model.name}`}
             className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-border/70 bg-secondary/50 text-muted-foreground transition-colors hover:text-foreground"
+            onPointerDown={(event) => {
+                event.stopPropagation()
+            }}
             onMouseEnter={() => {
                 if (!isMobile) {
                     primeBenchmarks()
@@ -781,81 +784,91 @@ const ModelCard = React.memo(function ModelCard({
     const modelAbilities = getModelAbilities(model)
 
     return (
-        <button
-            type="button"
-            disabled={disabled}
-            onClick={() => {
-                if (disabled) return
-                onModelChange(model.id)
-                onClose()
-            }}
+        <div
             className={cn(
-                "w-full rounded-xl border bg-background/60 p-3 text-left transition-colors",
+                "relative w-full rounded-xl border bg-background/60 p-3 text-left transition-colors",
                 "hover:border-accent hover:bg-accent/10",
                 isSelected && "border-primary/50 bg-primary/5 shadow-sm ring-1 ring-primary/20",
                 disabled &&
                     "cursor-not-allowed border-border/60 bg-muted/30 text-muted-foreground hover:border-border/60 hover:bg-muted/30"
             )}
         >
-            <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex shrink-0 items-center justify-center rounded-md border bg-secondary/60 p-2">
-                    {getProviderIcon(model, isCustom)}
-                </div>
-                <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                                <span className="truncate font-medium text-sm sm:text-base">
-                                    {model.name}
-                                </span>
-                                {badgeLabel && (
-                                    <Badge
-                                        variant="secondary"
-                                        className="border border-border/70 text-[10px] uppercase tracking-wide"
-                                    >
-                                        {badgeLabel}
-                                    </Badge>
-                                )}
-                                {isSelected && <Check className="size-4 shrink-0 text-primary" />}
+            <button
+                type="button"
+                disabled={disabled}
+                onClick={() => {
+                    if (disabled) return
+                    onModelChange(model.id)
+                    onClose()
+                }}
+                className="block w-full text-left focus-visible:outline-none"
+            >
+                <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex shrink-0 items-center justify-center rounded-md border bg-secondary/60 p-2">
+                        {getProviderIcon(model, isCustom)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 pr-10 sm:pr-0">
+                                <div className="flex items-center gap-2">
+                                    <span className="truncate font-medium text-sm sm:text-base">
+                                        {model.name}
+                                    </span>
+                                    {badgeLabel && (
+                                        <Badge
+                                            variant="secondary"
+                                            className="border border-border/70 text-[10px] uppercase tracking-wide"
+                                        >
+                                            {badgeLabel}
+                                        </Badge>
+                                    )}
+                                    {isSelected && (
+                                        <Check className="size-4 shrink-0 text-primary" />
+                                    )}
+                                </div>
+                                <p className="mt-1 line-clamp-2 text-muted-foreground text-xs sm:text-sm">
+                                    {getModelShortDescription(model)}
+                                </p>
                             </div>
-                            <p className="mt-1 line-clamp-2 text-muted-foreground text-xs sm:text-sm">
-                                {getModelShortDescription(model)}
-                            </p>
+                            <div className="hidden shrink-0 flex-col items-end gap-2 pr-10 sm:flex">
+                                {modelAbilities.length > 0 && (
+                                    <div className="flex flex-wrap justify-end gap-1">
+                                        {modelAbilities.slice(0, 4).map((ability) => (
+                                            <CapabilityPill
+                                                key={`${model.id}-${ability}`}
+                                                ability={ability}
+                                                emphasized={isSelected}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        <div className="hidden shrink-0 flex-col items-end gap-2 sm:flex">
-                            {modelAbilities.length > 0 && (
-                                <div className="flex flex-wrap justify-end gap-1">
+                        <div className="mt-2 flex items-center gap-3 pr-10 sm:hidden">
+                            {modelAbilities.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
                                     {modelAbilities.slice(0, 4).map((ability) => (
                                         <CapabilityPill
-                                            key={`${model.id}-${ability}`}
+                                            key={`${model.id}-mobile-${ability}`}
                                             ability={ability}
                                             emphasized={isSelected}
                                         />
                                     ))}
                                 </div>
+                            ) : (
+                                <div />
                             )}
-                            <ModelInfoFlyout model={model} currentProviders={currentProviders} />
                         </div>
                     </div>
-                    <div className="mt-2 flex items-center justify-between gap-3 sm:hidden">
-                        {modelAbilities.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                                {modelAbilities.slice(0, 4).map((ability) => (
-                                    <CapabilityPill
-                                        key={`${model.id}-mobile-${ability}`}
-                                        ability={ability}
-                                        emphasized={isSelected}
-                                    />
-                                ))}
-                            </div>
-                        ) : (
-                            <div />
-                        )}
-                        <ModelInfoFlyout model={model} currentProviders={currentProviders} />
-                    </div>
                 </div>
+            </button>
+            <div className="absolute top-3 right-3 hidden sm:block">
+                <ModelInfoFlyout model={model} currentProviders={currentProviders} />
             </div>
-        </button>
+            <div className="absolute right-3 bottom-3 sm:hidden">
+                <ModelInfoFlyout model={model} currentProviders={currentProviders} />
+            </div>
+        </div>
     )
 })
 
