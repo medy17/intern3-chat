@@ -647,6 +647,8 @@ const ModelInfoFlyout = ({
 }) => {
     const isMobile = useIsMobile()
     const [open, setOpen] = React.useState(false)
+    const triggerRef = React.useRef<HTMLButtonElement>(null)
+    const wasOpenRef = React.useRef(false)
     const [benchmarkState, setBenchmarkState] = React.useState<BenchmarkState | undefined>(() =>
         benchmarkStateCache.get(getBenchmarkCacheKey(model.id))
     )
@@ -691,8 +693,24 @@ const ModelInfoFlyout = ({
         primeBenchmarks()
     }, [open, primeBenchmarks])
 
+    React.useEffect(() => {
+        if (!isMobile) {
+            wasOpenRef.current = open
+            return
+        }
+
+        if (wasOpenRef.current && !open) {
+            requestAnimationFrame(() => {
+                triggerRef.current?.focus({ preventScroll: true })
+            })
+        }
+
+        wasOpenRef.current = open
+    }, [isMobile, open])
+
     const trigger = (
         <button
+            ref={triggerRef}
             type="button"
             aria-label={`Show details for ${model.name}`}
             className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-border/70 bg-secondary/50 text-muted-foreground transition-colors hover:text-foreground"
@@ -782,6 +800,11 @@ const ModelCard = React.memo(function ModelCard({
     const isSelected = model.id === selectedModel
     const isCustom = "isCustom" in model && model.isCustom
     const modelAbilities = getModelAbilities(model)
+    const selectModel = () => {
+        if (disabled) return
+        onModelChange(model.id)
+        onClose()
+    }
 
     return (
         <div
@@ -796,11 +819,7 @@ const ModelCard = React.memo(function ModelCard({
             <button
                 type="button"
                 disabled={disabled}
-                onClick={() => {
-                    if (disabled) return
-                    onModelChange(model.id)
-                    onClose()
-                }}
+                onClick={selectModel}
                 className="block w-full text-left focus-visible:outline-none"
             >
                 <div className="flex items-start gap-3">
