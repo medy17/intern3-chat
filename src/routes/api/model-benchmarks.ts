@@ -401,34 +401,37 @@ export const Route = createFileRoute("/api/model-benchmarks")({
                             datasetResult.error === "stale_fetch_failed"),
                     errorCode: !entry ? datasetResult.error : undefined
                 })
-
-                return Response.json(
-                    debug
-                        ? {
-                              ...payload,
-                              debug: {
-                                  hasApiKey: datasetResult.hasApiKey,
-                                  fromCache: datasetResult.fromCache,
-                                  error: datasetResult.error ?? null,
-                                  benchmarkType: type,
-                                  artificialAnalysisRef: model.artificialAnalysis ?? null,
-                                  datasetSize: datasetResult.data?.length ?? 0,
-                                  matchedEntry: entry
-                                      ? {
-                                            id: entry.id ?? null,
-                                            name: entry.name ?? null,
-                                            slug: entry.slug ?? null
-                                        }
-                                      : null
-                              }
+                const responseBody = debug
+                    ? {
+                          ...payload,
+                          debug: {
+                              hasApiKey: datasetResult.hasApiKey,
+                              fromCache: datasetResult.fromCache,
+                              error: datasetResult.error ?? null,
+                              benchmarkType: type,
+                              artificialAnalysisRef: model.artificialAnalysis ?? null,
+                              datasetSize: datasetResult.data?.length ?? 0,
+                              matchedEntry: entry
+                                  ? {
+                                        id: entry.id ?? null,
+                                        name: entry.name ?? null,
+                                        slug: entry.slug ?? null
+                                    }
+                                  : null
                           }
-                        : payload,
-                    {
-                        headers: {
-                            "Cache-Control": "public, max-age=1800, stale-while-revalidate=86400"
-                        }
+                      }
+                    : payload
+                const cacheControl = payload.available
+                    ? "public, max-age=1800, stale-while-revalidate=86400"
+                    : payload.retryable
+                      ? "no-store"
+                      : "public, max-age=300, stale-while-revalidate=600"
+
+                return Response.json(responseBody, {
+                    headers: {
+                        "Cache-Control": cacheControl
                     }
-                )
+                })
             }
         }
     }
