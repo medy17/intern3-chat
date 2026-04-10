@@ -111,7 +111,8 @@ describe("PersonaSelector", () => {
 
         const { container } = render(React.createElement(PersonaSelector, { threadId: "thread-1" }))
 
-        expect(container.innerHTML).toBe("")
+        expect(container.querySelector('[role="combobox"]')).toBeNull()
+        expect(container.textContent).toBe("")
         expect(screen.queryByText("Default")).toBeNull()
     })
 

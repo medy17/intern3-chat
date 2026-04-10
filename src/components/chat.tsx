@@ -162,7 +162,6 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
 
     return (
         <motion.div
-            key={threadId || "new-chat"}
             initial={false}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
@@ -179,112 +178,116 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
                 scrollRef={scrollRef}
             />
 
-            <AnimatePresence mode="sync">
-                {isEmpty ? (
-                    <motion.div
-                        key="centered-input"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        transition={{ duration: 0.2, ease: "easeInOut" }}
-                        className="absolute inset-0 flex flex-col items-center justify-center"
-                    >
-                        {hasSelectedPersonaAvatar && selectedPersonaOption ? (
-                            <PersonaAvatar
-                                name={selectedPersonaOption.name}
-                                avatarKind={selectedPersonaOption.avatarKind}
-                                avatarValue={selectedPersonaOption.avatarValue}
-                                className="mb-6 size-16 border-2 border-border shadow-sm"
-                                rounded="full"
-                            />
-                        ) : (
-                            <div className="mb-6 size-16 rounded-full border-2 opacity-80">
-                                <Logo />
-                            </div>
-                        )}
+            <motion.div
+                layout
+                initial={false}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                className={
+                    isEmpty
+                        ? "absolute inset-0 z-[10] flex flex-col items-center justify-center gap-8 px-4"
+                        : "-bottom-[3.875rem] md:-bottom-10 absolute inset-x-0 z-[10] flex flex-col items-center justify-center gap-2"
+                }
+            >
+                <AnimatePresence initial={false} mode="sync">
+                    {isEmpty ? (
                         <motion.div
-                            initial={{ opacity: 0, y: 10 }}
+                            key="composer-hero"
+                            initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className="mb-8 text-center"
+                            exit={{ opacity: 0, y: -20 }}
+                            transition={{ duration: 0.2, ease: "easeInOut" }}
+                            className="flex flex-col items-center"
                         >
-                            {!selectedPersonaOption && (
-                                <h1 className="px-4 font-medium text-3xl text-foreground">
-                                    {userName
-                                        ? `What do you want to explore, ${userName?.split(" ")[0]}?`
-                                        : "What do you want to explore?"}
-                                </h1>
-                            )}
-                            {selectedPersonaOption && (
-                                <div className="mt-4 space-y-4 px-4">
-                                    <div className="mx-auto max-w-2xl space-y-1">
-                                        <p className="font-medium text-lg">
-                                            {selectedPersonaOption.name}
-                                        </p>
-                                        <p className="text-muted-foreground text-sm">
-                                            {selectedPersonaOption.description}
-                                        </p>
-                                    </div>
-                                    {selectedPersonaOption.conversationStarters.length > 0 && (
-                                        <div className="mx-auto flex max-w-3xl flex-wrap justify-center gap-2">
-                                            {selectedPersonaOption.conversationStarters.map(
-                                                (starter) => (
-                                                    <button
-                                                        key={starter}
-                                                        type="button"
-                                                        className="rounded-full border border-border bg-background/70 px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent"
-                                                        onClick={() => {
-                                                            multimodalInputRef.current?.setValue(
-                                                                starter
-                                                            )
-                                                        }}
-                                                    >
-                                                        {starter}
-                                                    </button>
-                                                )
-                                            )}
-                                        </div>
-                                    )}
+                            {hasSelectedPersonaAvatar && selectedPersonaOption ? (
+                                <PersonaAvatar
+                                    name={selectedPersonaOption.name}
+                                    avatarKind={selectedPersonaOption.avatarKind}
+                                    avatarValue={selectedPersonaOption.avatarValue}
+                                    className="mb-6 size-16 border-2 border-border shadow-sm"
+                                    rounded="full"
+                                />
+                            ) : (
+                                <div className="mb-6 size-16 rounded-full border-2 opacity-80">
+                                    <Logo />
                                 </div>
                             )}
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="text-center"
+                            >
+                                {!selectedPersonaOption && (
+                                    <h1 className="px-4 font-medium text-3xl text-foreground">
+                                        {userName
+                                            ? `What do you want to explore, ${userName?.split(" ")[0]}?`
+                                            : "What do you want to explore?"}
+                                    </h1>
+                                )}
+                                {selectedPersonaOption && (
+                                    <div className="mt-4 space-y-4 px-4">
+                                        <div className="mx-auto max-w-2xl space-y-1">
+                                            <p className="font-medium text-lg">
+                                                {selectedPersonaOption.name}
+                                            </p>
+                                            <p className="text-muted-foreground text-sm">
+                                                {selectedPersonaOption.description}
+                                            </p>
+                                        </div>
+                                        {selectedPersonaOption.conversationStarters.length > 0 && (
+                                            <div className="mx-auto flex max-w-3xl flex-wrap justify-center gap-2">
+                                                {selectedPersonaOption.conversationStarters.map(
+                                                    (starter) => (
+                                                        <button
+                                                            key={starter}
+                                                            type="button"
+                                                            className="rounded-full border border-border bg-background/70 px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent"
+                                                            onClick={() => {
+                                                                multimodalInputRef.current?.setValue(
+                                                                    starter
+                                                                )
+                                                            }}
+                                                        >
+                                                            {starter}
+                                                        </button>
+                                                    )
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </motion.div>
                         </motion.div>
-
+                    ) : (
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ duration: 0.2 }}
-                            className="w-full max-w-4xl px-4"
+                            key="bottom-controls"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 20 }}
+                            transition={{ duration: 0.2, ease: "easeInOut" }}
                         >
-                            <MultimodalInput
-                                ref={multimodalInputRef}
-                                onSubmit={handleInputSubmitWithScroll}
-                                status={status}
-                                threadId={threadId}
+                            <StickToBottomButton
+                                isAtBottom={isAtBottom}
+                                scrollToBottom={scrollToBottom}
                             />
                         </motion.div>
-                    </motion.div>
-                ) : (
-                    <motion.div
-                        key="bottom-input"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 20 }}
-                        transition={{ duration: 0.2, ease: "easeInOut" }}
-                        className="-bottom-[3.875rem] md:-bottom-10 absolute inset-x-0 z-[10] flex flex-col items-center justify-center gap-2"
-                    >
-                        <StickToBottomButton
-                            isAtBottom={isAtBottom}
-                            scrollToBottom={scrollToBottom}
-                        />
-                        <MultimodalInput
-                            ref={multimodalInputRef}
-                            onSubmit={handleInputSubmitWithScroll}
-                            status={status}
-                            threadId={threadId}
-                        />
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                    )}
+                </AnimatePresence>
+
+                <motion.div
+                    layout
+                    initial={false}
+                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                    className={isEmpty ? "w-full max-w-4xl" : "w-full"}
+                >
+                    <MultimodalInput
+                        ref={multimodalInputRef}
+                        onSubmit={handleInputSubmitWithScroll}
+                        status={status}
+                        threadId={threadId}
+                    />
+                </motion.div>
+            </motion.div>
         </motion.div>
     )
 }

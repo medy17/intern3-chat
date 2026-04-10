@@ -60,6 +60,7 @@ import {
     X,
     Zap
 } from "lucide-react"
+import { motion } from "motion/react"
 import {
     forwardRef,
     useCallback,
@@ -858,18 +859,32 @@ export const MultimodalInput = forwardRef<
                     />
 
                     <PromptInputActions className="flex items-center gap-2 pt-2">
-                        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden sm:gap-2">
+                        <motion.div
+                            layout
+                            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                            className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden sm:gap-2"
+                        >
                             {selectedModel && (
-                                <ModelSelector
-                                    selectedModel={selectedModel}
-                                    onModelChange={setSelectedModel}
-                                    shortcutTarget="composer"
-                                />
+                                <motion.div
+                                    layout
+                                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                                    className="shrink-0"
+                                >
+                                    <ModelSelector
+                                        selectedModel={selectedModel}
+                                        onModelChange={setSelectedModel}
+                                        shortcutTarget="composer"
+                                    />
+                                </motion.div>
                             )}
                             <PersonaSelector threadId={threadId} />
 
                             {/* Desktop: Show everything inline */}
-                            <div className="hidden items-center gap-2 sm:flex">
+                            <motion.div
+                                layout
+                                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                                className="hidden items-center gap-2 sm:flex"
+                            >
                                 {modelSupportsImageSizing && (
                                     <AspectRatioSelector selectedModel={selectedModel} />
                                 )}
@@ -921,10 +936,14 @@ export const MultimodalInput = forwardRef<
                                         <ReasoningEffortSelector selectedModel={selectedModel} />
                                     </>
                                 )}
-                            </div>
+                            </motion.div>
 
                             {/* Mobile: Show attach inline, and ellipsis menu for everything else */}
-                            <div className="flex items-center gap-2 sm:hidden">
+                            <motion.div
+                                layout
+                                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                                className="flex items-center gap-2 sm:hidden"
+                            >
                                 {!isImageModel && (
                                     <PromptInputAction tooltip="Attach files">
                                         <Button
@@ -999,8 +1018,8 @@ export const MultimodalInput = forwardRef<
                                         </PopoverContent>
                                     </Popover>
                                 )}
-                            </div>
-                        </div>
+                            </motion.div>
+                        </motion.div>
 
                         <PromptInputAction
                             tooltip={
