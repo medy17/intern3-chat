@@ -22,6 +22,7 @@ describe("library-search", () => {
             })
         ).toEqual({
             page: 3,
+            pageSize: 20,
             sort: "oldest",
             modelIds: ["flux-1", "seedream"],
             resolutions: ["2K"],

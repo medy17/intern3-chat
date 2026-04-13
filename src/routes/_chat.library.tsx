@@ -1066,8 +1066,8 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
         api.images.getGeneratedImageFacetOptions,
         {
             key: session.user?.id
-                ? `library-filter-options:${__APP_BUILD_ID__}:${session.user.id}`
-                : `library-filter-options:${__APP_BUILD_ID__}:guest`,
+                ? `library-filter-options:${session.user.id}`
+                : "library-filter-options:guest",
             default: undefined
         },
         session.user?.id ? {} : "skip"
