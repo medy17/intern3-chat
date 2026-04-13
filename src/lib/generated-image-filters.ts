@@ -1,4 +1,7 @@
-import { SELECTABLE_IMAGE_ASPECT_RATIOS } from "@/lib/image-aspect-ratios"
+import {
+    SELECTABLE_IMAGE_ASPECT_RATIOS,
+    type SelectableImageAspectRatio
+} from "@/lib/image-aspect-ratios"
 
 export type GeneratedImageOrientation = "portrait" | "landscape" | "square"
 
@@ -16,7 +19,15 @@ type FilterableGeneratedImage = {
     createdAt: number
 }
 
-const parseAspectRatioDimensions = (aspectRatio?: string) => {
+type AspectRatioDimensions = {
+    width: number
+    height: number
+}
+
+const isDefined = <T>(value: T | null | undefined): value is T => value != null
+const isNonEmptyString = (value: string): value is string => value.length > 0
+
+const parseAspectRatioDimensions = (aspectRatio?: string): AspectRatioDimensions | null => {
     if (!aspectRatio) return null
 
     if (aspectRatio.includes("x")) {
@@ -39,7 +50,7 @@ const parseAspectRatioDimensions = (aspectRatio?: string) => {
 const normalizeValues = (values?: string[] | null) => {
     if (!values?.length) return undefined
 
-    const normalized = [...new Set(values.map((value) => value.trim()).filter(Boolean))]
+    const normalized = [...new Set(values.map((value) => value.trim()).filter(isNonEmptyString))]
     return normalized.length > 0 ? normalized : undefined
 }
 
@@ -47,7 +58,9 @@ const normalizeAspectRatios = (values?: string[] | null) => {
     if (!values?.length) return undefined
 
     const normalized = [
-        ...new Set(values.map((value) => normalizeGeneratedImageAspectRatio(value)).filter(Boolean))
+        ...new Set(
+            values.map((value) => normalizeGeneratedImageAspectRatio(value)).filter(isDefined)
+        )
     ]
 
     return normalized.length > 0 ? normalized : undefined
@@ -69,11 +82,11 @@ const getAspectRatioValue = (aspectRatio?: string) => {
     return dimensions ? dimensions.width / dimensions.height : null
 }
 
-export const normalizeGeneratedImageAspectRatio = (aspectRatio?: string) => {
+export const normalizeGeneratedImageAspectRatio = (aspectRatio?: string): string | undefined => {
     const ratio = getAspectRatioValue(aspectRatio)
     if (ratio === null) return undefined
 
-    let closestRatio = SELECTABLE_IMAGE_ASPECT_RATIOS[0]
+    let closestRatio: SelectableImageAspectRatio = SELECTABLE_IMAGE_ASPECT_RATIOS[0]
     let closestDistance = Number.POSITIVE_INFINITY
 
     for (const candidate of SELECTABLE_IMAGE_ASPECT_RATIOS) {
