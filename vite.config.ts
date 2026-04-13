@@ -13,6 +13,8 @@ const sandpackSsrStub = path.resolve(__dirname, "./src/lib/sandpack-react-ssr-st
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), "")
+    const appBuildId =
+        env.VERCEL_GIT_COMMIT_SHA?.trim() || env.VERCEL_URL?.trim() || `local-${mode}`
     const convexApiUrl = env.VITE_CONVEX_API_URL?.trim()
     const convexApiTarget = convexApiUrl ? new URL(convexApiUrl) : null
     const convexApiOrigin = convexApiTarget
@@ -21,6 +23,9 @@ export default defineConfig(({ mode }) => {
     const convexApiBasePath = convexApiTarget?.pathname.replace(/\/$/, "") || ""
 
     return {
+        define: {
+            __APP_BUILD_ID__: JSON.stringify(appBuildId)
+        },
         resolve: {
             alias: {
                 "@/convex": path.resolve(__dirname, "./convex"),
