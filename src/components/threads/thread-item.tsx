@@ -11,7 +11,7 @@ import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
-import { Link, useParams } from "@tanstack/react-router"
+import { Link } from "@tanstack/react-router"
 import { useAction, useConvex, useMutation } from "convex/react"
 import {
     Check,
@@ -31,6 +31,7 @@ import type { Thread } from "./types"
 interface ThreadItemProps {
     thread: Thread
     isInFolder?: boolean
+    isActive?: boolean
     isSelectionMode?: boolean
     isSelected?: boolean
     selectedThreadCount?: number
@@ -54,6 +55,7 @@ export const ThreadItem = memo(
     ({
         thread,
         isInFolder = false,
+        isActive = false,
         isSelectionMode = false,
         isSelected = false,
         selectedThreadCount = 0,
@@ -84,8 +86,6 @@ export const ThreadItem = memo(
         const isMobile = useIsMobile()
         const togglePinMutation = useMutation(api.threads.togglePinThread)
         const regenerateThreadTitle = useAction(api.threads.regenerateThreadTitle)
-        const params = useParams({ strict: false }) as { threadId?: string }
-        const isActive = params.threadId === thread._id
         const showPersonaAvatar = Boolean(thread.personaSource)
 
         const clearLongPressTimer = () => {
@@ -494,20 +494,28 @@ export const ThreadItem = memo(
             prevProps.thread.title === nextProps.thread.title &&
             prevProps.thread.pinned === nextProps.thread.pinned &&
             prevProps.thread.personaName === nextProps.thread.personaName &&
+            prevProps.thread.personaSource === nextProps.thread.personaSource &&
             prevProps.thread.personaAvatarKind === nextProps.thread.personaAvatarKind &&
             prevProps.thread.personaAvatarValue === nextProps.thread.personaAvatarValue &&
             prevProps.isInFolder === nextProps.isInFolder &&
+            prevProps.isActive === nextProps.isActive &&
             prevProps.isSelectionMode === nextProps.isSelectionMode &&
             prevProps.isSelected === nextProps.isSelected &&
             prevProps.selectedThreadCount === nextProps.selectedThreadCount &&
             prevProps.enableContextMenu === nextProps.enableContextMenu &&
+            prevProps.enableLongPressSelection === nextProps.enableLongPressSelection &&
             prevProps.canBulkTogglePin === nextProps.canBulkTogglePin &&
             prevProps.areAllSelectedPinned === nextProps.areAllSelectedPinned &&
+            prevProps.onOpenRenameDialog === nextProps.onOpenRenameDialog &&
+            prevProps.onOpenMoveDialog === nextProps.onOpenMoveDialog &&
+            prevProps.onOpenDeleteDialog === nextProps.onOpenDeleteDialog &&
             prevProps.onExportThread === nextProps.onExportThread &&
             prevProps.onExportSelected === nextProps.onExportSelected &&
             prevProps.onBulkTogglePin === nextProps.onBulkTogglePin &&
             prevProps.onOpenBulkMoveDialog === nextProps.onOpenBulkMoveDialog &&
-            prevProps.onOpenBulkDeleteDialog === nextProps.onOpenBulkDeleteDialog
+            prevProps.onOpenBulkDeleteDialog === nextProps.onOpenBulkDeleteDialog &&
+            prevProps.onToggleSelection === nextProps.onToggleSelection &&
+            prevProps.onStartSelection === nextProps.onStartSelection
         )
     }
 )

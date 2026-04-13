@@ -1,6 +1,5 @@
 import {
     type ErrorComponentProps,
-    Outlet,
     createFileRoute,
     useLocation,
     useParams
@@ -8,11 +7,20 @@ import {
 import { motion } from "motion/react"
 import { useEffect, useState } from "react"
 
+import { Chat } from "@/components/chat"
+import { FolderChat } from "@/components/folder-chat"
 import { Header } from "@/components/header"
 import { OnboardingProvider } from "@/components/onboarding/onboarding-provider"
+import { SharedChat } from "@/components/shared-chat"
 import { ThreadsSidebar } from "@/components/threads-sidebar"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
-import { isRestorableChatPath, setLastChatRoute, setLastLibraryRoute } from "@/lib/last-chat-route"
+import type { Id } from "@/convex/_generated/dataModel"
+import {
+    isRestorableChatPath,
+    peekLastChatRoute,
+    setLastChatRoute,
+    setLastLibraryRoute
+} from "@/lib/last-chat-route"
 import {
     DEFAULT_LIBRARY_SEARCH,
     type LibrarySearchState,
@@ -36,6 +44,113 @@ const areLibrarySearchStatesEqual = (left: LibrarySearchState, right: LibrarySea
     areStringArraysEqual(left.aspectRatios, right.aspectRatios) &&
     areStringArraysEqual(left.orientations, right.orientations)
 
+type CachedChatTarget =
+    | { kind: "root" }
+    | { kind: "thread"; threadId: string }
+    | { kind: "folder"; folderId: string }
+    | { kind: "folderThread"; folderId: string; threadId: string }
+    | { kind: "shared"; sharedThreadId: string }
+
+const parseCachedChatTarget = (hrefOrPath: string): CachedChatTarget | null => {
+    const pathname = new URL(hrefOrPath, "https://intern3.chat").pathname
+
+    if (pathname === "/") {
+        return { kind: "root" }
+    }
+
+    const threadMatch = /^\/thread\/([^/]+)$/.exec(pathname)
+    if (threadMatch) {
+        return {
+            kind: "thread",
+            threadId: threadMatch[1]
+        }
+    }
+
+    const folderThreadMatch = /^\/folder\/([^/]+)\/thread\/([^/]+)$/.exec(pathname)
+    if (folderThreadMatch) {
+        return {
+            kind: "folderThread",
+            folderId: folderThreadMatch[1],
+            threadId: folderThreadMatch[2]
+        }
+    }
+
+    const folderMatch = /^\/folder\/([^/]+)$/.exec(pathname)
+    if (folderMatch) {
+        return {
+            kind: "folder",
+            folderId: folderMatch[1]
+        }
+    }
+
+    const sharedMatch = /^\/s\/([^/]+)$/.exec(pathname)
+    if (sharedMatch) {
+        return {
+            kind: "shared",
+            sharedThreadId: sharedMatch[1]
+        }
+    }
+
+    return null
+}
+
+const areCachedChatTargetsEqual = (
+    left: CachedChatTarget | null,
+    right: CachedChatTarget | null
+) => {
+    if (left === right) return true
+    if (!left || !right || left.kind !== right.kind) return false
+
+    switch (left.kind) {
+        case "root":
+            return true
+        case "thread":
+            return left.threadId === (right.kind === "thread" ? right.threadId : "")
+        case "folder":
+            return left.folderId === (right.kind === "folder" ? right.folderId : "")
+        case "folderThread":
+            return (
+                right.kind === "folderThread" &&
+                left.folderId === right.folderId &&
+                left.threadId === right.threadId
+            )
+        case "shared":
+            return left.sharedThreadId === (right.kind === "shared" ? right.sharedThreadId : "")
+    }
+}
+
+function PersistentChatView({
+    target,
+    isActiveRoute
+}: {
+    target: CachedChatTarget
+    isActiveRoute: boolean
+}) {
+    switch (target.kind) {
+        case "root":
+            return <Chat threadId={undefined} isActiveRoute={isActiveRoute} />
+        case "thread":
+            return <Chat threadId={target.threadId} isActiveRoute={isActiveRoute} />
+        case "folder":
+            return (
+                <FolderChat
+                    folderId={target.folderId as Id<"projects">}
+                    isActiveRoute={isActiveRoute}
+                />
+            )
+        case "folderThread":
+            return (
+                <Chat
+                    threadId={target.threadId}
+                    folderId={target.folderId as Id<"projects">}
+                    isActiveRoute={isActiveRoute}
+                />
+            )
+        case "shared":
+            return <SharedChat sharedThreadId={target.sharedThreadId} />
+    }
+}
+
 function ChatLayout() {
     const params = useParams({ strict: false })
     const location = useLocation()
@@ -47,6 +162,13 @@ function ChatLayout() {
     const [cachedLibrarySearch, setCachedLibrarySearch] =
         useState<LibrarySearchState>(DEFAULT_LIBRARY_SEARCH)
     const [hasMountedLibrary, setHasMountedLibrary] = useState(false)
+    const [cachedChatTarget, setCachedChatTarget] = useState<CachedChatTarget | null>(() => {
+        if (typeof window === "undefined") return null
+
+        const storedRoute = peekLastChatRoute()
+        return storedRoute ? parseCachedChatTarget(storedRoute) : null
+    })
+    const currentChatTarget = isLibraryRoute ? null : parseCachedChatTarget(location.pathname)
 
     useEffect(() => {
         if (!activeLibrarySearch) return
@@ -59,6 +181,17 @@ function ChatLayout() {
     }, [activeLibrarySearch])
 
     useEffect(() => {
+        if (isLibraryRoute) return
+
+        const nextTarget = parseCachedChatTarget(location.pathname)
+        if (!nextTarget) return
+
+        setCachedChatTarget((previous) =>
+            areCachedChatTargetsEqual(previous, nextTarget) ? previous : nextTarget
+        )
+    }, [isLibraryRoute, location.pathname])
+
+    useEffect(() => {
         if (isLibraryRoute) {
             setLastLibraryRoute(location.href)
             return
@@ -67,6 +200,8 @@ function ChatLayout() {
         if (!isRestorableChatPath(location.pathname)) return
         setLastChatRoute(location.href)
     }, [isLibraryRoute, location.href, location.pathname])
+
+    const chatTargetToRender = currentChatTarget ?? cachedChatTarget
 
     return (
         <OnboardingProvider>
@@ -106,19 +241,30 @@ function ChatLayout() {
                                     />
                                 </motion.div>
                             ) : null}
-                            {!isLibraryRoute && (
+                            {chatTargetToRender ? (
                                 <motion.div
-                                    initial={{ opacity: 0, y: 18, scale: 0.985 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    initial={false}
+                                    animate={{
+                                        opacity: isLibraryRoute ? 0 : 1,
+                                        y: isLibraryRoute ? 18 : 0,
+                                        scale: isLibraryRoute ? 0.985 : 1
+                                    }}
                                     transition={{
                                         duration: 0.28,
                                         ease: [0.16, 1, 0.3, 1]
                                     }}
-                                    className="flex min-h-0 flex-1 flex-col"
+                                    aria-hidden={isLibraryRoute}
+                                    className="absolute inset-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+                                    style={{
+                                        pointerEvents: isLibraryRoute ? "none" : "auto"
+                                    }}
                                 >
-                                    <Outlet />
+                                    <PersistentChatView
+                                        target={chatTargetToRender}
+                                        isActiveRoute={!isLibraryRoute}
+                                    />
                                 </motion.div>
-                            )}
+                            ) : null}
                         </div>
                     </div>
                 </SidebarInset>

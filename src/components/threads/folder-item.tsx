@@ -41,7 +41,7 @@ import {
 } from "@/lib/project-constants"
 import { cn } from "@/lib/utils"
 import { Link } from "@tanstack/react-router"
-import { useNavigate, useParams } from "@tanstack/react-router"
+import { useNavigate } from "@tanstack/react-router"
 import { useMutation } from "convex/react"
 import { Check, CheckSquare2, Edit3, Loader2, Minus, MoreHorizontal, Trash2 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
@@ -53,6 +53,7 @@ type FolderSelectionState = "none" | "some" | "all"
 interface FolderItemProps {
     project: Project
     numThreads: number
+    isCurrentFolder?: boolean
     isSelectionMode?: boolean
     selectionState?: FolderSelectionState
     enableContextMenu?: boolean
@@ -64,6 +65,7 @@ interface FolderItemProps {
 export function FolderItem({
     project,
     numThreads,
+    isCurrentFolder = false,
     isSelectionMode = false,
     selectionState = "none",
     enableContextMenu = true,
@@ -88,8 +90,6 @@ export function FolderItem({
     const updateProjectMutation = useMutation(api.folders.updateProject)
     const deleteProjectMutation = useMutation(api.folders.deleteProject)
     const navigate = useNavigate()
-    const params = useParams({ strict: false }) as { folderId?: string }
-    const isCurrentFolder = params.folderId === project._id
 
     const handleEdit = async () => {
         const trimmedName = editName.trim()

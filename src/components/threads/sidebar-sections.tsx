@@ -7,6 +7,7 @@ import {
     SidebarMenu
 } from "@/components/ui/sidebar"
 import { getLastLibraryRoute } from "@/lib/last-chat-route"
+import { DEFAULT_LIBRARY_SEARCH } from "@/lib/library-search"
 import { cn } from "@/lib/utils"
 import { Link, useNavigate } from "@tanstack/react-router"
 import { isAfter, isToday, isYesterday, subDays } from "date-fns"
@@ -69,6 +70,7 @@ function ThreadsGroup({
     title,
     threads,
     icon,
+    activeThreadId,
     isSelectionMode,
     selectedThreadIds,
     onExportSelected,
@@ -89,6 +91,7 @@ function ThreadsGroup({
     title: string
     threads: Thread[]
     icon?: ReactNode
+    activeThreadId?: string
     isSelectionMode?: boolean
     selectedThreadIds: string[]
     onExportSelected?: () => Promise<void> | void
@@ -120,6 +123,7 @@ function ThreadsGroup({
                         <ThreadItem
                             key={thread._id}
                             thread={thread}
+                            isActive={activeThreadId === thread._id}
                             isSelectionMode={isSelectionMode}
                             isSelected={selectedThreadIds.includes(thread._id)}
                             selectedThreadCount={selectedThreadIds.length}
@@ -152,6 +156,7 @@ function LibraryLink() {
         <div className="px-2">
             <Link
                 to="/library"
+                search={DEFAULT_LIBRARY_SEARCH}
                 className={cn(buttonVariants({ variant: "ghost" }), "h-8 w-full justify-start")}
                 onClick={(event) => {
                     event.preventDefault()
@@ -176,6 +181,7 @@ export type FolderGroupActions = {
 
 export function FoldersSection({
     projects,
+    currentFolderId,
     isSelectionMode,
     enableContextMenu,
     enableLongPressSelection,
@@ -184,6 +190,7 @@ export function FoldersSection({
     onStartFolderSelection
 }: {
     projects: SidebarProject[]
+    currentFolderId?: string
 } & FolderGroupActions) {
     const [isOpen, setIsOpen] = useState(() => {
         if (typeof window !== "undefined") {
@@ -222,6 +229,7 @@ export function FoldersSection({
                                         key={project._id}
                                         project={project}
                                         numThreads={project.threadCount}
+                                        isCurrentFolder={currentFolderId === project._id}
                                         isSelectionMode={isSelectionMode}
                                         selectionState={getFolderSelectionState?.(
                                             project,
@@ -263,9 +271,11 @@ export type ThreadGroupActions = {
 
 export function ThreadSections({
     groupedThreads,
+    activeThreadId,
     ...threadGroupActions
 }: {
     groupedThreads: GroupedThreads
+    activeThreadId?: string
 } & ThreadGroupActions) {
     const sections = [
         {
@@ -285,6 +295,7 @@ export function ThreadSections({
             title={section.title}
             threads={section.threads}
             icon={section.icon}
+            activeThreadId={activeThreadId}
             {...threadGroupActions}
         />
     ))

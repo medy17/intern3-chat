@@ -29,9 +29,10 @@ import { StickToBottomButton } from "./stick-to-bottom-button"
 interface ChatProps {
     threadId: string | undefined
     folderId?: Id<"projects">
+    isActiveRoute?: boolean
 }
 
-const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
+const ChatContent = ({ threadId: routeThreadId, folderId, isActiveRoute = true }: ChatProps) => {
     const { selectedModel, setSelectedModel } = useModelStore()
     const { threadId } = useThreadSync({ routeThreadId })
     const { scrollToBottom, isAtBottom, contentRef, scrollRef } = useStickToBottom({
@@ -44,7 +45,7 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
     const defaultModelId = useDefaultModelId()
     const multimodalInputRef = useRef<MultimodalInputRef>(null)
 
-    useDynamicTitle({ threadId })
+    useDynamicTitle({ threadId, enabled: isActiveRoute })
 
     useEffect(() => {
         if (!selectedModel && defaultModelId) {
@@ -53,6 +54,10 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
     }, [defaultModelId, selectedModel, setSelectedModel])
 
     useEffect(() => {
+        if (!isActiveRoute) {
+            return
+        }
+
         const handleKeyDown = (event: KeyboardEvent) => {
             if (!isShortcutModifierPressed(event) || event.shiftKey || event.altKey) {
                 return
@@ -68,7 +73,7 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
 
         document.addEventListener("keydown", handleKeyDown)
         return () => document.removeEventListener("keydown", handleKeyDown)
-    }, [])
+    }, [isActiveRoute])
 
     const projects = useDiskCachedQuery(
         api.folders.getUserProjects,
@@ -146,11 +151,15 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
     }, [resetChat])
 
     useEffect(() => {
+        if (!isActiveRoute) {
+            return
+        }
+
         document.addEventListener("new_chat", resetAll)
         return () => {
             document.removeEventListener("new_chat", resetAll)
         }
-    }, [resetAll])
+    }, [isActiveRoute, resetAll])
 
     if (!session?.user && !isPending) {
         return (
@@ -167,7 +176,7 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
             className="relative flex h-[calc(100dvh-64px)] flex-col"
         >
-            <FullPageDropOverlay onDrop={handleFileDrop} />
+            <FullPageDropOverlay onDrop={handleFileDrop} enabled={isActiveRoute} />
 
             <Messages
                 messages={messages}
@@ -285,6 +294,7 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
                         onSubmit={handleInputSubmitWithScroll}
                         status={status}
                         threadId={threadId}
+                        isActive={isActiveRoute}
                     />
                 </motion.div>
             </motion.div>
@@ -292,6 +302,6 @@ const ChatContent = ({ threadId: routeThreadId, folderId }: ChatProps) => {
     )
 }
 
-export const Chat = ({ threadId, folderId }: ChatProps) => {
-    return <ChatContent threadId={threadId} folderId={folderId} />
+export const Chat = ({ threadId, folderId, isActiveRoute = true }: ChatProps) => {
+    return <ChatContent threadId={threadId} folderId={folderId} isActiveRoute={isActiveRoute} />
 }

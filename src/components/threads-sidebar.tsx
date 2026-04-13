@@ -118,7 +118,7 @@ export function ThreadsSidebar() {
     const navigate = useNavigate()
     const location = useLocation()
     const isLibraryMode = location.pathname.startsWith("/library")
-    const params = useParams({ strict: false }) as { threadId?: string }
+    const params = useParams({ strict: false }) as { threadId?: string; folderId?: string }
     const isMobile = useIsMobile()
     const { setOpenMobile } = useSidebar()
     const auth = useConvexAuth()
@@ -671,6 +671,7 @@ export function ThreadsSidebar() {
                     <LibraryLink />
                     <FoldersSection
                         projects={resolvedProjects}
+                        currentFolderId={params.folderId}
                         isSelectionMode={isFolderSelectionMode}
                         enableContextMenu={!isMobile}
                         enableLongPressSelection={isMobile}
@@ -691,6 +692,7 @@ export function ThreadsSidebar() {
                 )}
                 <FoldersSection
                     projects={resolvedProjects}
+                    currentFolderId={params.folderId}
                     isSelectionMode={isFolderSelectionMode}
                     enableContextMenu={!isMobile}
                     enableLongPressSelection={isMobile}
@@ -701,6 +703,7 @@ export function ThreadsSidebar() {
                 {allThreads.length > 0 && (
                     <ThreadSections
                         groupedThreads={groupedNonProjectThreads}
+                        activeThreadId={params.threadId}
                         isSelectionMode={isThreadSelectionMode}
                         selectedThreadIds={isThreadSelectionMode ? selectedThreadIds : []}
                         enableContextMenu={!isMobile}

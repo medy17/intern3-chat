@@ -6,9 +6,14 @@ import { useCallback, useEffect, useRef, useState } from "react"
 interface FullPageDropOverlayProps {
     onDrop: (files: File[]) => void
     className?: string
+    enabled?: boolean
 }
 
-export function FullPageDropOverlay({ onDrop, className }: FullPageDropOverlayProps) {
+export function FullPageDropOverlay({
+    onDrop,
+    className,
+    enabled = true
+}: FullPageDropOverlayProps) {
     const [isDragOver, setIsDragOver] = useState(false)
     const [isSuspended, setIsSuspended] = useState(false)
     const dragCounterRef = useRef(0)
@@ -69,6 +74,12 @@ export function FullPageDropOverlay({ onDrop, className }: FullPageDropOverlayPr
     )
 
     useEffect(() => {
+        if (!enabled) {
+            dragCounterRef.current = 0
+            setIsDragOver(false)
+            return
+        }
+
         const onDialogStateChange = (event: Event) => {
             const customEvent = event as CustomEvent<boolean>
             const isOpen = Boolean(customEvent.detail)
@@ -85,9 +96,15 @@ export function FullPageDropOverlay({ onDrop, className }: FullPageDropOverlayPr
         return () => {
             document.removeEventListener(THREAD_IMPORT_DIALOG_STATE_EVENT, onDialogStateChange)
         }
-    }, [])
+    }, [enabled])
 
     useEffect(() => {
+        if (!enabled) {
+            dragCounterRef.current = 0
+            setIsDragOver(false)
+            return
+        }
+
         window.addEventListener("dragenter", handleDragEnter)
         window.addEventListener("dragleave", handleDragLeave)
         window.addEventListener("dragover", handleDragOver)
@@ -99,7 +116,7 @@ export function FullPageDropOverlay({ onDrop, className }: FullPageDropOverlayPr
             window.removeEventListener("dragover", handleDragOver)
             window.removeEventListener("drop", handleDrop)
         }
-    }, [handleDragEnter, handleDragLeave, handleDragOver, handleDrop])
+    }, [enabled, handleDragEnter, handleDragLeave, handleDragOver, handleDrop])
 
     return (
         <div

@@ -269,8 +269,9 @@ export const MultimodalInput = forwardRef<
         onSubmit: (input?: string, files?: UploadedFile[]) => void
         status: ReturnType<typeof useChat>["status"]
         threadId?: string
+        isActive?: boolean
     }
->(function MultimodalInput({ onSubmit, status, threadId }, ref) {
+>(function MultimodalInput({ onSubmit, status, threadId, isActive = true }, ref) {
     const { token } = useToken()
     const session = useSession()
     const auth = useConvexAuth()
@@ -804,6 +805,10 @@ export const MultimodalInput = forwardRef<
     }, [])
 
     useEffect(() => {
+        if (!isActive) {
+            return
+        }
+
         const handleGlobalPaste = (e: ClipboardEvent) => {
             if (
                 document.activeElement?.tagName === "TEXTAREA" ||
@@ -815,7 +820,7 @@ export const MultimodalInput = forwardRef<
 
         document.addEventListener("paste", handleGlobalPaste)
         return () => document.removeEventListener("paste", handleGlobalPaste)
-    }, [handlePaste])
+    }, [handlePaste, isActive])
 
     if (!isClient) return null
 
