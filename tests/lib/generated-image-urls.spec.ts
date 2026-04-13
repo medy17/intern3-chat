@@ -1,11 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 const { browserEnvMock } = vi.hoisted(() => ({
-    browserEnvMock: vi.fn(() => "https://api.example.com/")
+    browserEnvMock: vi.fn((key: string) =>
+        key === "VITE_CLOUDFLARE_IMAGE_HOST"
+            ? "https://img.silkchat.dev"
+            : "https://api.example.com/"
+    )
 }))
 
 vi.mock("@/lib/browser-env", () => ({
-    browserEnv: browserEnvMock
+    browserEnv: browserEnvMock,
+    optionalBrowserEnv: browserEnvMock
 }))
 
 import {
@@ -39,12 +44,13 @@ describe("generated-image-urls", () => {
     it("builds a Cloudflare transformation URL from a remote source URL", () => {
         expect(
             getCloudflareTransformedImageUrl({
+                imageHost: "https://img.silkchat.dev",
                 sourceUrl: "https://api.example.com/r2?key=generated%2Fkey-1",
                 width: 540,
                 quality: 76
             })
         ).toBe(
-            "/cdn-cgi/image/fit=scale-down,width=540,quality=76,format=auto/https://api.example.com/r2?key=generated%2Fkey-1"
+            "https://img.silkchat.dev/cdn-cgi/image/fit=scale-down,width=540,quality=76,format=auto/https://api.example.com/r2%3Fkey=generated%2Fkey-1"
         )
     })
 
@@ -65,13 +71,7 @@ describe("generated-image-urls", () => {
         ).toBe("https://api.example.com/r2?key=generated%2Fkey-1")
     })
 
-    it("still returns the source URL outside the Cloudflare-served host in the Vitest dev environment", () => {
-        vi.stubGlobal("window", {
-            location: {
-                hostname: "silkchat.app"
-            }
-        })
-
+    it("builds a transformed image URL when a Cloudflare image host is configured", () => {
         expect(
             getOptimizedGeneratedImageUrl({
                 storageKey: "generated/key-2",
@@ -79,13 +79,15 @@ describe("generated-image-urls", () => {
                 longEdge: 720,
                 quality: 76
             })
-        ).toBe("https://api.example.com/r2?key=generated%2Fkey-2")
+        ).toBe(
+            "https://img.silkchat.dev/cdn-cgi/image/fit=scale-down,width=405,quality=76,format=auto/https://api.example.com/r2%3Fkey=generated%2Fkey-2"
+        )
     })
 
-    it("builds responsive library metadata even when URLs bypass optimization", () => {
+    it("builds responsive library metadata with Cloudflare transformation URLs", () => {
         vi.stubGlobal("window", {
             location: {
-                hostname: "silkchat.app"
+                hostname: "www.silkchat.dev"
             }
         })
 
@@ -95,10 +97,10 @@ describe("generated-image-urls", () => {
                 aspectRatio: "3:4"
             })
         ).toEqual({
-            src: "https://api.example.com/r2?key=generated%2Fkey-3",
+            src: "https://img.silkchat.dev/cdn-cgi/image/fit=scale-down,width=540,quality=76,format=auto/https://api.example.com/r2%3Fkey=generated%2Fkey-3",
             srcSet: [
-                "https://api.example.com/r2?key=generated%2Fkey-3 432w",
-                "https://api.example.com/r2?key=generated%2Fkey-3 540w"
+                "https://img.silkchat.dev/cdn-cgi/image/fit=scale-down,width=432,quality=80,format=auto/https://api.example.com/r2%3Fkey=generated%2Fkey-3 432w",
+                "https://img.silkchat.dev/cdn-cgi/image/fit=scale-down,width=540,quality=76,format=auto/https://api.example.com/r2%3Fkey=generated%2Fkey-3 540w"
             ].join(", "),
             sizes: "(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw",
             useCssBlurFallback: false
@@ -109,13 +111,15 @@ describe("generated-image-urls", () => {
                 storageKey: "generated/key-3",
                 aspectRatio: "3:4"
             })
-        ).toBe("https://api.example.com/r2?key=generated%2Fkey-3")
+        ).toBe(
+            "https://img.silkchat.dev/cdn-cgi/image/fit=scale-down,width=810,quality=84,format=auto/https://api.example.com/r2%3Fkey=generated%2Fkey-3"
+        )
     })
 
     it("falls back to css blur for hidden tiles when avif and webp are unsupported", () => {
         vi.stubGlobal("window", {
             location: {
-                hostname: "silkchat.app"
+                hostname: "www.silkchat.dev"
             }
         })
         vi.stubGlobal("document", {
@@ -131,20 +135,20 @@ describe("generated-image-urls", () => {
                 hidden: true
             })
         ).toEqual({
-            src: "https://api.example.com/r2?key=generated%2Fkey-4",
+            src: "https://img.silkchat.dev/cdn-cgi/image/fit=scale-down,width=720,quality=76,format=auto/https://api.example.com/r2%3Fkey=generated%2Fkey-4",
             srcSet: [
-                "https://api.example.com/r2?key=generated%2Fkey-4 576w",
-                "https://api.example.com/r2?key=generated%2Fkey-4 720w"
+                "https://img.silkchat.dev/cdn-cgi/image/fit=scale-down,width=576,quality=80,format=auto/https://api.example.com/r2%3Fkey=generated%2Fkey-4 576w",
+                "https://img.silkchat.dev/cdn-cgi/image/fit=scale-down,width=720,quality=76,format=auto/https://api.example.com/r2%3Fkey=generated%2Fkey-4 720w"
             ].join(", "),
             sizes: "(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw",
             useCssBlurFallback: true
         })
     })
 
-    it("still falls back to css blur for hidden tiles in the Vitest dev environment", () => {
+    it("still falls back to css blur for hidden tiles on localhost", () => {
         vi.stubGlobal("window", {
             location: {
-                hostname: "silkchat.app"
+                hostname: "localhost"
             }
         })
         vi.stubGlobal("document", {

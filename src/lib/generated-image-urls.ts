@@ -1,8 +1,8 @@
-import { browserEnv } from "@/lib/browser-env"
+import { browserEnv, optionalBrowserEnv } from "@/lib/browser-env"
 import { type PrivateBlurFormat, getConstrainedWidth } from "@/lib/private-blur-variants"
 
-const CLOUDFLARE_IMAGE_TRANSFORM_HOSTS = new Set(["www.silkchat.dev"])
 const DEV_CONVEX_HTTP_PROXY_PREFIX = "/convex-http"
+const LOCAL_IMAGE_HOSTS = new Set(["localhost", "127.0.0.1"])
 
 let preferredPrivateBlurFormat: PrivateBlurFormat | null | undefined
 
@@ -11,15 +11,15 @@ export const resetPrivateBlurFormatCacheForTests = () => {
 }
 
 const shouldBypassEdgeImageOptimization = () => {
-    if (import.meta.env.DEV) {
+    if (typeof window !== "undefined" && LOCAL_IMAGE_HOSTS.has(window.location.hostname)) {
         return true
     }
 
-    if (typeof window !== "undefined") {
-        return !CLOUDFLARE_IMAGE_TRANSFORM_HOSTS.has(window.location.hostname)
+    if (import.meta.env.DEV && !optionalBrowserEnv("VITE_CLOUDFLARE_IMAGE_HOST")) {
+        return true
     }
 
-    return false
+    return !optionalBrowserEnv("VITE_CLOUDFLARE_IMAGE_HOST")
 }
 
 const supportsCanvasMimeType = (mimeType: string) => {
@@ -81,15 +81,23 @@ export const getGeneratedImageCopyUrl = (storageKey: string) => {
     return getGeneratedImageProxyUrl(storageKey)
 }
 
+const getCloudflareSourcePath = (sourceUrl: string) => {
+    const parsed = new URL(sourceUrl)
+    return `${parsed.protocol}//${parsed.host}${parsed.pathname}${parsed.search.replace("?", "%3F")}${parsed.hash.replace("#", "%23")}`
+}
+
 export const getCloudflareTransformedImageUrl = ({
+    imageHost,
     sourceUrl,
     width,
     quality
 }: {
+    imageHost: string
     sourceUrl: string
     width: number
     quality: number
-}) => `/cdn-cgi/image/fit=scale-down,width=${width},quality=${quality},format=auto/${sourceUrl}`
+}) =>
+    `${imageHost.replace(/\/$/, "")}/cdn-cgi/image/fit=scale-down,width=${width},quality=${quality},format=auto/${getCloudflareSourcePath(sourceUrl)}`
 
 export const getOptimizedGeneratedImageUrl = ({
     storageKey,
@@ -109,7 +117,9 @@ export const getOptimizedGeneratedImageUrl = ({
     }
 
     const width = getConstrainedWidth(aspectRatio, longEdge)
+    const imageHost = browserEnv("VITE_CLOUDFLARE_IMAGE_HOST")
     return getCloudflareTransformedImageUrl({
+        imageHost,
         sourceUrl,
         width,
         quality
