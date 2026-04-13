@@ -1,6 +1,9 @@
 import type { GeneratedImageOrientation } from "@/lib/generated-image-filters"
 
 export type ImageSortOption = "newest" | "oldest"
+export type LibraryPageSize = 20 | 30 | 40 | 50
+
+export const LIBRARY_PAGE_SIZE_OPTIONS = [20, 30, 40, 50] as const
 
 export type LibraryFiltersState = {
     modelIds: string[]
@@ -11,6 +14,7 @@ export type LibraryFiltersState = {
 
 export type LibrarySearchState = LibraryFiltersState & {
     page: number
+    pageSize: LibraryPageSize
     sort: ImageSortOption
 }
 
@@ -23,6 +27,7 @@ export const DEFAULT_LIBRARY_FILTERS: LibraryFiltersState = {
 
 export const DEFAULT_LIBRARY_SEARCH: LibrarySearchState = {
     page: 1,
+    pageSize: 20,
     sort: "newest",
     ...DEFAULT_LIBRARY_FILTERS
 }
@@ -49,6 +54,20 @@ const normalizePositiveInteger = (value: unknown) => {
     }
 
     return Math.floor(parsed)
+}
+
+const normalizePageSize = (value: unknown): LibraryPageSize => {
+    const candidate = getFirstValue(value)
+    const parsed =
+        typeof candidate === "number"
+            ? candidate
+            : typeof candidate === "string"
+              ? Number(candidate)
+              : Number.NaN
+
+    return LIBRARY_PAGE_SIZE_OPTIONS.includes(parsed as LibraryPageSize)
+        ? (parsed as LibraryPageSize)
+        : DEFAULT_LIBRARY_SEARCH.pageSize
 }
 
 const normalizeStringArray = (value: unknown) => {
@@ -80,6 +99,7 @@ export const getLibraryFiltersFromSearch = (search: LibrarySearchState): Library
 
 export const validateLibrarySearch = (search: Record<string, unknown>): LibrarySearchState => ({
     page: normalizePositiveInteger(search.page),
+    pageSize: normalizePageSize(search.pageSize),
     sort: getFirstValue(search.sort) === "oldest" ? "oldest" : DEFAULT_LIBRARY_SEARCH.sort,
     modelIds: normalizeStringArray(search.modelIds),
     resolutions: normalizeStringArray(search.resolutions),

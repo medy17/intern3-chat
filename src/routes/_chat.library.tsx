@@ -69,7 +69,9 @@ import {
     DEFAULT_LIBRARY_FILTERS,
     DEFAULT_LIBRARY_SEARCH,
     type ImageSortOption,
+    LIBRARY_PAGE_SIZE_OPTIONS,
     type LibraryFiltersState,
+    type LibraryPageSize,
     type LibrarySearchState,
     cloneLibraryFilters,
     getLibraryFiltersFromSearch,
@@ -107,7 +109,6 @@ export const Route = createFileRoute("/_chat/library")({
     component: LibraryRouteComponent
 })
 
-const IMAGES_PER_PAGE = 50
 type ImageLoadPlaceholder = "tiles" | "skeleton"
 
 const ORIENTATION_LABELS: Record<GeneratedImageOrientation, string> = {
@@ -147,17 +148,20 @@ const toGeneratedImageFilters = (filters: LibraryFiltersState): GeneratedImageFi
 const getLibraryCacheScope = ({
     userId,
     pageNumber,
+    pageSize,
     sortBy,
     filters
 }: {
     userId: string
     pageNumber: number
+    pageSize: number
     sortBy: ImageSortOption
     filters: LibraryFiltersState
 }) =>
     JSON.stringify({
         userId,
         pageNumber,
+        pageSize,
         sortBy,
         filters
     })
@@ -1004,10 +1008,12 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
     const galleryRef = useRef<HTMLDivElement>(null)
     const sortBy = search.sort
     const pageNumber = search.page
-    const currentCursor = pageNumber > 1 ? String((pageNumber - 1) * IMAGES_PER_PAGE) : null
+    const pageSize = search.pageSize
+    const currentCursor = pageNumber > 1 ? String((pageNumber - 1) * pageSize) : null
     const filters = getLibraryFiltersFromSearch(search)
     const [isFiltersDrawerOpen, setIsFiltersDrawerOpen] = useState(false)
     const [draftSortBy, setDraftSortBy] = useState<ImageSortOption>(sortBy)
+    const [draftPageSize, setDraftPageSize] = useState<LibraryPageSize>(pageSize)
     const [draftFilters, setDraftFilters] = useState<LibraryFiltersState>(() =>
         cloneLibraryFilters(filters)
     )
@@ -1027,11 +1033,12 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                 ? getLibraryCacheScope({
                       userId: session.user.id,
                       pageNumber,
+                      pageSize,
                       sortBy,
                       filters
                   })
                 : null,
-        [filters, pageNumber, session.user?.id, sortBy]
+        [filters, pageNumber, pageSize, session.user?.id, sortBy]
     )
     const imagePage = useDiskCachedQuery(
         api.images.paginateGeneratedImages,
@@ -1041,7 +1048,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
         },
         session.user?.id
             ? {
-                  paginationOpts: { numItems: IMAGES_PER_PAGE, cursor: currentCursor },
+                  paginationOpts: { numItems: pageSize, cursor: currentCursor },
                   sortBy,
                   filters: activeFilters
               }
@@ -1166,7 +1173,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
     const totalPages =
         resolvedTotalImages === undefined
             ? undefined
-            : Math.max(1, Math.ceil(resolvedTotalImages / IMAGES_PER_PAGE))
+            : Math.max(1, Math.ceil(resolvedTotalImages / pageSize))
     const canGoPrevious = pageNumber > 1
     const canGoNext = resolvedImagePage ? !resolvedImagePage.isDone : false
     const showPendingGenerations = pageNumber === 1 && !hasActiveFilters
@@ -1179,6 +1186,20 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                 search: (prev) => ({
                     ...prev,
                     sort: value,
+                    page: DEFAULT_LIBRARY_SEARCH.page
+                })
+            })
+        },
+        [navigate]
+    )
+
+    const handlePageSizeChange = useCallback(
+        (value: LibraryPageSize) => {
+            navigate({
+                replace: true,
+                search: (prev) => ({
+                    ...prev,
+                    pageSize: value,
                     page: DEFAULT_LIBRARY_SEARCH.page
                 })
             })
@@ -1240,9 +1261,10 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
 
     const handleOpenFiltersDrawer = useCallback(() => {
         setDraftSortBy(sortBy)
+        setDraftPageSize(pageSize)
         setDraftFilters(cloneLibraryFilters(filters))
         setIsFiltersDrawerOpen(true)
-    }, [filters, sortBy])
+    }, [filters, pageSize, sortBy])
 
     const handleDraftFilterChange = useCallback(
         <K extends keyof LibraryFiltersState>(key: K, value: string) => {
@@ -1266,19 +1288,22 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
 
     const handleResetDraftFilters = useCallback(() => {
         setDraftSortBy(DEFAULT_LIBRARY_SEARCH.sort)
+        setDraftPageSize(DEFAULT_LIBRARY_SEARCH.pageSize)
         setDraftFilters(cloneLibraryFilters(DEFAULT_LIBRARY_FILTERS))
     }, [])
 
     const handleApplyDrawerFilters = useCallback(() => {
         const didSortChange = draftSortBy !== sortBy
+        const didPageSizeChange = draftPageSize !== pageSize
         const didFiltersChange = !areLibraryFiltersEqual(draftFilters, filters)
 
-        if (didSortChange || didFiltersChange) {
+        if (didSortChange || didPageSizeChange || didFiltersChange) {
             navigate({
                 replace: true,
                 search: (prev) => ({
                     ...prev,
                     ...cloneLibraryFilters(draftFilters),
+                    pageSize: draftPageSize,
                     sort: draftSortBy,
                     page: DEFAULT_LIBRARY_SEARCH.page
                 })
@@ -1286,7 +1311,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
         }
 
         setIsFiltersDrawerOpen(false)
-    }, [draftFilters, draftSortBy, filters, navigate, sortBy])
+    }, [draftFilters, draftPageSize, draftSortBy, filters, navigate, pageSize, sortBy])
 
     const handleNextPage = useCallback(() => {
         if (!resolvedImagePage || resolvedImagePage.isDone) return
@@ -1522,6 +1547,30 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                             </SelectContent>
                                         </Select>
                                     </div>
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                        <span className="text-muted-foreground text-xs uppercase tracking-wider">
+                                            Per Page
+                                        </span>
+                                        <Select
+                                            value={String(pageSize)}
+                                            onValueChange={(value) =>
+                                                handlePageSizeChange(
+                                                    Number(value) as LibraryPageSize
+                                                )
+                                            }
+                                        >
+                                            <SelectTrigger className="w-full min-w-28 bg-background sm:w-32">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {LIBRARY_PAGE_SIZE_OPTIONS.map((option) => (
+                                                    <SelectItem key={option} value={String(option)}>
+                                                        {option}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                     {hasActiveFilters && (
                                         <Button
                                             type="button"
@@ -1597,6 +1646,25 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                         value={draftSortBy}
                                         onChange={setDraftSortBy}
                                     />
+                                    <MobileFilterSection title="Results Per Page">
+                                        <Select
+                                            value={String(draftPageSize)}
+                                            onValueChange={(value) =>
+                                                setDraftPageSize(Number(value) as LibraryPageSize)
+                                            }
+                                        >
+                                            <SelectTrigger className="w-full bg-background">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {LIBRARY_PAGE_SIZE_OPTIONS.map((option) => (
+                                                    <SelectItem key={option} value={String(option)}>
+                                                        {option} per page
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </MobileFilterSection>
                                     <MobileCheckboxFilter
                                         title="Model"
                                         selectedValues={draftFilters.modelIds}
@@ -1648,9 +1716,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                         <span className="text-muted-foreground text-sm">
                                             {draftActiveFilterCount > 0
                                                 ? `${draftActiveFilterCount} filters selected`
-                                                : draftSortBy === "newest"
-                                                  ? "Newest first"
-                                                  : "Oldest first"}
+                                                : `${draftPageSize} per page · ${draftSortBy === "newest" ? "Newest first" : "Oldest first"}`}
                                         </span>
                                     </div>
                                     <div className="flex gap-2">
@@ -1843,7 +1909,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                         id="library-pagination"
                                         className="mt-2 text-center text-muted-foreground text-xs"
                                     >
-                                        Showing up to {IMAGES_PER_PAGE} completed images per page
+                                        Showing up to {pageSize} completed images per page
                                     </p>
                                 </div>
                             )}
