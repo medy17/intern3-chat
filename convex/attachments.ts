@@ -51,6 +51,13 @@ export const r2 =
     process.env.R2_SECRET_ACCESS_KEY
         ? new R2(components.r2)
         : r2Unavailable
+
+const LONG_LIVED_TRANSFORM_SOURCE_PREFIXES = ["generations/"]
+const LONG_LIVED_TRANSFORM_SOURCE_CACHE_CONTROL =
+    "public, max-age=604800, s-maxage=2592000, stale-while-revalidate=604800"
+
+const shouldUseLongLivedTransformSourceCache = (key: string) =>
+    LONG_LIVED_TRANSFORM_SOURCE_PREFIXES.some((prefix) => key.startsWith(prefix))
 // Direct file upload HTTP action for files under 5MB
 export const uploadFile = httpAction(async (ctx, request) => {
     try {
@@ -407,6 +414,10 @@ export const getFile = httpAction(async (ctx, req) => {
             if (headerValue) {
                 headers.set(headerName, headerValue)
             }
+        }
+
+        if (shouldUseLongLivedTransformSourceCache(key)) {
+            headers.set("cache-control", LONG_LIVED_TRANSFORM_SOURCE_CACHE_CONTROL)
         }
 
         return new Response(upstream.body, {

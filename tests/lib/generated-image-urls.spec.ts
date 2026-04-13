@@ -9,6 +9,7 @@ vi.mock("@/lib/browser-env", () => ({
 }))
 
 import {
+    getCloudflareTransformedImageUrl,
     getExpandedImageUrl,
     getGeneratedImageCopyUrl,
     getGeneratedImageProxyUrl,
@@ -35,7 +36,19 @@ describe("generated-image-urls", () => {
         )
     })
 
-    it("bypasses Vercel image optimization on localhost", () => {
+    it("builds a Cloudflare transformation URL from a remote source URL", () => {
+        expect(
+            getCloudflareTransformedImageUrl({
+                sourceUrl: "https://api.example.com/r2?key=generated%2Fkey-1",
+                width: 540,
+                quality: 76
+            })
+        ).toBe(
+            "/cdn-cgi/image/fit=scale-down,width=540,quality=76,format=auto/https://api.example.com/r2?key=generated%2Fkey-1"
+        )
+    })
+
+    it("bypasses Cloudflare image optimization on localhost", () => {
         vi.stubGlobal("window", {
             location: {
                 hostname: "localhost"
@@ -52,7 +65,7 @@ describe("generated-image-urls", () => {
         ).toBe("https://api.example.com/r2?key=generated%2Fkey-1")
     })
 
-    it("still returns the source URL in the Vitest dev environment", () => {
+    it("still returns the source URL outside the Cloudflare-served host in the Vitest dev environment", () => {
         vi.stubGlobal("window", {
             location: {
                 hostname: "silkchat.app"

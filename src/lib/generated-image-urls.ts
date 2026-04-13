@@ -1,9 +1,8 @@
 import { browserEnv } from "@/lib/browser-env"
 import { type PrivateBlurFormat, getConstrainedWidth } from "@/lib/private-blur-variants"
 
-const LOCAL_IMAGE_HOSTS = new Set(["localhost", "127.0.0.1"])
+const CLOUDFLARE_IMAGE_TRANSFORM_HOSTS = new Set(["www.silkchat.dev"])
 const DEV_CONVEX_HTTP_PROXY_PREFIX = "/convex-http"
-const VERCEL_IMAGE_WIDTHS = [320, 384, 480, 576, 640, 768, 960, 1080, 1200, 1600] as const
 
 let preferredPrivateBlurFormat: PrivateBlurFormat | null | undefined
 
@@ -11,16 +10,16 @@ export const resetPrivateBlurFormatCacheForTests = () => {
     preferredPrivateBlurFormat = undefined
 }
 
-const shouldBypassVercelOptimization = () => {
+const shouldBypassEdgeImageOptimization = () => {
     if (import.meta.env.DEV) {
         return true
     }
 
-    if (typeof window === "undefined") {
-        return false
+    if (typeof window !== "undefined") {
+        return !CLOUDFLARE_IMAGE_TRANSFORM_HOSTS.has(window.location.hostname)
     }
 
-    return LOCAL_IMAGE_HOSTS.has(window.location.hostname)
+    return false
 }
 
 const supportsCanvasMimeType = (mimeType: string) => {
@@ -82,15 +81,15 @@ export const getGeneratedImageCopyUrl = (storageKey: string) => {
     return getGeneratedImageProxyUrl(storageKey)
 }
 
-const getVercelImageWidth = (targetWidth: number) => {
-    for (const allowedWidth of VERCEL_IMAGE_WIDTHS) {
-        if (targetWidth <= allowedWidth) {
-            return allowedWidth
-        }
-    }
-
-    return VERCEL_IMAGE_WIDTHS[VERCEL_IMAGE_WIDTHS.length - 1]
-}
+export const getCloudflareTransformedImageUrl = ({
+    sourceUrl,
+    width,
+    quality
+}: {
+    sourceUrl: string
+    width: number
+    quality: number
+}) => `/cdn-cgi/image/fit=scale-down,width=${width},quality=${quality},format=auto/${sourceUrl}`
 
 export const getOptimizedGeneratedImageUrl = ({
     storageKey,
@@ -105,12 +104,16 @@ export const getOptimizedGeneratedImageUrl = ({
 }) => {
     const sourceUrl = getGeneratedImageProxyUrl(storageKey)
 
-    if (shouldBypassVercelOptimization()) {
+    if (shouldBypassEdgeImageOptimization()) {
         return sourceUrl
     }
 
-    const width = getVercelImageWidth(getConstrainedWidth(aspectRatio, longEdge))
-    return `/_vercel/image?url=${encodeURIComponent(sourceUrl)}&w=${width}&q=${quality}`
+    const width = getConstrainedWidth(aspectRatio, longEdge)
+    return getCloudflareTransformedImageUrl({
+        sourceUrl,
+        width,
+        quality
+    })
 }
 
 export const getPrivateBlurImageUrl = ({
