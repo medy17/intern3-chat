@@ -38,6 +38,7 @@ const areStringArraysEqual = (left: string[], right: string[]) =>
 const areLibrarySearchStatesEqual = (left: LibrarySearchState, right: LibrarySearchState) =>
     left.page === right.page &&
     left.pageSize === right.pageSize &&
+    left.query === right.query &&
     left.sort === right.sort &&
     areStringArraysEqual(left.modelIds, right.modelIds) &&
     areStringArraysEqual(left.resolutions, right.resolutions) &&

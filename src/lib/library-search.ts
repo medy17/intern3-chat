@@ -1,6 +1,6 @@
 import type { GeneratedImageOrientation } from "@/lib/generated-image-filters"
 
-export type ImageSortOption = "newest" | "oldest"
+export type ImageSortOption = "relevance" | "newest" | "oldest"
 export type LibraryPageSize = 20 | 30 | 40 | 50
 
 export const LIBRARY_PAGE_SIZE_OPTIONS = [20, 30, 40, 50] as const
@@ -15,6 +15,7 @@ export type LibraryFiltersState = {
 export type LibrarySearchState = LibraryFiltersState & {
     page: number
     pageSize: LibraryPageSize
+    query: string
     sort: ImageSortOption
 }
 
@@ -28,6 +29,7 @@ export const DEFAULT_LIBRARY_FILTERS: LibraryFiltersState = {
 export const DEFAULT_LIBRARY_SEARCH: LibrarySearchState = {
     page: 1,
     pageSize: 20,
+    query: "",
     sort: "newest",
     ...DEFAULT_LIBRARY_FILTERS
 }
@@ -37,6 +39,8 @@ const GENERATED_IMAGE_ORIENTATIONS = new Set<GeneratedImageOrientation>([
     "portrait",
     "square"
 ])
+
+const GENERATED_IMAGE_SORT_OPTIONS = new Set<ImageSortOption>(["relevance", "newest", "oldest"])
 
 const getFirstValue = (value: unknown) => (Array.isArray(value) ? value[0] : value)
 
@@ -84,6 +88,11 @@ const normalizeStringArray = (value: unknown) => {
     })
 }
 
+const normalizeQuery = (value: unknown) => {
+    const candidate = getFirstValue(value)
+    return typeof candidate === "string" ? candidate.trim().replace(/\s+/g, " ") : ""
+}
+
 const isGeneratedImageOrientation = (value: string): value is GeneratedImageOrientation =>
     GENERATED_IMAGE_ORIENTATIONS.has(value as GeneratedImageOrientation)
 
@@ -98,9 +107,22 @@ export const getLibraryFiltersFromSearch = (search: LibrarySearchState): Library
     cloneLibraryFilters(search)
 
 export const validateLibrarySearch = (search: Record<string, unknown>): LibrarySearchState => ({
+    query: normalizeQuery(search.query),
     page: normalizePositiveInteger(search.page),
     pageSize: normalizePageSize(search.pageSize),
-    sort: getFirstValue(search.sort) === "oldest" ? "oldest" : DEFAULT_LIBRARY_SEARCH.sort,
+    sort: (() => {
+        const query = normalizeQuery(search.query)
+        const candidate = getFirstValue(search.sort)
+
+        if (
+            typeof candidate === "string" &&
+            GENERATED_IMAGE_SORT_OPTIONS.has(candidate as ImageSortOption)
+        ) {
+            return candidate as ImageSortOption
+        }
+
+        return query ? "relevance" : DEFAULT_LIBRARY_SEARCH.sort
+    })(),
     modelIds: normalizeStringArray(search.modelIds),
     resolutions: normalizeStringArray(search.resolutions),
     aspectRatios: normalizeStringArray(search.aspectRatios),

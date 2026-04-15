@@ -1,14 +1,20 @@
 import {
     type GeneratedImageFilters,
     filterAndSortGeneratedImages,
-    getGeneratedImageFilterOptions
+    getGeneratedImageFilterOptions,
+    matchesGeneratedImageFilters
 } from "@/lib/generated-image-filters"
+import { buildGeneratedImageSearchText } from "@/lib/generated-image-search"
 import { paginationOptsValidator } from "convex/server"
 import { v } from "convex/values"
 import { internalMutation, internalQuery, query } from "./_generated/server"
 import { getUserIdentity } from "./lib/identity"
 
-const generatedImageSortValidator = v.union(v.literal("newest"), v.literal("oldest"))
+const generatedImageSortValidator = v.union(
+    v.literal("relevance"),
+    v.literal("newest"),
+    v.literal("oldest")
+)
 const generatedImageOrientationValidator = v.union(
     v.literal("portrait"),
     v.literal("landscape"),
@@ -22,6 +28,7 @@ const generatedImageFiltersValidator = v.optional(
         orientations: v.optional(v.array(generatedImageOrientationValidator))
     })
 )
+const MIN_GENERATED_IMAGE_SEARCH_QUERY_LENGTH = 2
 
 export const insertGeneratedImage = internalMutation({
     args: {
@@ -37,6 +44,7 @@ export const insertGeneratedImage = internalMutation({
         const { createdAt, ...rest } = args
         return await ctx.db.insert("generatedImages", {
             ...rest,
+            searchText: buildGeneratedImageSearchText(rest),
             createdAt: createdAt ?? Date.now()
         })
     }
@@ -71,10 +79,11 @@ export const listGeneratedImages = query({
 export const paginateGeneratedImages = query({
     args: {
         paginationOpts: paginationOptsValidator,
+        query: v.optional(v.string()),
         sortBy: v.optional(generatedImageSortValidator),
         filters: generatedImageFiltersValidator
     },
-    handler: async (ctx, { paginationOpts, sortBy, filters }) => {
+    handler: async (ctx, { paginationOpts, query, sortBy, filters }) => {
         const user = await getUserIdentity(ctx.auth, { allowAnons: false })
         if ("error" in user) {
             return {
@@ -84,15 +93,48 @@ export const paginateGeneratedImages = query({
             }
         }
 
-        const images = await ctx.db
-            .query("generatedImages")
-            .withIndex("byUserIdAndCreatedAt", (q) => q.eq("userId", user.id))
-            .collect()
+        const trimmedQuery = query?.trim()
+        const effectiveQuery =
+            trimmedQuery && trimmedQuery.length >= MIN_GENERATED_IMAGE_SEARCH_QUERY_LENGTH
+                ? trimmedQuery
+                : undefined
+        const normalizedSortBy =
+            sortBy === "relevance" && !effectiveQuery ? "newest" : (sortBy ?? "newest")
+        const chronologicalSortBy = normalizedSortBy === "relevance" ? "newest" : normalizedSortBy
 
-        const filteredImages = filterAndSortGeneratedImages(images, {
-            filters: filters as GeneratedImageFilters | undefined,
-            sortBy
-        })
+        const filteredImages = effectiveQuery
+            ? await ctx.db
+                  .query("generatedImages")
+                  .withSearchIndex("search_text", (q) =>
+                      q.search("searchText", effectiveQuery).eq("userId", user.id)
+                  )
+                  .collect()
+                  .then((images) => {
+                      const matchedImages = images.filter((image) =>
+                          matchesGeneratedImageFilters(
+                              image,
+                              filters as GeneratedImageFilters | undefined
+                          )
+                      )
+
+                      if (normalizedSortBy === "relevance") {
+                          return matchedImages
+                      }
+
+                      return filterAndSortGeneratedImages(matchedImages, {
+                          sortBy: chronologicalSortBy
+                      })
+                  })
+            : await ctx.db
+                  .query("generatedImages")
+                  .withIndex("byUserIdAndCreatedAt", (q) => q.eq("userId", user.id))
+                  .collect()
+                  .then((images) =>
+                      filterAndSortGeneratedImages(images, {
+                          filters: filters as GeneratedImageFilters | undefined,
+                          sortBy: chronologicalSortBy
+                      })
+                  )
 
         const cursorOffset = Number(paginationOpts.cursor || "0")
         const startIndex =
@@ -111,11 +153,31 @@ export const paginateGeneratedImages = query({
 
 export const getGeneratedImagesCount = query({
     args: {
+        query: v.optional(v.string()),
         filters: generatedImageFiltersValidator
     },
-    handler: async (ctx, { filters }) => {
+    handler: async (ctx, { query, filters }) => {
         const user = await getUserIdentity(ctx.auth, { allowAnons: false })
         if ("error" in user) return 0
+
+        const trimmedQuery = query?.trim()
+        const effectiveQuery =
+            trimmedQuery && trimmedQuery.length >= MIN_GENERATED_IMAGE_SEARCH_QUERY_LENGTH
+                ? trimmedQuery
+                : undefined
+
+        if (effectiveQuery) {
+            const images = await ctx.db
+                .query("generatedImages")
+                .withSearchIndex("search_text", (q) =>
+                    q.search("searchText", effectiveQuery).eq("userId", user.id)
+                )
+                .collect()
+
+            return images.filter((image) =>
+                matchesGeneratedImageFilters(image, filters as GeneratedImageFilters | undefined)
+            ).length
+        }
 
         const images = await ctx.db
             .query("generatedImages")
@@ -161,5 +223,17 @@ export const removeGeneratedImageInternal = internalMutation({
     args: { id: v.id("generatedImages") },
     handler: async (ctx, args) => {
         await ctx.db.delete(args.id)
+    }
+})
+
+export const updateGeneratedImageSearchTextInternal = internalMutation({
+    args: {
+        id: v.id("generatedImages"),
+        searchText: v.optional(v.string())
+    },
+    handler: async (ctx, args) => {
+        await ctx.db.patch(args.id, {
+            searchText: args.searchText
+        })
     }
 })

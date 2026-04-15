@@ -14,6 +14,7 @@ describe("library-search", () => {
         expect(
             validateLibrarySearch({
                 page: "3",
+                query: "  cyberpunk robot  ",
                 sort: "oldest",
                 modelIds: ["flux-1", "seedream"],
                 resolutions: "2K",
@@ -23,11 +24,24 @@ describe("library-search", () => {
         ).toEqual({
             page: 3,
             pageSize: 20,
+            query: "cyberpunk robot",
             sort: "oldest",
             modelIds: ["flux-1", "seedream"],
             resolutions: ["2K"],
             aspectRatios: ["16:9"],
             orientations: ["landscape", "square"]
+        })
+    })
+
+    it("defaults search queries to relevance sorting", () => {
+        expect(
+            validateLibrarySearch({
+                query: "anime robot"
+            })
+        ).toEqual({
+            ...DEFAULT_LIBRARY_SEARCH,
+            query: "anime robot",
+            sort: "relevance"
         })
     })
 

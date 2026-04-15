@@ -31,6 +31,7 @@ import {
     DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { ImageSkeleton } from "@/components/ui/image-skeleton"
+import { Input } from "@/components/ui/input"
 import {
     Pagination,
     PaginationContent,
@@ -85,7 +86,6 @@ import { useAction } from "convex/react"
 import {
     Check,
     CheckSquare2,
-    ChevronDown,
     Clipboard,
     Copy,
     Download,
@@ -95,7 +95,10 @@ import {
     Filter,
     Image as ImageIcon,
     ImageOff,
-    Trash2
+    PlusCircle,
+    Search,
+    Trash2,
+    X
 } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import { type ReactNode, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -149,12 +152,14 @@ const getLibraryCacheScope = ({
     userId,
     pageNumber,
     pageSize,
+    query,
     sortBy,
     filters
 }: {
     userId: string
     pageNumber: number
     pageSize: number
+    query: string
     sortBy: ImageSortOption
     filters: LibraryFiltersState
 }) =>
@@ -162,6 +167,7 @@ const getLibraryCacheScope = ({
         userId,
         pageNumber,
         pageSize,
+        query,
         sortBy,
         filters
     })
@@ -204,10 +210,26 @@ const areLibraryFiltersEqual = (left: LibraryFiltersState, right: LibraryFilters
     areStringArraysEqual(left.aspectRatios, right.aspectRatios) &&
     areStringArraysEqual(left.orientations, right.orientations)
 
-const MOBILE_SORT_OPTIONS: Array<{ value: ImageSortOption; label: string }> = [
-    { value: "newest", label: "Newest first" },
-    { value: "oldest", label: "Oldest first" }
-]
+const getSortLabel = (sortBy: ImageSortOption) => {
+    if (sortBy === "relevance") return "Best match"
+    return sortBy === "newest" ? "Newest first" : "Oldest first"
+}
+
+const getSortOptions = (
+    includeRelevance: boolean
+): Array<{ value: ImageSortOption; label: string }> =>
+    [
+        includeRelevance ? { value: "relevance" as const, label: "Best match" } : null,
+        { value: "newest" as const, label: "Newest first" },
+        { value: "oldest" as const, label: "Oldest first" }
+    ].filter((option): option is { value: ImageSortOption; label: string } => option !== null)
+
+const LIBRARY_SEARCH_DEBOUNCE_MS = 400
+const LIBRARY_BACKSPACE_DEBOUNCE_MS = 700
+const LIBRARY_RAPID_DELETE_DEBOUNCE_MS = 1000
+const LIBRARY_MIN_QUERY_LENGTH = 2
+const LIBRARY_RAPID_DELETE_WINDOW_MS = 250
+const LIBRARY_RAPID_DELETE_DELTA = 2
 
 const MultiSelectFilter = ({
     label,
@@ -230,61 +252,64 @@ const MultiSelectFilter = ({
     )
 
     return (
-        <div className="flex flex-col gap-2">
-            <span className="text-muted-foreground text-xs uppercase tracking-wider">{label}</span>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button
-                        type="button"
-                        variant={selectedValues.length > 0 ? "secondary" : "outline"}
-                        className="w-full justify-between bg-background font-normal"
-                    >
-                        <span className="truncate">
-                            {getFilterButtonLabel({
-                                emptyLabel,
-                                selectedValues,
-                                optionLabels: optionLabelMap
-                            })}
-                        </span>
-                        <ChevronDown className="h-4 w-4 opacity-60" />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-64">
-                    <DropdownMenuLabel>{label}</DropdownMenuLabel>
-                    <DropdownMenuCheckboxItem
-                        checked={selectedValues.length === 0}
-                        onSelect={(event) => event.preventDefault()}
-                        onCheckedChange={() => onClear()}
-                    >
-                        {emptyLabel}
-                    </DropdownMenuCheckboxItem>
-                    <DropdownMenuSeparator />
-                    {options.map((option) => (
-                        <DropdownMenuCheckboxItem
-                            key={option.value}
-                            checked={selectedValues.includes(option.value)}
-                            onSelect={(event) => event.preventDefault()}
-                            onCheckedChange={() => onToggleValue(option.value)}
-                        >
-                            {option.label}
-                        </DropdownMenuCheckboxItem>
-                    ))}
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button
+                    type="button"
+                    variant={selectedValues.length > 0 ? "secondary" : "outline"}
+                    className="h-9 border-dashed bg-background px-3 font-normal"
+                >
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    <span className="font-medium text-foreground/80">{label}</span>
                     {selectedValues.length > 0 && (
                         <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                                onSelect={(event) => {
-                                    event.preventDefault()
-                                    onClear()
-                                }}
-                            >
-                                Clear {label.toLowerCase()}
-                            </DropdownMenuItem>
+                            <div className="mx-2 h-4 w-[1px] shrink-0 bg-border" />
+                            <span className="truncate font-medium text-secondary-foreground">
+                                {getFilterButtonLabel({
+                                    emptyLabel: "",
+                                    selectedValues,
+                                    optionLabels: optionLabelMap
+                                })}
+                            </span>
                         </>
                     )}
-                </DropdownMenuContent>
-            </DropdownMenu>
-        </div>
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-64">
+                <DropdownMenuLabel>{label}</DropdownMenuLabel>
+                <DropdownMenuCheckboxItem
+                    checked={selectedValues.length === 0}
+                    onSelect={(event) => event.preventDefault()}
+                    onCheckedChange={() => onClear()}
+                >
+                    {emptyLabel}
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
+                {options.map((option) => (
+                    <DropdownMenuCheckboxItem
+                        key={option.value}
+                        checked={selectedValues.includes(option.value)}
+                        onSelect={(event) => event.preventDefault()}
+                        onCheckedChange={() => onToggleValue(option.value)}
+                    >
+                        {option.label}
+                    </DropdownMenuCheckboxItem>
+                ))}
+                {selectedValues.length > 0 && (
+                    <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                            onSelect={(event) => {
+                                event.preventDefault()
+                                onClear()
+                            }}
+                        >
+                            Clear {label.toLowerCase()}
+                        </DropdownMenuItem>
+                    </>
+                )}
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 }
 
@@ -307,15 +332,17 @@ const MobileFilterSection = ({
 )
 
 const MobileSortFilter = ({
+    options,
     value,
     onChange
 }: {
+    options: Array<{ value: ImageSortOption; label: string }>
     value: ImageSortOption
     onChange: (value: ImageSortOption) => void
 }) => (
     <MobileFilterSection title="Sort By">
         <RadioGroup value={value} onValueChange={(next) => onChange(next as ImageSortOption)}>
-            {MOBILE_SORT_OPTIONS.map((option) => (
+            {options.map((option) => (
                 <label
                     key={option.value}
                     htmlFor={`mobile-sort-${option.value}`}
@@ -1006,12 +1033,18 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
     const { models: sharedModels } = useSharedModels()
     const migrateImages = useAction(api.images_node.migrateUserImages)
     const galleryRef = useRef<HTMLDivElement>(null)
+    const previousDraftQueryRef = useRef(search.query)
+    const previousDraftQueryChangeAtRef = useRef<number | null>(null)
+    const searchQuery = search.query
+    const hasSearchQuery = searchQuery.length > 0
     const sortBy = search.sort
+    const sortOptions = useMemo(() => getSortOptions(hasSearchQuery), [hasSearchQuery])
     const pageNumber = search.page
     const pageSize = search.pageSize
     const currentCursor = pageNumber > 1 ? String((pageNumber - 1) * pageSize) : null
     const filters = getLibraryFiltersFromSearch(search)
     const [isFiltersDrawerOpen, setIsFiltersDrawerOpen] = useState(false)
+    const [draftQuery, setDraftQuery] = useState(searchQuery)
     const [draftSortBy, setDraftSortBy] = useState<ImageSortOption>(sortBy)
     const [draftPageSize, setDraftPageSize] = useState<LibraryPageSize>(pageSize)
     const [draftFilters, setDraftFilters] = useState<LibraryFiltersState>(() =>
@@ -1034,11 +1067,12 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                       userId: session.user.id,
                       pageNumber,
                       pageSize,
+                      query: searchQuery,
                       sortBy,
                       filters
                   })
                 : null,
-        [filters, pageNumber, pageSize, session.user?.id, sortBy]
+        [filters, pageNumber, pageSize, searchQuery, session.user?.id, sortBy]
     )
     const imagePage = useDiskCachedQuery(
         api.images.paginateGeneratedImages,
@@ -1049,6 +1083,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
         session.user?.id
             ? {
                   paginationOpts: { numItems: pageSize, cursor: currentCursor },
+                  query: searchQuery,
                   sortBy,
                   filters: activeFilters
               }
@@ -1060,7 +1095,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
             key: libraryCacheScope ? `library-count:${libraryCacheScope}` : "library-count:guest",
             default: undefined
         },
-        session.user?.id ? { filters: activeFilters } : "skip"
+        session.user?.id ? { query: searchQuery, filters: activeFilters } : "skip"
     )
     const filterOptions = useDiskCachedQuery(
         api.images.getGeneratedImageFacetOptions,
@@ -1096,6 +1131,65 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
             setIsFiltersDrawerOpen(false)
         }
     }, [isMobile])
+
+    useEffect(() => {
+        setDraftQuery(searchQuery)
+    }, [searchQuery])
+
+    useEffect(() => {
+        const normalizedDraftQuery = draftQuery.trim().replace(/\s+/g, " ")
+        const eligibleQuery =
+            normalizedDraftQuery.length >= LIBRARY_MIN_QUERY_LENGTH ? normalizedDraftQuery : ""
+        const now = Date.now()
+        const previousDraftQuery = previousDraftQueryRef.current.trim().replace(/\s+/g, " ")
+        const previousChangeAt = previousDraftQueryChangeAtRef.current
+        const deleteDelta = previousDraftQuery.length - normalizedDraftQuery.length
+
+        previousDraftQueryRef.current = draftQuery
+        previousDraftQueryChangeAtRef.current = now
+
+        if (eligibleQuery === searchQuery) {
+            return
+        }
+
+        const isBackspacing =
+            normalizedDraftQuery.length < previousDraftQuery.length &&
+            previousDraftQuery.startsWith(normalizedDraftQuery)
+        const isRapidDelete =
+            deleteDelta >= LIBRARY_RAPID_DELETE_DELTA &&
+            previousChangeAt !== null &&
+            now - previousChangeAt <= LIBRARY_RAPID_DELETE_WINDOW_MS
+        const debounceMs = isRapidDelete
+            ? LIBRARY_RAPID_DELETE_DEBOUNCE_MS
+            : isBackspacing
+              ? LIBRARY_BACKSPACE_DEBOUNCE_MS
+              : LIBRARY_SEARCH_DEBOUNCE_MS
+
+        const timeoutId = window.setTimeout(() => {
+            navigate({
+                replace: true,
+                search: (prev) => {
+                    const nextQuery = eligibleQuery
+
+                    return {
+                        ...prev,
+                        query: nextQuery,
+                        sort:
+                            nextQuery && !prev.query
+                                ? "relevance"
+                                : !nextQuery && prev.sort === "relevance"
+                                  ? DEFAULT_LIBRARY_SEARCH.sort
+                                  : prev.sort,
+                        page: DEFAULT_LIBRARY_SEARCH.page
+                    }
+                }
+            })
+        }, debounceMs)
+
+        return () => {
+            window.clearTimeout(timeoutId)
+        }
+    }, [draftQuery, navigate, searchQuery])
 
     const [selectedImage, setSelectedImage] = useState<Doc<"generatedImages"> | null>(null)
     const [deletedImageIds, setDeletedImageIds] = useState<Set<string>>(new Set())
@@ -1176,7 +1270,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
             : Math.max(1, Math.ceil(resolvedTotalImages / pageSize))
     const canGoPrevious = pageNumber > 1
     const canGoNext = resolvedImagePage ? !resolvedImagePage.isDone : false
-    const showPendingGenerations = pageNumber === 1 && !hasActiveFilters
+    const showPendingGenerations = pageNumber === 1 && !hasActiveFilters && !hasSearchQuery
     const scrollResetKey = JSON.stringify(search)
 
     const handleSortChange = useCallback(
@@ -1287,10 +1381,10 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
     )
 
     const handleResetDraftFilters = useCallback(() => {
-        setDraftSortBy(DEFAULT_LIBRARY_SEARCH.sort)
+        setDraftSortBy(hasSearchQuery ? "relevance" : DEFAULT_LIBRARY_SEARCH.sort)
         setDraftPageSize(DEFAULT_LIBRARY_SEARCH.pageSize)
         setDraftFilters(cloneLibraryFilters(DEFAULT_LIBRARY_FILTERS))
-    }, [])
+    }, [hasSearchQuery])
 
     const handleApplyDrawerFilters = useCallback(() => {
         const didSortChange = draftSortBy !== sortBy
@@ -1464,7 +1558,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                     layoutScroll
                     className="min-h-0 flex-1 overflow-y-auto p-6 pt-16"
                 >
-                    <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="mb-8 flex flex-col gap-4">
                         <div className="shrink-0">
                             <h1 className="mb-2 whitespace-nowrap font-bold text-3xl">
                                 AI Library
@@ -1483,8 +1577,35 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                     : ""}
                             </div>
                         </div>
+                    </div>
 
-                        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                    <div className="mb-6 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="flex w-full max-w-2xl flex-1 items-stretch">
+                            <div className="relative min-w-0 flex-1">
+                                <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    type="search"
+                                    value={draftQuery}
+                                    onChange={(event) => setDraftQuery(event.target.value)}
+                                    placeholder="Search prompts, styles, subjects, or metadata"
+                                    className="rounded-r-none border-r-0 pl-9 focus-visible:z-10"
+                                    aria-label="Search library"
+                                />
+                            </div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-9 shrink-0 rounded-l-none border-input border-l-0 bg-transparent px-3 text-muted-foreground shadow-xs hover:bg-transparent hover:text-foreground focus-visible:z-10 dark:bg-input/30 dark:hover:bg-input/30"
+                                onClick={() => setDraftQuery("")}
+                                disabled={draftQuery.length === 0}
+                                aria-label="Clear search"
+                            >
+                                <X className="h-4 w-4" />
+                            </Button>
+                        </div>
+
+                        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end">
                             <Button
                                 type="button"
                                 variant={privateViewingEnabled ? "secondary" : "outline"}
@@ -1503,11 +1624,13 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                     {privateViewingEnabled ? "On" : "Off"}
                                 </span>
                             </Button>
-                            {isMobile ? (
+                            {isMobile && (
                                 <Button
                                     type="button"
                                     variant={
-                                        hasActiveFilters || sortBy !== "newest"
+                                        hasActiveFilters ||
+                                        hasSearchQuery ||
+                                        sortBy !== (hasSearchQuery ? "relevance" : "newest")
                                             ? "secondary"
                                             : "outline"
                                     }
@@ -1521,73 +1644,15 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                     <span className="text-muted-foreground text-xs">
                                         {activeFilterCount > 0
                                             ? `${activeFilterCount} active`
-                                            : sortBy === "newest"
-                                              ? "Newest first"
-                                              : "Oldest first"}
+                                            : getSortLabel(sortBy)}
                                     </span>
                                 </Button>
-                            ) : (
-                                <>
-                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                                        <span className="text-muted-foreground text-xs uppercase tracking-wider">
-                                            Sort
-                                        </span>
-                                        <Select
-                                            value={sortBy}
-                                            onValueChange={(value) =>
-                                                handleSortChange(value as ImageSortOption)
-                                            }
-                                        >
-                                            <SelectTrigger className="w-full min-w-36 bg-background sm:w-40">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="newest">Newest first</SelectItem>
-                                                <SelectItem value="oldest">Oldest first</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                                        <span className="text-muted-foreground text-xs uppercase tracking-wider">
-                                            Per Page
-                                        </span>
-                                        <Select
-                                            value={String(pageSize)}
-                                            onValueChange={(value) =>
-                                                handlePageSizeChange(
-                                                    Number(value) as LibraryPageSize
-                                                )
-                                            }
-                                        >
-                                            <SelectTrigger className="w-full min-w-28 bg-background sm:w-32">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {LIBRARY_PAGE_SIZE_OPTIONS.map((option) => (
-                                                    <SelectItem key={option} value={String(option)}>
-                                                        {option}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    {hasActiveFilters && (
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            className="sm:self-end"
-                                            onClick={handleClearFilters}
-                                        >
-                                            Clear filters
-                                        </Button>
-                                    )}
-                                </>
                             )}
                         </div>
                     </div>
 
                     {!isMobile && (
-                        <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <div className="mb-6 flex flex-wrap items-center gap-2">
                             <MultiSelectFilter
                                 label="Model"
                                 emptyLabel="All models"
@@ -1625,6 +1690,61 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                 }
                                 onClear={() => handleClearFilterGroup("orientations")}
                             />
+                            <div className="mx-1 hidden h-4 w-[1px] shrink-0 bg-border sm:block" />
+                            <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground text-xs uppercase tracking-wider">
+                                    Sort
+                                </span>
+                                <Select
+                                    value={sortBy}
+                                    onValueChange={(value) =>
+                                        handleSortChange(value as ImageSortOption)
+                                    }
+                                >
+                                    <SelectTrigger className="h-9 w-[150px] bg-background">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {sortOptions.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground text-xs uppercase tracking-wider">
+                                    Per Page
+                                </span>
+                                <Select
+                                    value={String(pageSize)}
+                                    onValueChange={(value) =>
+                                        handlePageSizeChange(Number(value) as LibraryPageSize)
+                                    }
+                                >
+                                    <SelectTrigger className="h-9 w-[70px] bg-background">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {LIBRARY_PAGE_SIZE_OPTIONS.map((option) => (
+                                            <SelectItem key={option} value={String(option)}>
+                                                {option}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            {hasActiveFilters && (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    className="h-9 px-2 text-muted-foreground hover:text-foreground"
+                                    onClick={handleClearFilters}
+                                >
+                                    Clear filters
+                                </Button>
+                            )}
                         </div>
                     )}
 
@@ -1643,6 +1763,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
 
                                 <div className="flex-1 space-y-6 overflow-y-auto px-4 pb-4">
                                     <MobileSortFilter
+                                        options={sortOptions}
                                         value={draftSortBy}
                                         onChange={setDraftSortBy}
                                     />
@@ -1716,7 +1837,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                         <span className="text-muted-foreground text-sm">
                                             {draftActiveFilterCount > 0
                                                 ? `${draftActiveFilterCount} filters selected`
-                                                : `${draftPageSize} per page · ${draftSortBy === "newest" ? "Newest first" : "Oldest first"}`}
+                                                : `${draftPageSize} per page · ${getSortLabel(draftSortBy)}`}
                                         </span>
                                     </div>
                                     <div className="flex gap-2">
@@ -1759,14 +1880,22 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                         <div className="py-24 text-center">
                             <ImageIcon className="mx-auto mb-4 h-16 w-16 text-muted-foreground" />
                             <h3 className="mb-2 font-medium text-xl">
-                                {hasActiveFilters
-                                    ? "No images match these filters"
-                                    : "No generated images yet"}
+                                {hasSearchQuery && hasActiveFilters
+                                    ? "No images match this search"
+                                    : hasSearchQuery
+                                      ? "No images match this search"
+                                      : hasActiveFilters
+                                        ? "No images match these filters"
+                                        : "No generated images yet"}
                             </h3>
                             <p className="mx-auto max-w-sm text-muted-foreground">
-                                {hasActiveFilters
-                                    ? "Try a different model, resolution, aspect ratio, or orientation."
-                                    : "Generate images using the sidebar to see them appear here."}
+                                {hasSearchQuery && hasActiveFilters
+                                    ? "Try a different search, or loosen the active filters."
+                                    : hasSearchQuery
+                                      ? "Try a different prompt, style, subject, or metadata term."
+                                      : hasActiveFilters
+                                        ? "Try a different model, resolution, aspect ratio, or orientation."
+                                        : "Generate images using the sidebar to see them appear here."}
                             </p>
                         </div>
                     ) : (

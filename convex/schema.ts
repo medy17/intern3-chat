@@ -83,4 +83,8 @@ export default defineSchema({
     generatedImages: defineTable(GeneratedImage)
         .index("byUserId", ["userId"])
         .index("byUserIdAndCreatedAt", ["userId", "createdAt"])
+        .searchIndex("search_text", {
+            searchField: "searchText",
+            filterFields: ["userId"]
+        })
 })

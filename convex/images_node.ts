@@ -1,6 +1,7 @@
 "use node"
 
 import { ChatError } from "@/lib/errors"
+import { buildGeneratedImageSearchText } from "@/lib/generated-image-search"
 import { getLibraryPrivateBlurWidths, getPrivateBlurStorageKey } from "@/lib/private-blur-variants"
 import type { ImageModelV3 } from "@ai-sdk/provider"
 import { v } from "convex/values"
@@ -386,6 +387,24 @@ export const migrateUserImages = action({
                 userId: user.id,
                 storageKey: file.key,
                 createdAt: new Date(file.lastModified).getTime()
+            })
+        }
+
+        for (const image of existingImages) {
+            const searchText = buildGeneratedImageSearchText({
+                prompt: image.prompt,
+                modelId: image.modelId,
+                aspectRatio: image.aspectRatio,
+                resolution: image.resolution
+            })
+
+            if (image.searchText === searchText) {
+                continue
+            }
+
+            await ctx.runMutation(internal.images.updateGeneratedImageSearchTextInternal, {
+                id: image._id,
+                searchText
             })
         }
     }
