@@ -210,10 +210,8 @@ Recent built-in additions that already follow this pattern:
   - `imagen-4.0-ultra-generate-001`
   - `imagen-4.0-fast-generate-001`
 - xAI:
-  - `grok-4-1-fast-reasoning`
-  - `grok-4-1-fast-non-reasoning`
-  - `grok-4.20-0309-reasoning`
-  - `grok-4.20-0309-non-reasoning`
+  - `grok-4-1-fast`
+  - `grok-4.20-0309`
 
 ## Testing Checklist
 

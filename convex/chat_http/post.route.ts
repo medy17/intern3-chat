@@ -277,7 +277,8 @@ const buildOpenRouterProviderOptions = (
     supportsEffortControl = false
 ): OpenRouterProviderOptions => {
     const options: OpenRouterRequestProviderOptions = {}
-    const shouldForceReasoningForVariant = modelId.endsWith("-reasoning")
+    const shouldForceReasoningForVariant =
+        modelId.endsWith("-reasoning") || modelId.endsWith("-thinking")
 
     if (reasoningEffort === "off") {
         options.reasoning = {
@@ -324,6 +325,20 @@ const buildOpenRouterProviderOptions = (
     }
 
     return options
+}
+
+const resolveEffectiveReasoningEffort = (
+    modelId: string,
+    requestedReasoningEffort?: ReasoningEffort
+): ReasoningEffort => {
+    const reasoningEffort = requestedReasoningEffort ?? "medium"
+    const isForcedReasoningVariant = modelId.endsWith("-reasoning") || modelId.endsWith("-thinking")
+
+    if (isForcedReasoningVariant && reasoningEffort === "off") {
+        return "medium"
+    }
+
+    return reasoningEffort
 }
 
 const resolveRequiredPlanForModel = ({
@@ -521,7 +536,9 @@ export const chatPOST = httpAction(async (ctx, req) => {
     const userCreditPlan =
         (user as typeof user & { creditPlan?: string }).creditPlan === "pro" ? "pro" : "free"
 
-    const modelData = await getModel(ctx, body.model)
+    const modelData = await getModel(ctx, body.model, {
+        reasoningEffort: body.reasoningEffort
+    })
     if (modelData instanceof ChatError) return modelData.toResponse()
     const { model, modelName } = modelData
     const displayProvider = resolveDisplayProvider(body.model, modelData.runtimeProvider)
@@ -530,7 +547,10 @@ export const chatPOST = httpAction(async (ctx, req) => {
         typeof configuredMaxTokens === "number" && configuredMaxTokens > 0
             ? configuredMaxTokens
             : 16096
-    const effectiveReasoningEffort: ReasoningEffort = body.reasoningEffort ?? "medium"
+    const effectiveReasoningEffort = resolveEffectiveReasoningEffort(
+        body.model,
+        body.reasoningEffort
+    )
     const reasoningProfiles = resolveReasoningProfiles(body.model)
     const requiredPlanForModel = resolveRequiredPlanForModel({
         modelMode: model.modelType,

@@ -1,14 +1,17 @@
 import {
     BlackForestLabsIcon,
     ClaudeIcon,
+    DeepSeekIcon,
     FalAIIcon,
     GeminiIcon,
     GroqIcon,
     MetaIcon,
+    MoonshotAIIcon,
     OpenAIIcon,
     OpenRouterIcon,
     StabilityIcon,
-    XAIIcon
+    XAIIcon,
+    ZAIIcon
 } from "@/components/brand-icons"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -52,6 +55,7 @@ import { useSharedModels } from "@/lib/shared-models"
 import { cn } from "@/lib/utils"
 import { useConvexAuth } from "@convex-dev/react-query"
 import {
+    Brain,
     Calculator,
     Check,
     ChevronDown,
@@ -63,10 +67,24 @@ import {
     KeyRound,
     Search,
     Terminal,
-    Trophy
+    Trophy,
+    Zap
 } from "lucide-react"
 import * as React from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip"
+
+const getDeveloperBrandIcon = (developer?: string) => {
+    switch (developer?.trim()) {
+        case "Z.ai":
+            return <ZAIIcon className="size-4" />
+        case "Moonshot AI":
+            return <MoonshotAIIcon className="size-4 rounded-sm" />
+        case "DeepSeek":
+            return <DeepSeekIcon className="size-4 rounded-sm" />
+        default:
+            return null
+    }
+}
 
 export const getProviderIcon = (model: DisplayModel, isCustom: boolean) => {
     if (isCustom) {
@@ -98,7 +116,11 @@ export const getProviderIcon = (model: DisplayModel, isCustom: boolean) => {
             case "fal":
                 return <FalAIIcon className="size-4" />
             case "openrouter":
-                return <OpenRouterIcon className="size-4" />
+                return (
+                    getDeveloperBrandIcon(sharedModel.developer) ?? (
+                        <OpenRouterIcon className="size-4" />
+                    )
+                )
             case "bflabs":
                 return <BlackForestLabsIcon className="size-4" />
             case "stability-ai":
@@ -111,6 +133,21 @@ export const getProviderIcon = (model: DisplayModel, isCustom: boolean) => {
     }
 
     return <Badge className="text-xs">Built-in</Badge>
+}
+
+const getGrokModeIcon = (
+    model: SharedModel,
+    reasoningEffort: "off" | "low" | "medium" | "high"
+) => {
+    const isToggleOnlyReasoningModel =
+        model.customIcon === "xai" &&
+        model.abilities.includes("reasoning") &&
+        model.supportsDisablingReasoning === true &&
+        !model.abilities.includes("effort_control")
+
+    if (!isToggleOnlyReasoningModel) return null
+
+    return reasoningEffort === "off" ? <Zap className="size-4" /> : <Brain className="size-4" />
 }
 
 type ProviderSection = {
@@ -128,6 +165,17 @@ const getModelReleaseOrder = (model: DisplayModel) =>
 const normalizeProviderId = (providerId: string) =>
     providerId.startsWith("i3-") ? providerId.slice(3) : providerId
 
+const getOpenRouterDeveloperSectionId = (developer: string) =>
+    `openrouter-developer:${developer
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")}`
+
+const isOpenRouterOnlySharedModel = (model: SharedModel) => {
+    const adapters = model.adapters ?? []
+    return adapters.length > 0 && adapters.every((adapter) => adapter.startsWith("openrouter:"))
+}
+
 const getModelProviderId = (model: DisplayModel) => {
     if ("isCustom" in model && model.isCustom) {
         return normalizeProviderId(model.providerId)
@@ -139,6 +187,19 @@ const getModelProviderId = (model: DisplayModel) => {
         adapters.find((adapter) => !adapter.startsWith("openrouter:")) ?? adapters[0]
 
     return normalizeProviderId(preferredAdapter?.split(":")[0] ?? "unknown")
+}
+
+const getModelSectionId = (model: DisplayModel) => {
+    if ("isCustom" in model && model.isCustom) {
+        return normalizeProviderId(model.providerId)
+    }
+
+    const sharedModel = model as SharedModel
+    if (isOpenRouterOnlySharedModel(sharedModel) && sharedModel.developer?.trim()) {
+        return getOpenRouterDeveloperSectionId(sharedModel.developer)
+    }
+
+    return getModelProviderId(model)
 }
 
 const getActiveRuntimeProvider = (
@@ -205,8 +266,16 @@ const getActiveRuntimeProvider = (
 
 const getProviderSectionLabel = (
     providerId: string,
-    currentProviders: ReturnType<typeof useAvailableModels>["currentProviders"]
+    currentProviders: ReturnType<typeof useAvailableModels>["currentProviders"],
+    models?: DisplayModel[]
 ) => {
+    if (providerId.startsWith("openrouter-developer:")) {
+        const developer = models?.find((model) => !("isCustom" in model && model.isCustom)) as
+            | SharedModel
+            | undefined
+        return developer?.developer?.trim() || "OpenRouter"
+    }
+
     switch (providerId) {
         case "google":
             return "Gemini"
@@ -217,7 +286,14 @@ const getProviderSectionLabel = (
     }
 }
 
-const getProviderSectionIcon = (providerId: string) => {
+const getProviderSectionIcon = (providerId: string, models?: DisplayModel[]) => {
+    if (providerId.startsWith("openrouter-developer:")) {
+        const developer = models?.find((model) => !("isCustom" in model && model.isCustom)) as
+            | SharedModel
+            | undefined
+        return getDeveloperBrandIcon(developer?.developer) ?? <OpenRouterIcon className="size-4" />
+    }
+
     switch (providerId) {
         case "openai":
             return <OpenAIIcon className="size-4" />
@@ -990,27 +1066,17 @@ export function ModelSelector({
             (model) => !isImageGenerationCapableModel(model) && model.mode !== "speech-to-text"
         )
         const grouped = textModels.reduce<Record<string, DisplayModel[]>>((acc, model) => {
-            const providerId = getModelProviderId(model)
-            if (!acc[providerId]) {
-                acc[providerId] = []
+            const sectionId = getModelSectionId(model)
+            if (!acc[sectionId]) {
+                acc[sectionId] = []
             }
-            acc[providerId].push(model)
+            acc[sectionId].push(model)
             return acc
         }, {})
 
         return Object.entries(grouped)
-            .sort(([leftId], [rightId]) => {
-                const leftOrder = PROVIDER_ORDER.indexOf(leftId)
-                const rightOrder = PROVIDER_ORDER.indexOf(rightId)
-                const resolvedLeftOrder = leftOrder === -1 ? Number.MAX_SAFE_INTEGER : leftOrder
-                const resolvedRightOrder = rightOrder === -1 ? Number.MAX_SAFE_INTEGER : rightOrder
-                if (resolvedLeftOrder !== resolvedRightOrder) {
-                    return resolvedLeftOrder - resolvedRightOrder
-                }
-                return leftId.localeCompare(rightId)
-            })
             .map(([providerId, models]) => {
-                const label = getProviderSectionLabel(providerId, currentProviders)
+                const label = getProviderSectionLabel(providerId, currentProviders, models)
                 return {
                     id: providerId,
                     label,
@@ -1023,8 +1089,20 @@ export function ModelSelector({
                         }
                         return left.name.localeCompare(right.name)
                     }),
-                    icon: getProviderSectionIcon(providerId)
+                    icon: getProviderSectionIcon(providerId, models)
                 }
+            })
+            .sort((left, right) => {
+                const leftId = left.id
+                const rightId = right.id
+                const leftOrder = PROVIDER_ORDER.indexOf(leftId)
+                const rightOrder = PROVIDER_ORDER.indexOf(rightId)
+                const resolvedLeftOrder = leftOrder === -1 ? Number.MAX_SAFE_INTEGER : leftOrder
+                const resolvedRightOrder = rightOrder === -1 ? Number.MAX_SAFE_INTEGER : rightOrder
+                if (resolvedLeftOrder !== resolvedRightOrder) {
+                    return resolvedLeftOrder - resolvedRightOrder
+                }
+                return left.label.localeCompare(right.label)
             })
     }, [availableModels, currentProviders])
 
@@ -1175,8 +1253,12 @@ export function ModelSelector({
         if (!selectedModelData) return null
 
         const isCustom = !sharedModels.some((model) => model.id === selectedModelData.id)
+        if (!isCustom) {
+            const grokModeIcon = getGrokModeIcon(selectedModelData as SharedModel, reasoningEffort)
+            if (grokModeIcon) return grokModeIcon
+        }
         return getProviderIcon(selectedModelData, isCustom)
-    }, [selectedModelData, sharedModels])
+    }, [reasoningEffort, selectedModelData, sharedModels])
 
     const activeRuntimeProvider = React.useMemo(
         () =>

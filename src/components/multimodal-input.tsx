@@ -41,7 +41,11 @@ import {
     isSvgMimeType,
     isTextMimeType
 } from "@/lib/file_constants"
-import { type ReasoningEffort, useModelStore } from "@/lib/model-store"
+import { useModelStore } from "@/lib/model-store"
+import {
+    getAllowedReasoningEffortsForModel,
+    getReasoningEffortLabelForModel
+} from "@/lib/models-providers-shared"
 import { useSharedModels } from "@/lib/shared-models"
 import { cn } from "@/lib/utils"
 import type { useChat } from "@ai-sdk/react"
@@ -200,32 +204,25 @@ export const ReasoningEffortSelector = ({
     const { reasoningEffort, setReasoningEffort } = useModelStore()
     const { models: sharedModels } = useSharedModels()
 
-    const [modelSupportsEffortControl, modelSupportsDisablingReasoning] = useMemo(() => {
-        if (!selectedModel) return [false, false]
-        const model = sharedModels.find((m) => m.id === selectedModel)
-        return [
-            model?.abilities.includes("effort_control") ?? false,
-            model?.supportsDisablingReasoning ?? false
-        ]
-    }, [selectedModel, sharedModels])
-
-    const allowedEfforts: ReasoningEffort[] = modelSupportsDisablingReasoning
-        ? ["off", "low", "medium", "high"]
-        : ["low", "medium", "high"]
+    const selectedSharedModel = useMemo(
+        () => sharedModels.find((model) => model.id === selectedModel),
+        [selectedModel, sharedModels]
+    )
+    const allowedEfforts = useMemo(
+        () => getAllowedReasoningEffortsForModel(selectedSharedModel),
+        [selectedSharedModel]
+    )
+    const modelSupportsReasoningControl = allowedEfforts.length > 0
 
     useEffect(() => {
-        if (!modelSupportsEffortControl) return
+        if (!modelSupportsReasoningControl) return
         if (!allowedEfforts.includes(reasoningEffort)) {
-            setReasoningEffort("medium")
+            setReasoningEffort(allowedEfforts.includes("medium") ? "medium" : allowedEfforts[0]!)
         }
-    }, [allowedEfforts, modelSupportsEffortControl, reasoningEffort, setReasoningEffort])
-
-    const formatEffortForDisplay = (effort: ReasoningEffort) => {
-        return effort.charAt(0).toUpperCase() + effort.slice(1)
-    }
+    }, [allowedEfforts, modelSupportsReasoningControl, reasoningEffort, setReasoningEffort])
     const isReasoningOff = reasoningEffort === "off"
 
-    if (!modelSupportsEffortControl) return null
+    if (!modelSupportsReasoningControl) return null
 
     return (
         <PromptInputAction tooltip="Select reasoning effort">
@@ -241,7 +238,7 @@ export const ReasoningEffortSelector = ({
                     )}
                 >
                     <div className="hidden items-center gap-1.5 sm:flex">
-                        <Brain className="size-4" />
+                        {isReasoningOff ? <Zap className="size-4" /> : <Brain className="size-4" />}
                         <SelectValue />
                     </div>
                     <Zap className="size-4 sm:hidden" />
@@ -249,7 +246,7 @@ export const ReasoningEffortSelector = ({
                 <SelectContent>
                     {allowedEfforts.map((effort) => (
                         <SelectItem key={effort} value={effort} className="text-xs sm:text-sm">
-                            {formatEffortForDisplay(effort)}
+                            {getReasoningEffortLabelForModel(selectedSharedModel, effort)}
                         </SelectItem>
                     ))}
                 </SelectContent>

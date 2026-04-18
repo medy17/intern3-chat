@@ -15,6 +15,22 @@ export type AIConfig = z.infer<typeof AIConfigSchema>
 
 const AI_CONFIG_KEY = "ai-config"
 const USER_INPUT_KEY = "user-input"
+const LEGACY_REASONING_VARIANT_MODEL_IDS: Record<
+    string,
+    {
+        modelId: string
+        reasoningEffort: AIConfig["reasoningEffort"]
+    }
+> = {
+    "deepseek-v3.2-thinking": { modelId: "deepseek-v3.2", reasoningEffort: "medium" },
+    "glm-5-thinking": { modelId: "glm-5", reasoningEffort: "medium" },
+    "glm-5v-turbo-thinking": { modelId: "glm-5v-turbo", reasoningEffort: "medium" },
+    "kimi-k2.5-thinking": { modelId: "kimi-k2.5", reasoningEffort: "medium" },
+    "grok-4-1-fast-reasoning": { modelId: "grok-4-1-fast", reasoningEffort: "medium" },
+    "grok-4-1-fast-non-reasoning": { modelId: "grok-4-1-fast", reasoningEffort: "off" },
+    "grok-4.20-0309-reasoning": { modelId: "grok-4.20-0309", reasoningEffort: "medium" },
+    "grok-4.20-0309-non-reasoning": { modelId: "grok-4.20-0309", reasoningEffort: "off" }
+}
 
 const safeRemoveItem = (key: string): void => {
     if (typeof window === "undefined") return
@@ -53,6 +69,14 @@ export const loadAIConfig = (): AIConfig => {
             )
         ) {
             parsed.enabledTools = ["web_search"]
+        }
+
+        if (typeof parsed.selectedModel === "string") {
+            const migratedModel = LEGACY_REASONING_VARIANT_MODEL_IDS[parsed.selectedModel]
+            if (migratedModel) {
+                parsed.selectedModel = migratedModel.modelId
+                parsed.reasoningEffort = migratedModel.reasoningEffort
+            }
         }
 
         return AIConfigSchema.parse(parsed)

@@ -131,15 +131,99 @@ export const shouldShowCoreInferenceProvider = (provider: CoreProviderInfo) =>
     provider.id === "openrouter" || (legacyDirectInferenceProvidersEnabled && !provider.hidden)
 
 const HIDDEN_PROVIDER_IDS = new Set(["groq", "fal", "i3-groq", "i3-fal"])
-const enabledInternalProviders = new Set<CoreProvider>(
+const enabledProviderEntries = new Set(
     (
         optionalBrowserEnv("VITE_ENABLED_INTERNAL_PROVIDERS") ||
         ["openai", "anthropic", "google", "xai", "groq", "fal"].join(",")
     )
         .split(",")
         .map((provider) => provider.trim())
-        .filter(Boolean) as CoreProvider[]
+        .filter(Boolean)
+        .map((provider) => provider.toLowerCase())
 )
+const enabledInternalProviders = new Set<CoreProvider>(
+    [...enabledProviderEntries].filter((provider) =>
+        ["openai", "anthropic", "google", "xai", "groq", "fal"].includes(provider)
+    ) as CoreProvider[]
+)
+
+const getOpenRouterModelSlug = (adapter: string) => {
+    if (!adapter.startsWith("openrouter:")) return undefined
+    return adapter.slice("openrouter:".length).split(":")[0]
+}
+
+const slugifyProviderToken = (value: string) =>
+    value
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+
+const compactProviderToken = (value: string) => value.replace(/[^a-z0-9]+/g, "")
+
+const getOpenRouterVisibilityAliases = (model: SharedModel) => {
+    const aliases = new Set<string>()
+
+    for (const adapter of model.adapters ?? []) {
+        const slug = getOpenRouterModelSlug(adapter)
+        if (!slug) continue
+
+        const vendor = slug.split("/")[0]
+        if (!vendor) continue
+
+        const vendorSlug = slugifyProviderToken(vendor)
+        const vendorCompact = compactProviderToken(vendor)
+        if (vendorSlug) aliases.add(vendorSlug)
+        if (vendorCompact) aliases.add(vendorCompact)
+
+        if (vendorSlug.endsWith("-ai")) {
+            aliases.add(vendorSlug.slice(0, -3))
+        }
+        if (vendorCompact.endsWith("ai")) {
+            aliases.add(vendorCompact.slice(0, -2))
+        }
+    }
+
+    const developer = model.developer?.trim()
+    if (developer) {
+        const developerSlug = slugifyProviderToken(developer)
+        const developerCompact = compactProviderToken(developer.toLowerCase())
+        if (developerSlug) aliases.add(developerSlug)
+        if (developerCompact) aliases.add(developerCompact)
+
+        if (developerSlug.endsWith("-ai")) {
+            aliases.add(developerSlug.slice(0, -3))
+        }
+        if (developerCompact.endsWith("ai")) {
+            aliases.add(developerCompact.slice(0, -2))
+        }
+    }
+
+    aliases.delete("")
+    return [...aliases]
+}
+
+export const isOpenRouterOnlySharedModel = (model: SharedModel) => {
+    const adapters = model.adapters ?? []
+    return adapters.length > 0 && adapters.every((adapter) => adapter.startsWith("openrouter:"))
+}
+
+export const isOpenRouterModelEnabledInBrowser = (
+    model: SharedModel,
+    enabledEntries: ReadonlySet<string> = enabledProviderEntries
+) => {
+    if (!isOpenRouterOnlySharedModel(model)) return true
+    if (enabledEntries.has("openrouter")) return true
+
+    return getOpenRouterVisibilityAliases(model).some((alias) =>
+        enabledEntries.has(`openrouter-${alias}`)
+    )
+}
+
+export const hasBuiltInOpenRouterProvider = (
+    model: SharedModel,
+    enabledEntries: ReadonlySet<string> = enabledProviderEntries
+) => isOpenRouterOnlySharedModel(model) && isOpenRouterModelEnabledInBrowser(model, enabledEntries)
 
 export const isInternalProviderEnabled = (providerId: string) => {
     if (!providerId.startsWith("i3-")) return false
@@ -226,6 +310,39 @@ export const getPrototypeCreditTierForModel = (
     )
 }
 
+export const getAllowedReasoningEffortsForModel = (
+    model: SharedModel | null | undefined
+): ReasoningEffort[] => {
+    if (!model?.abilities.includes("reasoning")) return []
+
+    if (model.abilities.includes("effort_control")) {
+        return model.supportsDisablingReasoning
+            ? ["off", "low", "medium", "high"]
+            : ["low", "medium", "high"]
+    }
+
+    if (model.supportsDisablingReasoning) {
+        return ["off", "medium"]
+    }
+
+    return []
+}
+
+export const getReasoningEffortLabelForModel = (
+    model: SharedModel | null | undefined,
+    effort: ReasoningEffort
+) => {
+    const allowedEfforts = getAllowedReasoningEffortsForModel(model)
+    const isToggleOnlyReasoningModel =
+        allowedEfforts.length === 2 && allowedEfforts[0] === "off" && allowedEfforts[1] === "medium"
+
+    if (isToggleOnlyReasoningModel) {
+        return effort === "off" ? "Instant" : "Thinking"
+    }
+
+    return effort.charAt(0).toUpperCase() + effort.slice(1)
+}
+
 export type SearchProviderInfo = {
     id: "firecrawl" | "brave" | "tavily" | "serper"
     name: string
@@ -277,18 +394,25 @@ export function useAvailableModels(userSettings: Infer<typeof UserSettings> | un
 
     // Add shared models
     sharedModels
-        .filter((model) =>
-            model.adapters.some((adapter) => !HIDDEN_PROVIDER_IDS.has(adapter.split(":")[0]))
+        .filter(
+            (model) =>
+                isOpenRouterModelEnabledInBrowser(model) &&
+                model.adapters.some((adapter) => !HIDDEN_PROVIDER_IDS.has(adapter.split(":")[0]))
         )
         .forEach((model) => {
             const hasInternalProvider = model.adapters.some((adapter) => {
                 const providerId = adapter.split(":")[0]
                 return providerId.startsWith("i3-") && isInternalProviderEnabled(providerId)
             })
+            const hasInternalOpenRouterProvider = hasBuiltInOpenRouterProvider(model)
 
             const hasOpenRouterProvider = model.adapters.some((adapter) => {
                 const providerId = adapter.split(":")[0]
-                return providerId === "openrouter" && currentProviders.core.openrouter?.enabled
+                return (
+                    providerId === "openrouter" &&
+                    currentProviders.core.openrouter?.enabled &&
+                    isOpenRouterModelEnabledInBrowser(model)
+                )
             })
 
             const hasLegacyDirectProvider =
@@ -301,7 +425,10 @@ export function useAvailableModels(userSettings: Infer<typeof UserSettings> | un
                 })
 
             const hasProvider =
-                hasInternalProvider || hasOpenRouterProvider || hasLegacyDirectProvider
+                hasInternalProvider ||
+                hasInternalOpenRouterProvider ||
+                hasOpenRouterProvider ||
+                hasLegacyDirectProvider
 
             if (hasProvider) {
                 availableModels.push(model)

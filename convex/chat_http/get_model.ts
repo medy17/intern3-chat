@@ -11,11 +11,15 @@ import { type CoreProvider, CoreProviders, MODELS_SHARED } from "../lib/models"
 import { createGoogleOpenAICompatibleProvider, createProvider } from "../lib/provider_factory"
 
 const getInternalOpenRouterApiKey = () => process.env.OPENROUTER_API_KEY?.trim()
+const getRegistryProviderId = (adapter: string) => adapter.slice(0, adapter.indexOf(":"))
+const getRegistryModelId = (adapter: string) => adapter.slice(adapter.indexOf(":") + 1)
 
 const getOpenRouterModelId = (modelId: string) =>
-    MODELS_SHARED.find((entry) => entry.id === modelId)
-        ?.adapters.find((adapter) => adapter.startsWith("openrouter:"))
-        ?.split(":")[1]
+    getRegistryModelId(
+        MODELS_SHARED.find((entry) => entry.id === modelId)?.adapters.find((adapter) =>
+            adapter.startsWith("openrouter:")
+        ) ?? ""
+    ) || undefined
 
 const getOpenAIImageModel = (providerSpecificModelId: string, apiKey: string): ImageModelV3 =>
     createOpenAI({
@@ -47,6 +51,7 @@ export const getModel = async (
     modelId: string,
     options?: {
         internalOnly?: boolean
+        reasoningEffort?: "off" | "low" | "medium" | "high"
     }
 ) => {
     const user = await getUserIdentity(ctx.auth, { allowAnons: false })
@@ -71,13 +76,16 @@ export const getModel = async (
     }
 
     const isCustomModel = Boolean(model.customProviderId)
+    const prefersReasoningVariant = (options?.reasoningEffort ?? "medium") !== "off"
 
     // Priority sorting:
     // - built-in shared models: OpenRouter BYOK > built-in internal > legacy direct BYOK
     // - custom models: keep provider-native ordering
     const sortedAdapters = adaptersToConsider.sort((a, b) => {
-        const providerA = a.split(":")[0]
-        const providerB = b.split(":")[0]
+        const providerA = getRegistryProviderId(a)
+        const providerB = getRegistryProviderId(b)
+        const modelA = getRegistryModelId(a)
+        const modelB = getRegistryModelId(b)
 
         const getPriority = (provider: string) => {
             if (!isCustomModel) {
@@ -93,7 +101,17 @@ export const getModel = async (
             return 4
         }
 
-        return getPriority(providerA) - getPriority(providerB)
+        const getXaiVariantPriority = (provider: string, providerModelId: string) => {
+            if (provider !== "xai" && provider !== "i3-xai") return 0
+            if (providerModelId.endsWith("-non-reasoning")) return prefersReasoningVariant ? 2 : 0
+            if (providerModelId.endsWith("-reasoning")) return prefersReasoningVariant ? 0 : 2
+            return 1
+        }
+
+        const providerPriorityDiff = getPriority(providerA) - getPriority(providerB)
+        if (providerPriorityDiff !== 0) return providerPriorityDiff
+
+        return getXaiVariantPriority(providerA, modelA) - getXaiVariantPriority(providerB, modelB)
     })
 
     console.log("[getModel] model", model, "sortedAdapters", sortedAdapters)
@@ -103,8 +121,10 @@ export const getModel = async (
     let runtimeApiKey: string | undefined = undefined
 
     for (const adapter of sortedAdapters) {
-        const providerIdRaw = model.customProviderId ?? adapter.split(":")[0]
-        const providerSpecificModelId = model.customProviderId ? model.id : adapter.split(":")[1]
+        const providerIdRaw = model.customProviderId ?? getRegistryProviderId(adapter)
+        const providerSpecificModelId = model.customProviderId
+            ? model.id
+            : getRegistryModelId(adapter)
         if (providerIdRaw.startsWith("i3-")) {
             const providerId = providerIdRaw.slice(3) as CoreProvider
             //last check that this model actually is in MODELS_SHARED

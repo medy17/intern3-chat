@@ -1,11 +1,5 @@
 import type { SharedModel } from "./types"
 
-const xaiTextAdapters = (modelId: string, openRouterModelId?: string): SharedModel["adapters"] => [
-    `i3-xai:${modelId}`,
-    `xai:${modelId}`,
-    ...(openRouterModelId ? ([`openrouter:${openRouterModelId}`] as SharedModel["adapters"]) : [])
-]
-
 const xaiImageAdapters = (modelId: string): SharedModel["adapters"] => [
     `i3-xai:${modelId}`,
     `xai:${modelId}`
@@ -79,39 +73,35 @@ export const XAI_MODELS: SharedModel[] = [
         prototypeCreditTier: "pro"
     },
     {
-        id: "grok-4-1-fast-reasoning",
-        name: "Grok 4.1 Fast Reasoning",
-        shortName: "Grok 4.1 R",
-        releaseOrder: 20260321,
-        adapters: xaiTextAdapters("grok-4-1-fast-reasoning", "x-ai/grok-4.1-fast"),
-        abilities: ["reasoning", "function_calling"],
-        customIcon: "xai"
-    },
-    {
-        id: "grok-4-1-fast-non-reasoning",
+        id: "grok-4-1-fast",
         name: "Grok 4.1 Fast",
         shortName: "Grok 4.1",
-        releaseOrder: 20260320,
-        adapters: xaiTextAdapters("grok-4-1-fast-non-reasoning", "x-ai/grok-4.1-fast"),
-        abilities: ["function_calling"],
-        customIcon: "xai"
-    },
-    {
-        id: "grok-4.20-0309-reasoning",
-        name: "Grok 4.20 0309 Reasoning",
-        shortName: "Grok 4.20 R",
-        releaseOrder: 20250309,
-        adapters: xaiTextAdapters("grok-4.20-0309-reasoning", "x-ai/grok-4.20-beta"),
+        releaseOrder: 20260321,
+        adapters: [
+            "i3-xai:grok-4-1-fast-non-reasoning",
+            "i3-xai:grok-4-1-fast-reasoning",
+            "xai:grok-4-1-fast-non-reasoning",
+            "xai:grok-4-1-fast-reasoning",
+            "openrouter:x-ai/grok-4.1-fast"
+        ],
         abilities: ["reasoning", "function_calling"],
+        supportsDisablingReasoning: true,
         customIcon: "xai"
     },
     {
-        id: "grok-4.20-0309-non-reasoning",
+        id: "grok-4.20-0309",
         name: "Grok 4.20 0309",
         shortName: "Grok 4.20",
-        releaseOrder: 20250308,
-        adapters: xaiTextAdapters("grok-4.20-0309-non-reasoning", "x-ai/grok-4.20-beta"),
-        abilities: ["function_calling"],
+        releaseOrder: 20250309,
+        adapters: [
+            "i3-xai:grok-4.20-0309-non-reasoning",
+            "i3-xai:grok-4.20-0309-reasoning",
+            "xai:grok-4.20-0309-non-reasoning",
+            "xai:grok-4.20-0309-reasoning",
+            "openrouter:x-ai/grok-4.20-beta"
+        ],
+        abilities: ["reasoning", "function_calling"],
+        supportsDisablingReasoning: true,
         customIcon: "xai"
     }
 ]

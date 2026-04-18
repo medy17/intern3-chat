@@ -46,6 +46,26 @@ vi.mock("../../convex/lib/models", () => ({
             abilities: [],
             adapters: ["i3-xai:grok-imagine-image", "xai:grok-imagine-image"],
             prototypeCreditTier: "pro"
+        },
+        {
+            id: "shared-grok",
+            name: "Shared Grok",
+            mode: "text",
+            abilities: ["reasoning", "function_calling"],
+            supportsDisablingReasoning: true,
+            adapters: [
+                "i3-xai:grok-fast-non-reasoning",
+                "i3-xai:grok-fast-reasoning",
+                "xai:grok-fast-non-reasoning",
+                "xai:grok-fast-reasoning"
+            ]
+        },
+        {
+            id: "shared-thinking",
+            name: "Shared Thinking",
+            mode: "text",
+            abilities: ["reasoning"],
+            adapters: ["openrouter:or-shared:thinking", "i3-openai:shared-thinking"]
         }
     ]
 }))
@@ -171,6 +191,44 @@ describe("getModel", () => {
         })
     })
 
+    it("preserves OpenRouter model variants when the adapter model id contains a colon", async () => {
+        process.env.OPENROUTER_API_KEY = "or-key"
+
+        const chatMock = vi.fn().mockReturnValue({ provider: "openrouter-chat" })
+        createProviderMock.mockResolvedValueOnce({
+            chat: chatMock
+        })
+
+        const result = await getModel(
+            createCtx({
+                providers: {},
+                models: {
+                    "shared-thinking": {
+                        id: "shared-thinking",
+                        name: "Shared Thinking",
+                        mode: "text",
+                        abilities: ["reasoning"],
+                        adapters: ["openrouter:or-shared:thinking", "i3-openai:shared-thinking"]
+                    }
+                }
+            }),
+            "shared-thinking"
+        )
+
+        expect(createProviderMock).toHaveBeenCalledWith("openrouter", "internal", {
+            modelId: "or-shared:thinking"
+        })
+        expect(chatMock).toHaveBeenCalledWith("or-shared:thinking")
+        expect(result).toMatchObject({
+            providerSource: "internal",
+            runtimeProvider: "openrouter",
+            model: {
+                provider: "openrouter-chat",
+                modelType: "text"
+            }
+        })
+    })
+
     it("uses BYOK core providers for custom models before internal or OpenRouter fallbacks", async () => {
         const responsesModel = { provider: "byok-openai" }
         createProviderMock.mockResolvedValueOnce({
@@ -277,6 +335,49 @@ describe("getModel", () => {
             model: {
                 provider: "xai",
                 modelType: "image"
+            }
+        })
+    })
+
+    it("routes shared Grok models to the matching xAI variant for the selected mode", async () => {
+        createProviderMock.mockResolvedValueOnce({
+            languageModel: vi.fn().mockReturnValue({ provider: "internal-xai" })
+        })
+
+        const result = await getModel(
+            createCtx({
+                providers: {},
+                models: {
+                    "shared-grok": {
+                        id: "shared-grok",
+                        name: "Shared Grok",
+                        mode: "text",
+                        abilities: ["reasoning", "function_calling"],
+                        supportsDisablingReasoning: true,
+                        adapters: [
+                            "i3-xai:grok-fast-non-reasoning",
+                            "i3-xai:grok-fast-reasoning",
+                            "xai:grok-fast-non-reasoning",
+                            "xai:grok-fast-reasoning"
+                        ]
+                    }
+                }
+            }),
+            "shared-grok",
+            {
+                reasoningEffort: "off"
+            }
+        )
+
+        expect(createProviderMock).toHaveBeenCalledWith("xai", "internal", {
+            modelId: "grok-fast-non-reasoning"
+        })
+        expect(result).toMatchObject({
+            providerSource: "internal",
+            runtimeProvider: "xai",
+            model: {
+                provider: "internal-xai",
+                modelType: "text"
             }
         })
     })

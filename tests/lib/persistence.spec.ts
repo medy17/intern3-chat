@@ -76,6 +76,52 @@ describe("persistence", () => {
         })
     })
 
+    it("migrates legacy reasoning variants to unified models and matching toggle state", () => {
+        const storage = createStorageMock({
+            "ai-config": JSON.stringify({
+                selectedModel: "grok-4-1-fast-non-reasoning",
+                enabledTools: ["web_search"],
+                selectedImageSize: "16:9",
+                selectedImageResolution: "2K",
+                reasoningEffort: "medium"
+            })
+        })
+
+        vi.stubGlobal("window", {})
+        vi.stubGlobal("localStorage", storage)
+
+        expect(loadAIConfig()).toEqual({
+            selectedModel: "grok-4-1-fast",
+            enabledTools: ["web_search"],
+            selectedImageSize: "16:9",
+            selectedImageResolution: "2K",
+            reasoningEffort: "off"
+        })
+    })
+
+    it("preserves existing unified migrations for OpenRouter reasoning variants", () => {
+        const storage = createStorageMock({
+            "ai-config": JSON.stringify({
+                selectedModel: "glm-5v-turbo-thinking",
+                enabledTools: ["web_search"],
+                selectedImageSize: "1:1",
+                selectedImageResolution: "1K",
+                reasoningEffort: "off"
+            })
+        })
+
+        vi.stubGlobal("window", {})
+        vi.stubGlobal("localStorage", storage)
+
+        expect(loadAIConfig()).toEqual({
+            selectedModel: "glm-5v-turbo",
+            enabledTools: ["web_search"],
+            selectedImageSize: "1:1",
+            selectedImageResolution: "1K",
+            reasoningEffort: "medium"
+        })
+    })
+
     it("persists validated config and trims/removes saved user input", () => {
         const storage = createStorageMock()
 

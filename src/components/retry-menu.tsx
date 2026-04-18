@@ -5,7 +5,9 @@ import { useDiskCachedQuery } from "@/lib/convex-cached-query"
 import { DefaultSettings } from "@/lib/default-user-settings"
 import { type ReasoningEffort, useModelStore } from "@/lib/model-store"
 import {
+    getAllowedReasoningEffortsForModel,
     getProviderDisplayName,
+    getReasoningEffortLabelForModel,
     isImageGenerationCapableModel,
     useAvailableModels
 } from "@/lib/models-providers-shared"
@@ -35,6 +37,17 @@ const getModelReleaseOrder = (model: DisplayModel) =>
 const normalizeProviderId = (providerId: string) =>
     providerId.startsWith("i3-") ? providerId.slice(3) : providerId
 
+const getOpenRouterDeveloperSectionId = (developer: string) =>
+    `openrouter-developer:${developer
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")}`
+
+const isOpenRouterOnlySharedModel = (model: SharedModel) => {
+    const adapters = model.adapters ?? []
+    return adapters.length > 0 && adapters.every((adapter) => adapter.startsWith("openrouter:"))
+}
+
 const getModelProviderId = (model: DisplayModel) => {
     if ("isCustom" in model && model.isCustom) {
         return normalizeProviderId(model.providerId)
@@ -48,10 +61,31 @@ const getModelProviderId = (model: DisplayModel) => {
     return normalizeProviderId(preferredAdapter?.split(":")[0] ?? "unknown")
 }
 
+const getModelSectionId = (model: DisplayModel) => {
+    if ("isCustom" in model && model.isCustom) {
+        return normalizeProviderId(model.providerId)
+    }
+
+    const sharedModel = model as SharedModel
+    if (isOpenRouterOnlySharedModel(sharedModel) && sharedModel.developer?.trim()) {
+        return getOpenRouterDeveloperSectionId(sharedModel.developer)
+    }
+
+    return getModelProviderId(model)
+}
+
 const getProviderSectionLabel = (
     providerId: string,
-    currentProviders: ReturnType<typeof useAvailableModels>["currentProviders"]
+    currentProviders: ReturnType<typeof useAvailableModels>["currentProviders"],
+    models?: DisplayModel[]
 ) => {
+    if (providerId.startsWith("openrouter-developer:")) {
+        const developer = models?.find((model) => !("isCustom" in model && model.isCustom)) as
+            | SharedModel
+            | undefined
+        return developer?.developer?.trim() || "OpenRouter"
+    }
+
     switch (providerId) {
         case "google":
             return "Gemini"
@@ -92,27 +126,17 @@ export function RetryMenu({
             (model) => !isImageGenerationCapableModel(model) && model.mode !== "speech-to-text"
         )
         const grouped = textModels.reduce<Record<string, DisplayModel[]>>((acc, model) => {
-            const providerId = getModelProviderId(model)
-            if (!acc[providerId]) {
-                acc[providerId] = []
+            const sectionId = getModelSectionId(model)
+            if (!acc[sectionId]) {
+                acc[sectionId] = []
             }
-            acc[providerId].push(model)
+            acc[sectionId].push(model)
             return acc
         }, {})
 
         return Object.entries(grouped)
-            .sort(([leftId], [rightId]) => {
-                const leftOrder = PROVIDER_ORDER.indexOf(leftId)
-                const rightOrder = PROVIDER_ORDER.indexOf(rightId)
-                const resolvedLeftOrder = leftOrder === -1 ? Number.MAX_SAFE_INTEGER : leftOrder
-                const resolvedRightOrder = rightOrder === -1 ? Number.MAX_SAFE_INTEGER : rightOrder
-                if (resolvedLeftOrder !== resolvedRightOrder) {
-                    return resolvedLeftOrder - resolvedRightOrder
-                }
-                return leftId.localeCompare(rightId)
-            })
             .map(([providerId, models]) => {
-                const label = getProviderSectionLabel(providerId, currentProviders)
+                const label = getProviderSectionLabel(providerId, currentProviders, models)
                 return {
                     id: providerId,
                     label,
@@ -132,6 +156,18 @@ export function RetryMenu({
                         return left.name.localeCompare(right.name)
                     })
                 }
+            })
+            .sort((left, right) => {
+                const leftId = left.id
+                const rightId = right.id
+                const leftOrder = PROVIDER_ORDER.indexOf(leftId)
+                const rightOrder = PROVIDER_ORDER.indexOf(rightId)
+                const resolvedLeftOrder = leftOrder === -1 ? Number.MAX_SAFE_INTEGER : leftOrder
+                const resolvedRightOrder = rightOrder === -1 ? Number.MAX_SAFE_INTEGER : rightOrder
+                if (resolvedLeftOrder !== resolvedRightOrder) {
+                    return resolvedLeftOrder - resolvedRightOrder
+                }
+                return left.label.localeCompare(right.label)
             })
     }, [availableModels, currentProviders])
 
@@ -208,19 +244,14 @@ export function RetryMenu({
                                             onRetry(model.id)
                                         }
 
-                                        const supportsEffort =
-                                            model.abilities.includes("effort_control")
-                                        const supportsDisabling =
-                                            "supportsDisablingReasoning" in model &&
-                                            model.supportsDisablingReasoning
-                                        const allowedEfforts: ReasoningEffort[] = supportsDisabling
-                                            ? ["off", "low", "medium", "high"]
-                                            : ["low", "medium", "high"]
+                                        const sharedModel =
+                                            "isCustom" in model && model.isCustom
+                                                ? null
+                                                : (model as SharedModel)
+                                        const allowedEfforts =
+                                            getAllowedReasoningEffortsForModel(sharedModel)
 
-                                        const formatEffort = (effort: string) =>
-                                            effort.charAt(0).toUpperCase() + effort.slice(1)
-
-                                        if (supportsEffort) {
+                                        if (allowedEfforts.length > 0) {
                                             return (
                                                 <div
                                                     key={model.id}
@@ -277,7 +308,10 @@ export function RetryMenu({
                                                                         }
                                                                         className="cursor-pointer pl-6"
                                                                     >
-                                                                        {formatEffort(effort)}
+                                                                        {getReasoningEffortLabelForModel(
+                                                                            sharedModel,
+                                                                            effort
+                                                                        )}
                                                                     </DropdownMenuItem>
                                                                 ))}
                                                             </DropdownMenuSubContent>
