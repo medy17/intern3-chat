@@ -186,13 +186,11 @@ const ChatContent = ({ threadId: routeThreadId, folderId, isActiveRoute = true }
             />
 
             <motion.div
-                layout
                 initial={false}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
                 className={
                     isEmpty
                         ? "absolute inset-0 z-[10] flex flex-col items-center justify-center gap-8 px-4"
-                        : "-bottom-[3.875rem] md:-bottom-10 absolute inset-x-0 z-[10] flex flex-col items-center justify-center gap-2"
+                        : "-bottom-[3.875rem] md:-bottom-10 absolute inset-x-0 z-[10] flex flex-col items-center justify-center"
                 }
             >
                 <AnimatePresence initial={false} mode="sync">
@@ -272,21 +270,21 @@ const ChatContent = ({ threadId: routeThreadId, folderId, isActiveRoute = true }
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: 20 }}
                             transition={{ duration: 0.2, ease: "easeInOut" }}
+                            className="pointer-events-none absolute inset-x-0 bottom-full mb-2 flex justify-center"
                         >
-                            <StickToBottomButton
-                                isAtBottom={isAtBottom}
-                                scrollToBottom={() => messagesRef.current?.scrollToBottom("smooth")}
-                            />
+                            <div className="pointer-events-auto">
+                                <StickToBottomButton
+                                    isAtBottom={isAtBottom}
+                                    scrollToBottom={() =>
+                                        messagesRef.current?.scrollToBottom("smooth")
+                                    }
+                                />
+                            </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
 
-                <motion.div
-                    layout
-                    initial={false}
-                    transition={{ duration: 0.2, ease: "easeInOut" }}
-                    className={isEmpty ? "w-full max-w-4xl" : "w-full"}
-                >
+                <div className={isEmpty ? "w-full max-w-4xl" : "w-full"}>
                     <MultimodalInput
                         ref={multimodalInputRef}
                         onSubmit={handleInputSubmitWithScroll}
@@ -294,7 +292,7 @@ const ChatContent = ({ threadId: routeThreadId, folderId, isActiveRoute = true }
                         threadId={threadId}
                         isActive={isActiveRoute}
                     />
-                </motion.div>
+                </div>
             </motion.div>
         </motion.div>
     )

@@ -274,12 +274,18 @@ export function FolderChat({ folderId, isActiveRoute = true }: FolderChatProps) 
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 20 }}
                         transition={{ duration: 0.2, ease: "easeInOut" }}
-                        className="-bottom-[3.875rem] md:-bottom-10 absolute inset-x-0 z-[10] flex flex-col items-center justify-center gap-2"
+                        className="-bottom-[3.875rem] md:-bottom-10 absolute inset-x-0 z-[10] flex flex-col items-center justify-center"
                     >
-                        <StickToBottomButton
-                            isAtBottom={isAtBottom}
-                            scrollToBottom={() => messagesRef.current?.scrollToBottom("smooth")}
-                        />
+                        <div className="pointer-events-none absolute inset-x-0 bottom-full mb-2 flex justify-center">
+                            <div className="pointer-events-auto">
+                                <StickToBottomButton
+                                    isAtBottom={isAtBottom}
+                                    scrollToBottom={() =>
+                                        messagesRef.current?.scrollToBottom("smooth")
+                                    }
+                                />
+                            </div>
+                        </div>
                         <MultimodalInput
                             onSubmit={handleInputSubmitWithScroll}
                             status={status}

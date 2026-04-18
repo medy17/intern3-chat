@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar"
 import { api } from "@/convex/_generated/api"
+import { useIsMobile } from "@/hooks/use-mobile"
 import {
     DEFAULT_PROJECT_ICON,
     PROJECT_COLORS,
@@ -90,6 +91,7 @@ export function FolderItem({
     const updateProjectMutation = useMutation(api.folders.updateProject)
     const deleteProjectMutation = useMutation(api.folders.deleteProject)
     const navigate = useNavigate()
+    const isMobile = useIsMobile()
 
     const handleEdit = async () => {
         const trimmedName = editName.trim()
@@ -244,7 +246,25 @@ export function FolderItem({
             return
         }
 
+        if (!isMobile) {
+            return
+        }
+
+        event.preventDefault()
         setOpenMobile(false)
+
+        let didNavigate = false
+        const doNavigate = () => {
+            if (didNavigate) return
+            didNavigate = true
+            void navigate({
+                to: "/folder/$folderId",
+                params: { folderId: project._id }
+            })
+        }
+
+        window.addEventListener("popstate", doNavigate, { once: true })
+        window.setTimeout(doNavigate, 150)
     }
 
     const handleContextMenu = (event: React.MouseEvent<HTMLAnchorElement>) => {
