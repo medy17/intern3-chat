@@ -1,3 +1,4 @@
+import { SupermemoryIcon } from "@/components/brand-icons"
 import { ModelSelector } from "@/components/model-selector"
 import { PersonaSelector } from "@/components/persona-selector"
 import {
@@ -20,7 +21,7 @@ import {
 } from "@/components/ui/select"
 import { VoiceRecorder } from "@/components/voice-recorder"
 import { api } from "@/convex/_generated/api"
-import type { ImageResolution, ImageSize } from "@/convex/lib/models"
+import type { ImageResolution, ImageSize, SharedModel } from "@/convex/lib/models"
 import { useSession, useToken } from "@/hooks/auth-hooks"
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder"
 import { resolveJwtToken } from "@/lib/auth-token"
@@ -47,14 +48,19 @@ import {
     getReasoningEffortLabelForModel
 } from "@/lib/models-providers-shared"
 import { useSharedModels } from "@/lib/shared-models"
+import type { AbilityId } from "@/lib/tool-abilities"
 import { cn } from "@/lib/utils"
 import type { useChat } from "@ai-sdk/react"
 import { useConvexAuth } from "convex/react"
 import {
     ArrowUp,
     Brain,
+    Check,
+    ChevronDown,
+    ChevronUp,
     Code,
     FileType,
+    Globe,
     Image as ImageIcon,
     Loader2,
     Mic,
@@ -260,6 +266,234 @@ export interface MultimodalInputRef {
     setValue: (value: string) => void
 }
 
+const mobileMenuRowClassName =
+    "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent/60"
+
+function MobileMenuIcon({
+    slashed = false,
+    children
+}: {
+    slashed?: boolean
+    children: React.ReactNode
+}) {
+    return (
+        <span className="relative flex size-4 shrink-0 items-center justify-center">
+            {children}
+            {slashed && (
+                <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 h-px w-[1.15rem] rotate-[-42deg] bg-current" />
+            )}
+        </span>
+    )
+}
+
+function MobileOverflowMenu({
+    open,
+    onOpenChange,
+    selectedModel,
+    modelSupportsFunctionCalling,
+    modelSupportsReasoningControl,
+    isImageModel,
+    modelSupportsImageSizing,
+    modelSupportsImageResolution,
+    allowedReasoningEfforts,
+    selectedSharedModel,
+    hasSupermemory,
+    mcpServers,
+    currentMcpOverrides,
+    onToggleTool,
+    onToggleMcpServer,
+    onAttachClick
+}: {
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    selectedModel: string | null
+    modelSupportsFunctionCalling: boolean
+    modelSupportsReasoningControl: boolean
+    isImageModel: boolean
+    modelSupportsImageSizing: boolean
+    modelSupportsImageResolution: boolean
+    allowedReasoningEfforts: ReturnType<typeof getAllowedReasoningEffortsForModel>
+    selectedSharedModel?: SharedModel
+    hasSupermemory: boolean
+    mcpServers: Array<{ name: string }>
+    currentMcpOverrides: Record<string, boolean>
+    onToggleTool: (tool: AbilityId) => void
+    onToggleMcpServer: (serverName: string) => void
+    onAttachClick: () => void
+}) {
+    const { enabledTools, reasoningEffort, setReasoningEffort } = useModelStore()
+    const [reasoningExpanded, setReasoningExpanded] = useState(false)
+    const reasoningLabel = getReasoningEffortLabelForModel(selectedSharedModel, reasoningEffort)
+    const webSearchEnabled = enabledTools.includes("web_search")
+    const supermemoryEnabled = enabledTools.includes("supermemory")
+
+    useEffect(() => {
+        if (!open) {
+            setReasoningExpanded(false)
+        }
+    }, [open])
+
+    return (
+        <Popover open={open} onOpenChange={onOpenChange}>
+            <PopoverTrigger asChild>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 rounded-md bg-secondary/70 text-foreground backdrop-blur-lg hover:bg-secondary/80"
+                >
+                    <MoreHorizontal className="size-4" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent
+                align="end"
+                sideOffset={8}
+                className="w-[min(14rem,calc(100vw-1rem))] rounded-lg border-border/70 bg-background/95 p-1.5 shadow-lg backdrop-blur-xl"
+            >
+                <div className="space-y-1">
+                    {(modelSupportsImageSizing || modelSupportsImageResolution) && (
+                        <div className="flex flex-wrap gap-2 border-border/60 border-b px-1.5 pb-2.5">
+                            {modelSupportsImageSizing && (
+                                <AspectRatioSelector selectedModel={selectedModel} />
+                            )}
+                            {modelSupportsImageResolution && (
+                                <ImageResolutionSelector selectedModel={selectedModel} />
+                            )}
+                        </div>
+                    )}
+
+                    {modelSupportsReasoningControl && (
+                        <>
+                            <button
+                                type="button"
+                                className={mobileMenuRowClassName}
+                                onClick={() => setReasoningExpanded((expanded) => !expanded)}
+                            >
+                                {reasoningEffort === "off" ? (
+                                    <Zap className="size-4 shrink-0" />
+                                ) : (
+                                    <Brain className="size-4 shrink-0" />
+                                )}
+                                <span className="min-w-0 flex-1 truncate">
+                                    Reasoning: {reasoningLabel}
+                                </span>
+                                {reasoningExpanded ? (
+                                    <ChevronUp className="size-4 shrink-0" />
+                                ) : (
+                                    <ChevronDown className="size-4 shrink-0" />
+                                )}
+                            </button>
+                            {reasoningExpanded && (
+                                <div className="space-y-1 px-1 pb-1">
+                                    {allowedReasoningEfforts.map((effort) => {
+                                        const effortLabel = getReasoningEffortLabelForModel(
+                                            selectedSharedModel,
+                                            effort
+                                        )
+                                        const isSelected = reasoningEffort === effort
+
+                                        return (
+                                            <button
+                                                key={effort}
+                                                type="button"
+                                                className={cn(
+                                                    "flex w-full items-center rounded-md px-8 py-2 text-left text-sm transition-colors hover:bg-accent/60",
+                                                    isSelected && "bg-accent/50 text-primary"
+                                                )}
+                                                onClick={() => setReasoningEffort(effort)}
+                                            >
+                                                <span className="min-w-0 flex-1 truncate">
+                                                    {effortLabel}
+                                                </span>
+                                                {isSelected && (
+                                                    <Check className="size-4 shrink-0" />
+                                                )}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {!isImageModel && (
+                        <button
+                            type="button"
+                            className={cn(
+                                mobileMenuRowClassName,
+                                !modelSupportsFunctionCalling && "cursor-not-allowed opacity-50"
+                            )}
+                            disabled={!modelSupportsFunctionCalling}
+                            onClick={() => onToggleTool("web_search")}
+                        >
+                            <MobileMenuIcon slashed={!webSearchEnabled}>
+                                <Globe className="size-4" />
+                            </MobileMenuIcon>
+                            <span className="min-w-0 flex-1 truncate">
+                                Search {webSearchEnabled ? "enabled" : "disabled"}
+                            </span>
+                        </button>
+                    )}
+
+                    {!isImageModel && hasSupermemory && (
+                        <button
+                            type="button"
+                            className={mobileMenuRowClassName}
+                            onClick={() => onToggleTool("supermemory")}
+                        >
+                            <MobileMenuIcon slashed={!supermemoryEnabled}>
+                                <SupermemoryIcon />
+                            </MobileMenuIcon>
+                            <span className="min-w-0 flex-1 truncate">
+                                Supermemory {supermemoryEnabled ? "enabled" : "disabled"}
+                            </span>
+                        </button>
+                    )}
+
+                    {!isImageModel && (
+                        <button
+                            type="button"
+                            className={mobileMenuRowClassName}
+                            onClick={() => {
+                                onOpenChange(false)
+                                onAttachClick()
+                            }}
+                        >
+                            <Paperclip className="size-4 shrink-0" />
+                            <span className="min-w-0 flex-1 truncate">Attach</span>
+                        </button>
+                    )}
+
+                    {!isImageModel && mcpServers.length > 0 && (
+                        <div className="border-border/60 border-t pt-2">
+                            <p className="px-2.5 pb-1 font-medium text-[11px] text-muted-foreground uppercase tracking-[0.16em]">
+                                MCP Servers
+                            </p>
+                            <div className="space-y-1">
+                                {mcpServers.map((server) => {
+                                    const isEnabled = currentMcpOverrides[server.name] !== false
+
+                                    return (
+                                        <button
+                                            key={server.name}
+                                            type="button"
+                                            className={mobileMenuRowClassName}
+                                            onClick={() => onToggleMcpServer(server.name)}
+                                        >
+                                            <span className="min-w-0 flex-1 truncate">
+                                                {server.name} {isEnabled ? "enabled" : "disabled"}
+                                            </span>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </PopoverContent>
+        </Popover>
+    )
+}
+
 export const MultimodalInput = forwardRef<
     MultimodalInputRef,
     {
@@ -274,7 +508,18 @@ export const MultimodalInput = forwardRef<
     const auth = useConvexAuth()
     const { models: sharedModels } = useSharedModels()
 
-    const { selectedModel, setSelectedModel, enabledTools, setEnabledTools } = useModelStore()
+    const {
+        selectedModel,
+        setSelectedModel,
+        enabledTools,
+        setEnabledTools,
+        reasoningEffort,
+        setReasoningEffort,
+        mcpOverrides,
+        defaultMcpOverrides,
+        setMcpOverride,
+        setDefaultMcpOverride
+    } = useModelStore()
     const { uploadedFiles, addUploadedFile, removeUploadedFile, uploading, setUploading } =
         useChatStore()
     const { chatWidthState } = useChatWidthStore()
@@ -322,25 +567,39 @@ export const MultimodalInput = forwardRef<
     })
 
     // Check if current model supports vision and is image model
+    const selectedSharedModel = useMemo(
+        () => sharedModels.find((model) => model.id === selectedModel),
+        [selectedModel, sharedModels]
+    )
+    const allowedReasoningEfforts = useMemo(
+        () => getAllowedReasoningEffortsForModel(selectedSharedModel),
+        [selectedSharedModel]
+    )
+    const modelSupportsReasoningControl = allowedReasoningEfforts.length > 0
+
     const [
         modelSupportsVision,
         modelSupportsFunctionCalling,
-        _modelSupportsReasoning,
         isImageModel,
         modelSupportsImageSizing,
         modelSupportsImageResolution
     ] = useMemo(() => {
-        if (!selectedModel) return [false, false, false, false, false, false]
+        if (!selectedModel) return [false, false, false, false, false]
         const model = sharedModels.find((m) => m.id === selectedModel)
         return [
             model?.abilities.includes("vision") ?? false,
             model?.abilities.includes("function_calling") ?? false,
-            model?.abilities.includes("reasoning") ?? false,
             model?.mode === "image",
             (model?.supportedImageSizes?.length ?? 0) > 0,
             (model?.supportedImageResolutions?.length ?? 0) > 0
         ]
     }, [selectedModel, sharedModels])
+
+    useEffect(() => {
+        if (!modelSupportsReasoningControl && reasoningEffort !== "off") {
+            setReasoningEffort("off")
+        }
+    }, [modelSupportsReasoningControl, reasoningEffort, setReasoningEffort])
 
     useEffect(() => {
         setExtendedFiles(uploadedFiles.map((file) => ({ ...file })))
@@ -351,6 +610,31 @@ export const MultimodalInput = forwardRef<
             setEnabledTools(enabledTools.filter((tool) => tool !== "web_search"))
         }
     }, [modelSupportsFunctionCalling, enabledTools, setEnabledTools])
+
+    const hasSupermemory = Boolean(userSettings.generalProviders?.supermemory?.enabled)
+    const mcpServers = (userSettings.mcpServers || []).filter((server) => server.enabled !== false)
+    const currentMcpOverrides = threadId
+        ? { ...defaultMcpOverrides, ...(mcpOverrides[threadId] || {}) }
+        : { ...defaultMcpOverrides }
+
+    const handleToolToggle = (tool: AbilityId) => {
+        setEnabledTools(
+            enabledTools.includes(tool)
+                ? enabledTools.filter((enabledTool) => enabledTool !== tool)
+                : [...enabledTools, tool]
+        )
+    }
+
+    const handleMcpServerToggle = (serverName: string) => {
+        const isEnabled = currentMcpOverrides[serverName] !== false
+
+        if (threadId) {
+            setMcpOverride(threadId, serverName, !isEnabled)
+            return
+        }
+
+        setDefaultMcpOverride(serverName, !isEnabled)
+    }
 
     const handleSubmit = async () => {
         const inputValue = promptInputRef.current?.getValue() || ""
@@ -796,6 +1080,7 @@ export const MultimodalInput = forwardRef<
     }
 
     const [isClient, setIsClient] = useState(false)
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
     useEffect(() => {
         setIsClient(true)
@@ -940,85 +1225,36 @@ export const MultimodalInput = forwardRef<
                                 )}
                             </motion.div>
 
-                            {/* Mobile: Show attach inline, and ellipsis menu for everything else */}
+                            {/* Mobile: Keep the primary row focused on model/persona only. */}
                             <motion.div
                                 layout
                                 transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                                 className="flex items-center gap-2 sm:hidden"
                             >
-                                {!isImageModel && (
-                                    <PromptInputAction tooltip="Attach files">
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            onClick={() => uploadInputRef.current?.click()}
-                                            className={cn(
-                                                "flex size-8 cursor-pointer items-center justify-center gap-1 rounded-md bg-secondary/70 text-foreground backdrop-blur-lg hover:bg-secondary/80"
-                                            )}
-                                        >
-                                            <input
-                                                type="file"
-                                                multiple
-                                                onChange={handleFileChange}
-                                                className="hidden"
-                                                ref={uploadInputRef}
-                                                accept={getFileAcceptAttribute(modelSupportsVision)}
-                                            />
-                                            {uploading ? (
-                                                <Loader2 className="size-4 animate-spin" />
-                                            ) : (
-                                                <Paperclip className="-rotate-45 size-4 hover:text-primary" />
-                                            )}
-                                        </Button>
-                                    </PromptInputAction>
-                                )}
-
                                 {(modelSupportsImageSizing ||
                                     modelSupportsImageResolution ||
-                                    (!isImageModel &&
-                                        (modelSupportsFunctionCalling ||
-                                            _modelSupportsReasoning))) && (
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="size-8 rounded-md bg-secondary/70 text-foreground backdrop-blur-lg hover:bg-secondary/80"
-                                            >
-                                                <MoreHorizontal className="size-4" />
-                                            </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent
-                                            align="start"
-                                            className="flex w-auto max-w-[280px] flex-wrap gap-2 p-2"
-                                        >
-                                            {modelSupportsImageSizing && (
-                                                <AspectRatioSelector
-                                                    selectedModel={selectedModel}
-                                                />
-                                            )}
-                                            {modelSupportsImageResolution && (
-                                                <ImageResolutionSelector
-                                                    selectedModel={selectedModel}
-                                                />
-                                            )}
-                                            {!isImageModel && (
-                                                <>
-                                                    <ToolSelectorPopover
-                                                        threadId={threadId}
-                                                        enabledTools={enabledTools}
-                                                        onEnabledToolsChange={setEnabledTools}
-                                                        modelSupportsFunctionCalling={
-                                                            modelSupportsFunctionCalling
-                                                        }
-                                                    />
-                                                    <ReasoningEffortSelector
-                                                        selectedModel={selectedModel}
-                                                    />
-                                                </>
-                                            )}
-                                        </PopoverContent>
-                                    </Popover>
+                                    !isImageModel ||
+                                    modelSupportsReasoningControl) && (
+                                    <MobileOverflowMenu
+                                        open={mobileMenuOpen}
+                                        onOpenChange={setMobileMenuOpen}
+                                        selectedModel={selectedModel}
+                                        modelSupportsFunctionCalling={modelSupportsFunctionCalling}
+                                        modelSupportsReasoningControl={
+                                            modelSupportsReasoningControl
+                                        }
+                                        isImageModel={isImageModel}
+                                        modelSupportsImageSizing={modelSupportsImageSizing}
+                                        modelSupportsImageResolution={modelSupportsImageResolution}
+                                        allowedReasoningEfforts={allowedReasoningEfforts}
+                                        selectedSharedModel={selectedSharedModel}
+                                        hasSupermemory={hasSupermemory}
+                                        mcpServers={mcpServers}
+                                        currentMcpOverrides={currentMcpOverrides}
+                                        onToggleTool={handleToolToggle}
+                                        onToggleMcpServer={handleMcpServerToggle}
+                                        onAttachClick={() => uploadInputRef.current?.click()}
+                                    />
                                 )}
                             </motion.div>
                         </motion.div>
