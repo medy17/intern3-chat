@@ -274,7 +274,8 @@ const buildAnthropicProviderOptions = (
 const buildOpenRouterProviderOptions = (
     modelId: string,
     reasoningEffort: ReasoningEffort,
-    supportsEffortControl = false
+    supportsEffortControl = false,
+    supportsReasoningToggle = false
 ): OpenRouterProviderOptions => {
     const options: OpenRouterRequestProviderOptions = {}
     const shouldForceReasoningForVariant =
@@ -291,6 +292,22 @@ const buildOpenRouterProviderOptions = (
                 require_parameters: true
             },
             include_reasoning: false,
+            usage: {
+                include: true
+            }
+        }
+        return options
+    }
+
+    if (supportsReasoningToggle && !supportsEffortControl && !shouldForceReasoningForVariant) {
+        options.reasoning = {
+            enabled: true
+        }
+        options.extraBody = {
+            provider: {
+                require_parameters: true
+            },
+            include_reasoning: true,
             usage: {
                 include: true
             }
@@ -329,13 +346,20 @@ const buildOpenRouterProviderOptions = (
 
 const resolveEffectiveReasoningEffort = (
     modelId: string,
-    requestedReasoningEffort?: ReasoningEffort
+    requestedReasoningEffort?: ReasoningEffort,
+    supportsReasoningToggle = false,
+    supportsEffortControl = false
 ): ReasoningEffort => {
     const reasoningEffort = requestedReasoningEffort ?? "medium"
     const isForcedReasoningVariant = modelId.endsWith("-reasoning") || modelId.endsWith("-thinking")
+    const isToggleOnlyReasoningModel = supportsReasoningToggle && !supportsEffortControl
 
     if (isForcedReasoningVariant && reasoningEffort === "off") {
         return "medium"
+    }
+
+    if (isToggleOnlyReasoningModel) {
+        return reasoningEffort === "off" ? "off" : "medium"
     }
 
     return reasoningEffort
@@ -543,13 +567,20 @@ export const chatPOST = httpAction(async (ctx, req) => {
     const { model, modelName } = modelData
     const displayProvider = resolveDisplayProvider(body.model, modelData.runtimeProvider)
     const configuredMaxTokens = modelData.registry.models[body.model]?.maxTokens
+    const selectedRegistryModel = modelData.registry.models[body.model]
+    const supportsReasoningToggle =
+        selectedRegistryModel?.abilities?.includes("reasoning") === true &&
+        selectedRegistryModel?.supportsDisablingReasoning === true
+    const supportsEffortControl = modelData.abilities.includes("effort_control")
     const maxTokens =
         typeof configuredMaxTokens === "number" && configuredMaxTokens > 0
             ? configuredMaxTokens
             : 16096
     const effectiveReasoningEffort = resolveEffectiveReasoningEffort(
         body.model,
-        body.reasoningEffort
+        body.reasoningEffort,
+        supportsReasoningToggle,
+        supportsEffortControl
     )
     const reasoningProfiles = resolveReasoningProfiles(body.model)
     const requiredPlanForModel = resolveRequiredPlanForModel({
@@ -1075,7 +1106,8 @@ export const chatPOST = httpAction(async (ctx, req) => {
                                   openrouter: buildOpenRouterProviderOptions(
                                       modelData.modelId,
                                       effectiveReasoningEffort,
-                                      modelData.abilities.includes("effort_control")
+                                      supportsEffortControl,
+                                      supportsReasoningToggle
                                   )
                               }
                             : {

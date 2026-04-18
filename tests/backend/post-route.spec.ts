@@ -871,4 +871,95 @@ describe("chatPOST", () => {
             '"type":"error","errorText":"Stream error occurred"'
         )
     })
+
+    it("enables OpenRouter reasoning for toggle-only models when thinking is selected", async () => {
+        const ctx = createCtx()
+        ctx.runMutation.mockImplementation(async (name: string) => {
+            switch (name) {
+                case "createThreadOrInsertMessages":
+                    return {
+                        threadId: "thread-1",
+                        assistantMessageId: "assistant-1",
+                        assistantMessageConvexId: 42
+                    }
+                case "appendStreamId":
+                    return "stream-1"
+                case "updateThreadStreamingState":
+                case "patchMessage":
+                case "recordCreditEventForMessage":
+                    return null
+                default:
+                    throw new Error(`Unexpected mutation: ${name}`)
+            }
+        })
+        ctx.runQuery.mockImplementation(async (name: string) => {
+            switch (name) {
+                case "getMessagesByThreadId":
+                    return [{ _id: "db-message-1" }]
+                case "getUserSettingsInternal":
+                    return {
+                        mcpServers: []
+                    }
+                default:
+                    throw new Error(`Unexpected query: ${name}`)
+            }
+        })
+
+        getUserIdentityMock.mockResolvedValueOnce({ id: "user-1", creditPlan: "pro" })
+        getModelMock.mockResolvedValueOnce({
+            model: { provider: "runtime-openrouter", modelType: "text" },
+            modelId: "deepseek-v3.2",
+            modelName: "DeepSeek V3.2",
+            runtimeProvider: "openrouter",
+            providerSource: "openrouter",
+            abilities: ["reasoning", "function_calling"],
+            registry: {
+                models: {
+                    "deepseek-v3.2": {
+                        abilities: ["reasoning", "function_calling"],
+                        supportsDisablingReasoning: true
+                    }
+                }
+            },
+            prototypeCreditTier: "basic",
+            prototypeCreditTierWithReasoning: undefined
+        })
+        manualStreamTransformMock.mockImplementationOnce(() => new TransformStream())
+        streamTextMock.mockReturnValueOnce({
+            fullStream: createObjectStream([]),
+            finishReason: Promise.resolve("stop")
+        })
+
+        const response = await chatPOST(
+            ctx,
+            createRequest({
+                model: "deepseek-v3.2",
+                proposedNewAssistantId: "assistant-1",
+                message: {
+                    role: "user",
+                    parts: [{ type: "text", text: "hello" }]
+                },
+                enabledTools: [],
+                reasoningEffort: "medium"
+            })
+        )
+
+        expect(response.status).toBe(200)
+        await response.text()
+
+        expect(streamTextMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+                providerOptions: expect.objectContaining({
+                    openrouter: expect.objectContaining({
+                        reasoning: {
+                            enabled: true
+                        },
+                        extraBody: expect.objectContaining({
+                            include_reasoning: true
+                        })
+                    })
+                })
+            })
+        )
+    })
 })
