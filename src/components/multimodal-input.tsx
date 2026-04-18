@@ -348,7 +348,6 @@ function MobileOverflowMenu({
                 align="end"
                 side="top"
                 sideOffset={8}
-                avoidCollisions={false}
                 className="w-[min(14rem,calc(100vw-1rem))] rounded-lg border-border/70 bg-popover p-1.5 shadow-lg"
             >
                 <div className="space-y-1">
@@ -1227,39 +1226,34 @@ export const MultimodalInput = forwardRef<
                                 )}
                             </motion.div>
 
-                            {/* Mobile: Keep the primary row focused on model/persona only. */}
-                            <motion.div
-                                layout
-                                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                                className="flex items-center gap-2 sm:hidden"
-                            >
-                                {(modelSupportsImageSizing ||
-                                    modelSupportsImageResolution ||
-                                    !isImageModel ||
-                                    modelSupportsReasoningControl) && (
-                                    <MobileOverflowMenu
-                                        open={mobileMenuOpen}
-                                        onOpenChange={setMobileMenuOpen}
-                                        selectedModel={selectedModel}
-                                        modelSupportsFunctionCalling={modelSupportsFunctionCalling}
-                                        modelSupportsReasoningControl={
-                                            modelSupportsReasoningControl
-                                        }
-                                        isImageModel={isImageModel}
-                                        modelSupportsImageSizing={modelSupportsImageSizing}
-                                        modelSupportsImageResolution={modelSupportsImageResolution}
-                                        allowedReasoningEfforts={allowedReasoningEfforts}
-                                        selectedSharedModel={selectedSharedModel}
-                                        hasSupermemory={hasSupermemory}
-                                        mcpServers={mcpServers}
-                                        currentMcpOverrides={currentMcpOverrides}
-                                        onToggleTool={handleToolToggle}
-                                        onToggleMcpServer={handleMcpServerToggle}
-                                        onAttachClick={() => uploadInputRef.current?.click()}
-                                    />
-                                )}
-                            </motion.div>
                         </motion.div>
+
+                        {/* Mobile-only overflow actions stay on the right edge to keep menu content on-screen. */}
+                        {(modelSupportsImageSizing ||
+                            modelSupportsImageResolution ||
+                            !isImageModel ||
+                            modelSupportsReasoningControl) && (
+                            <div className="shrink-0 sm:hidden">
+                                <MobileOverflowMenu
+                                    open={mobileMenuOpen}
+                                    onOpenChange={setMobileMenuOpen}
+                                    selectedModel={selectedModel}
+                                    modelSupportsFunctionCalling={modelSupportsFunctionCalling}
+                                    modelSupportsReasoningControl={modelSupportsReasoningControl}
+                                    isImageModel={isImageModel}
+                                    modelSupportsImageSizing={modelSupportsImageSizing}
+                                    modelSupportsImageResolution={modelSupportsImageResolution}
+                                    allowedReasoningEfforts={allowedReasoningEfforts}
+                                    selectedSharedModel={selectedSharedModel}
+                                    hasSupermemory={hasSupermemory}
+                                    mcpServers={mcpServers}
+                                    currentMcpOverrides={currentMcpOverrides}
+                                    onToggleTool={handleToolToggle}
+                                    onToggleMcpServer={handleMcpServerToggle}
+                                    onAttachClick={() => uploadInputRef.current?.click()}
+                                />
+                            </div>
+                        )}
 
                         <PromptInputAction
                             tooltip={
