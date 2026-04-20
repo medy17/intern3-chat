@@ -9,6 +9,12 @@ import { LogoMark } from "@/components/logo"
 import { MagicCard } from "@/components/magic-cards"
 import { MagneticButton } from "@/components/magnetic-button"
 import { ThemeSwitcher } from "@/components/themes/theme-switcher"
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger
+} from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
 import { useGSAP } from "@gsap/react"
 import { Link } from "@tanstack/react-router"
@@ -20,8 +26,11 @@ import {
     Check,
     FileText,
     FileUp,
+    Github,
     Globe,
     Image as ImageIcon,
+    Minus,
+    ShieldCheck,
     Users
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
@@ -40,11 +49,11 @@ export function LandingPage() {
     const ctaRef = useRef<HTMLDivElement>(null)
     const logosRef = useRef<HTMLDivElement>(null)
 
+    // Hero Animation
     useGSAP(
         () => {
             const tl = gsap.timeline()
 
-            // 1. Text Reveal: Words slide up from masked bottom with a slight 3D rotation
             tl.fromTo(
                 ".hero-word",
                 { y: 120, rotationX: -80, opacity: 0, scale: 0.8 },
@@ -59,21 +68,18 @@ export function LandingPage() {
                     delay: 0.1
                 }
             )
-                // 2. Subtitle: Beautiful modern blur-in effect
                 .fromTo(
                     subtitleRef.current,
                     { y: 30, opacity: 0, filter: "blur(12px)" },
                     { y: 0, opacity: 1, filter: "blur(0px)", duration: 1.2, ease: "power3.out" },
                     "-=1"
                 )
-                // 3. CTA Button: Elastic pop
                 .fromTo(
                     ctaRef.current,
                     { y: 40, opacity: 0, scale: 0.8 },
                     { y: 0, opacity: 1, scale: 1, duration: 1.5, ease: "elastic.out(1, 0.4)" },
                     "-=1"
                 )
-                // 4. Logos: Staggered pop-in with overshooting scale
                 .fromTo(
                     logosRef.current?.children || [],
                     { y: 20, opacity: 0, scale: 0.5 },
@@ -91,12 +97,12 @@ export function LandingPage() {
         { scope: containerRef }
     )
 
+    // Scroll Trigger Animations
     useGSAP(
         () => {
             const scroller = containerRef.current
             if (!scroller) return
 
-            // Features Section
             gsap.fromTo(
                 ".feature-header",
                 { y: 40, opacity: 0, filter: "blur(10px)" },
@@ -123,7 +129,6 @@ export function LandingPage() {
                 }
             )
 
-            // Showcase Section
             gsap.fromTo(
                 ".showcase-header",
                 { y: 40, opacity: 0, filter: "blur(10px)" },
@@ -150,7 +155,18 @@ export function LandingPage() {
                 }
             )
 
-            // Pricing Section
+            gsap.fromTo(
+                ".comparison-content",
+                { y: 40, opacity: 0 },
+                {
+                    y: 0,
+                    opacity: 1,
+                    duration: 1,
+                    ease: "power3.out",
+                    scrollTrigger: { trigger: "#comparison", scroller, start: "top 75%" }
+                }
+            )
+
             gsap.fromTo(
                 ".pricing-header",
                 { y: 40, opacity: 0, filter: "blur(10px)" },
@@ -176,7 +192,30 @@ export function LandingPage() {
                 }
             )
 
-            // CTA Section
+            gsap.fromTo(
+                ".security-content",
+                { y: 40, opacity: 0 },
+                {
+                    y: 0,
+                    opacity: 1,
+                    duration: 1,
+                    ease: "power3.out",
+                    scrollTrigger: { trigger: "#security", scroller, start: "top 75%" }
+                }
+            )
+
+            gsap.fromTo(
+                ".faq-content",
+                { y: 40, opacity: 0 },
+                {
+                    y: 0,
+                    opacity: 1,
+                    duration: 1,
+                    ease: "power3.out",
+                    scrollTrigger: { trigger: "#faq", scroller, start: "top 80%" }
+                }
+            )
+
             gsap.fromTo(
                 ".cta-header",
                 { y: 30, opacity: 0, scale: 0.9 },
@@ -212,7 +251,6 @@ export function LandingPage() {
         const handleScroll = () => {
             const currentScrollY = container.scrollTop
 
-            // Hide nav when scrolling down, show when scrolling up or at top
             if (currentScrollY > lastScrollY.current && currentScrollY > 100) {
                 setIsNavVisible(false)
             } else {
@@ -237,18 +275,14 @@ export function LandingPage() {
         return () => container.removeEventListener("scroll", handleScroll)
     }, [])
 
-    const fadeIn = {
-        initial: { opacity: 0, y: 20 },
-        whileInView: { opacity: 1, y: 0 },
-        viewport: { once: true },
-        transition: { duration: 0.6 }
-    }
-
     const sections = [
         { id: "hero", label: "Hero" },
         { id: "features", label: "Features" },
         { id: "showcase", label: "Interface" },
+        { id: "comparison", label: "Comparison" },
         { id: "byok", label: "Pricing" },
+        { id: "security", label: "Security" },
+        { id: "faq", label: "FAQ" },
         { id: "cta", label: "Get Started" }
     ]
 
@@ -259,7 +293,11 @@ export function LandingPage() {
         >
             {/* Nav */}
             <nav
-                className={`fixed top-0 z-50 flex w-full items-center justify-between bg-background/40 px-4 py-2 backdrop-blur-md transition-transform duration-500 ease-in-out md:px-6 ${isNavVisible && sections[activeSection]?.id !== "showcase" ? "translate-y-0" : "-translate-y-full"}`}
+                className={`fixed top-0 z-50 flex w-full items-center justify-between bg-background/40 px-4 py-2 backdrop-blur-md transition-transform duration-500 ease-in-out md:px-6 ${
+                    isNavVisible && sections[activeSection]?.id !== "showcase"
+                        ? "translate-y-0"
+                        : "-translate-y-full"
+                }`}
             >
                 <div className="flex items-center gap-2">
                     <LogoMark className="h-auto w-24 md:w-32" />
@@ -287,11 +325,11 @@ export function LandingPage() {
                     <button
                         key={section.id}
                         type="button"
-                        onClick={() => {
+                        onClick={() =>
                             document
                                 .getElementById(section.id)
                                 ?.scrollIntoView({ behavior: "smooth" })
-                        }}
+                        }
                         className="group relative flex items-center justify-end"
                         aria-label={`Go to ${section.label}`}
                     >
@@ -310,7 +348,7 @@ export function LandingPage() {
             </div>
 
             <main className="w-full">
-                {/* Section 1: Hero */}
+                {/* 1. Hero */}
                 <section
                     id="hero"
                     ref={heroRef}
@@ -335,7 +373,7 @@ export function LandingPage() {
                                     </span>
                                 ))}
                         </h1>
-                        <h2 className="sr-only">SilkChat - Your AI companion</h2>
+
                         <p
                             ref={subtitleRef}
                             className="mx-auto mb-12 max-w-2xl text-lg text-muted-foreground md:text-xl"
@@ -344,6 +382,7 @@ export function LandingPage() {
                             chat with multi-modal support, web search, and stunning image
                             generation.
                         </p>
+
                         <div
                             ref={ctaRef}
                             className="flex flex-col items-center justify-center gap-4 sm:flex-row"
@@ -362,7 +401,6 @@ export function LandingPage() {
                         </div>
                     </div>
 
-                    {/* Model Logos */}
                     <div
                         ref={logosRef}
                         className="mt-20 flex flex-wrap justify-center gap-8 opacity-50 grayscale transition-all hover:opacity-100 hover:grayscale-0 md:gap-16"
@@ -375,7 +413,7 @@ export function LandingPage() {
                     </div>
                 </section>
 
-                {/* Section 2: Features */}
+                {/* 2. Features */}
                 <section
                     id="features"
                     className="flex min-h-screen snap-start flex-col items-center justify-center px-6 py-20"
@@ -491,7 +529,176 @@ export function LandingPage() {
                     </div>
                 </section>
 
-                {/* Section 3: BYOK / Pricing */}
+                {/* 3. Interface */}
+                <section
+                    id="showcase"
+                    className="flex min-h-[150vh] snap-start flex-col items-center justify-center bg-muted/10 px-4 py-20 md:min-h-screen md:px-8 lg:min-h-[120vh]"
+                >
+                    <div className="mx-auto w-full max-w-[1400px]">
+                        <div className="showcase-header mb-12 text-center">
+                            <h2 className="mb-4 font-bold text-3xl md:text-5xl">
+                                Experience the Interface
+                            </h2>
+                            <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
+                                A beautifully crafted workspace for all your AI interactions.
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-16 pb-10 lg:grid-cols-2 lg:gap-12">
+                            <div className="showcase-item flex snap-center flex-col gap-4 md:snap-align-none">
+                                <h3 className="px-2 text-center font-semibold text-2xl lg:text-left">
+                                    Chat Experience
+                                </h3>
+                                <div className="relative flex w-full items-center justify-center overflow-hidden rounded-xl border border-border/50 bg-muted/30 shadow-2xl">
+                                    <img
+                                        src="/screenshots/desktop/chat-desktop-light.png"
+                                        alt="Chat Desktop Light"
+                                        className="hidden h-auto w-full bg-background object-contain md:block dark:md:hidden"
+                                    />
+                                    <img
+                                        src="/screenshots/desktop/chat-desktop-dark.png"
+                                        alt="Chat Desktop Dark"
+                                        className="hidden h-auto w-full bg-background object-contain md:dark:block"
+                                    />
+                                    <img
+                                        src="/screenshots/mobile/chat-mobile-light.png"
+                                        alt="Chat Mobile Light"
+                                        className="block h-auto w-full bg-background object-contain md:hidden dark:hidden"
+                                    />
+                                    <img
+                                        src="/screenshots/mobile/chat-mobile-dark.png"
+                                        alt="Chat Mobile Dark"
+                                        className="hidden h-auto w-full bg-background object-contain dark:block dark:md:hidden"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="showcase-item flex snap-center flex-col gap-4 pt-8 md:snap-align-none lg:pt-0">
+                                <h3 className="px-2 text-center font-semibold text-2xl lg:text-left">
+                                    Library & Artifacts
+                                </h3>
+                                <div className="relative flex w-full items-center justify-center overflow-hidden rounded-xl border border-border/50 bg-muted/30 shadow-2xl">
+                                    <img
+                                        src="/screenshots/desktop/library-desktop-light.png"
+                                        alt="Library Desktop Light"
+                                        className="hidden h-auto w-full bg-background object-contain md:block dark:md:hidden"
+                                    />
+                                    <img
+                                        src="/screenshots/desktop/library-desktop-dark.png"
+                                        alt="Library Desktop Dark"
+                                        className="hidden h-auto w-full bg-background object-contain md:dark:block"
+                                    />
+                                    <img
+                                        src="/screenshots/mobile/library-mobile-light.png"
+                                        alt="Library Mobile Light"
+                                        className="block h-auto w-full bg-background object-contain md:hidden dark:hidden"
+                                    />
+                                    <img
+                                        src="/screenshots/mobile/library-mobile-dark.png"
+                                        alt="Library Mobile Dark"
+                                        className="hidden h-auto w-full bg-background object-contain dark:block dark:md:hidden"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* 4. Comparison */}
+                <section
+                    id="comparison"
+                    className="flex min-h-[80vh] snap-start flex-col items-center justify-center bg-muted/10 px-6 py-20"
+                >
+                    <div className="comparison-content container mx-auto max-w-4xl text-center">
+                        <h2 className="mb-4 font-bold text-3xl md:text-5xl">Why SilkChat?</h2>
+                        <p className="mx-auto mb-12 max-w-2xl text-lg text-muted-foreground">
+                            See how we stack up against traditional single-model AI subscriptions.
+                        </p>
+
+                        <div className="overflow-x-auto rounded-xl border border-border/50 bg-background/50 shadow-xl backdrop-blur-sm">
+                            <table className="w-full table-fixed border-collapse text-left text-sm md:text-base">
+                                <thead className="border-border/50 border-b bg-muted/50">
+                                    <tr>
+                                        <th className="w-1/3 p-4 font-semibold text-muted-foreground">
+                                            Feature
+                                        </th>
+                                        <th className="w-1/3 border-border/50 border-l bg-primary/5 p-4 font-bold text-primary">
+                                            SilkChat
+                                        </th>
+                                        <th className="w-1/3 border-border/50 border-l p-4 font-semibold text-muted-foreground">
+                                            Traditional AI Apps
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border/50">
+                                    <tr className="transition-colors hover:bg-muted/20">
+                                        <td className="p-4 text-muted-foreground">
+                                            Models Available
+                                        </td>
+                                        <td className="border-border/50 border-l bg-primary/5 p-4 font-medium">
+                                            All Providers (OpenAI, Anthropic, Google, etc.)
+                                        </td>
+                                        <td className="border-border/50 border-l p-4 text-muted-foreground">
+                                            Locked to a single provider
+                                        </td>
+                                    </tr>
+                                    <tr className="transition-colors hover:bg-muted/20">
+                                        <td className="p-4 text-muted-foreground">Pricing Model</td>
+                                        <td className="border-border/50 border-l bg-primary/5 p-4 font-medium">
+                                            Credit based usage
+                                        </td>
+                                        <td className="border-border/50 border-l p-4 text-muted-foreground">
+                                            Rigid $20/month subscription
+                                        </td>
+                                    </tr>
+                                    <tr className="transition-colors hover:bg-muted/20">
+                                        <td className="p-4 text-muted-foreground">Open Source</td>
+                                        <td className="border-border/50 border-l bg-primary/5 p-4 font-medium">
+                                            <div className="flex items-center gap-2">
+                                                <Check className="h-4 w-4 text-emerald-500" />
+                                                <span>Yes</span>
+                                            </div>
+                                        </td>
+                                        <td className="border-border/50 border-l p-4 text-muted-foreground">
+                                            <div className="flex items-center gap-2">
+                                                <Minus className="h-4 w-4" />
+                                                <span>No</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr className="transition-colors hover:bg-muted/20">
+                                        <td className="p-4 text-muted-foreground">Data Control</td>
+                                        <td className="border-border/50 border-l bg-primary/5 p-4 font-medium">
+                                            You own your API keys and data
+                                        </td>
+                                        <td className="border-border/50 border-l p-4 text-muted-foreground">
+                                            Data used for training (often by default)
+                                        </td>
+                                    </tr>
+                                    <tr className="transition-colors hover:bg-muted/20">
+                                        <td className="p-4 text-muted-foreground">
+                                            Import History
+                                        </td>
+                                        <td className="border-border/50 border-l bg-primary/5 p-4 font-medium">
+                                            <div className="flex items-center gap-2">
+                                                <Check className="h-4 w-4 text-emerald-500" />
+                                                <span>Import from ChatGPT, Claude, and more</span>
+                                            </div>
+                                        </td>
+                                        <td className="border-border/50 border-l p-4 text-muted-foreground">
+                                            <div className="flex items-center gap-2">
+                                                <Minus className="h-4 w-4" />
+                                                <span>Locked into platform</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                {/* 5. Pricing / BYOK */}
                 <section
                     id="byok"
                     className="flex min-h-[130vh] snap-start flex-col items-center justify-center bg-muted/20 px-6 py-20 md:min-h-screen"
@@ -575,124 +782,122 @@ export function LandingPage() {
                     </div>
                 </section>
 
-                {/* Section 4: Showcase / Interface */}
+                {/* 6. Security & Open Source */}
                 <section
-                    id="showcase"
-                    className="flex min-h-[150vh] snap-start flex-col items-center justify-center bg-muted/10 px-4 py-20 md:min-h-screen md:px-8 lg:min-h-[120vh]"
+                    id="security"
+                    className="flex min-h-[60vh] snap-start flex-col items-center justify-center bg-background px-6 py-20"
                 >
-                    <div className="mx-auto w-full max-w-[1400px]">
-                        <div className="showcase-header mb-12 snap-center text-center md:snap-align-none">
-                            <h2 className="mb-4 font-bold text-3xl md:text-5xl">
-                                Experience the Interface
-                            </h2>
-                            <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
-                                A beautifully crafted workspace for all your AI interactions.
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-16 pb-10 lg:grid-cols-2 lg:gap-12">
-                            {/* Chat View */}
-                            <div className="showcase-item flex snap-center flex-col gap-4 md:snap-align-none">
-                                <h3 className="px-2 text-center font-semibold text-2xl lg:text-left">
-                                    Chat Experience
-                                </h3>
-                                <div className="relative flex w-full items-center justify-center overflow-hidden rounded-xl border border-border/50 bg-muted/30 shadow-2xl">
-                                    {/* Desktop Light */}
-                                    <img
-                                        src="/screenshots/desktop/chat-desktop-light.png"
-                                        alt="Chat View Desktop Light"
-                                        className="hidden h-auto w-full bg-background object-contain md:block dark:md:hidden"
-                                        onError={(e) => {
-                                            e.currentTarget.src =
-                                                'data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 800 450"><rect fill="%23f8fafc" width="800" height="450"/><text fill="%2364748b" font-family="sans-serif" font-size="24" dy="10.5" font-weight="bold" x="50%" y="50%" text-anchor="middle">Chat Desktop Light</text></svg>'
-                                        }}
-                                    />
-                                    {/* Desktop Dark */}
-                                    <img
-                                        src="/screenshots/desktop/chat-desktop-dark.png"
-                                        alt="Chat View Desktop Dark"
-                                        className="hidden h-auto w-full bg-background object-contain md:dark:block"
-                                        onError={(e) => {
-                                            e.currentTarget.src =
-                                                'data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 800 450"><rect fill="%230f172a" width="800" height="450"/><text fill="%2394a3b8" font-family="sans-serif" font-size="24" dy="10.5" font-weight="bold" x="50%" y="50%" text-anchor="middle">Chat Desktop Dark</text></svg>'
-                                        }}
-                                    />
-                                    {/* Mobile Light */}
-                                    <img
-                                        src="/screenshots/mobile/chat-mobile-light.png"
-                                        alt="Chat View Mobile Light"
-                                        className="block h-auto w-full bg-background object-contain md:hidden dark:hidden"
-                                        onError={(e) => {
-                                            e.currentTarget.src =
-                                                'data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 360 640"><rect fill="%23f8fafc" width="360" height="640"/><text fill="%2364748b" font-family="sans-serif" font-size="18" dy="8" font-weight="bold" x="50%" y="50%" text-anchor="middle">Chat Mobile Light</text></svg>'
-                                        }}
-                                    />
-                                    {/* Mobile Dark */}
-                                    <img
-                                        src="/screenshots/mobile/chat-mobile-dark.png"
-                                        alt="Chat View Mobile Dark"
-                                        className="hidden h-auto w-full bg-background object-contain dark:block dark:md:hidden"
-                                        onError={(e) => {
-                                            e.currentTarget.src =
-                                                'data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 360 640"><rect fill="%230f172a" width="360" height="640"/><text fill="%2394a3b8" font-family="sans-serif" font-size="18" dy="8" font-weight="bold" x="50%" y="50%" text-anchor="middle">Chat Mobile Dark</text></svg>'
-                                        }}
-                                    />
+                    <div className="security-content container mx-auto max-w-4xl">
+                        <div className="grid grid-cols-1 items-center gap-8 rounded-2xl border border-border/50 bg-muted/30 p-8 md:grid-cols-2 md:p-12">
+                            <div>
+                                <div className="mb-6 inline-flex items-center justify-center rounded-full bg-emerald-500/10 p-3 text-emerald-500">
+                                    <ShieldCheck className="h-8 w-8" />
                                 </div>
+                                <h3 className="mb-4 font-bold text-3xl">Secure & Transparent</h3>
+                                <p className="mb-6 text-muted-foreground">
+                                    When you use BYOK, your API requests go directly to the
+                                    provider. We don't act as a man-in-the-middle, meaning your
+                                    sensitive conversations are never logged by us.
+                                </p>
+                                <a
+                                    href="https://github.com/medy17/silkchat"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                >
+                                    <Button variant="outline" className="gap-2">
+                                        <Github className="h-4 w-4" />
+                                        View Source Code
+                                    </Button>
+                                </a>
                             </div>
-
-                            {/* Library View */}
-                            <div className="showcase-item flex snap-center flex-col gap-4 pt-8 md:snap-align-none lg:pt-0">
-                                <h3 className="px-2 text-center font-semibold text-2xl lg:text-left">
-                                    Library & Artifacts
-                                </h3>
-                                <div className="relative flex w-full items-center justify-center overflow-hidden rounded-xl border border-border/50 bg-muted/30 shadow-2xl">
-                                    {/* Desktop Light */}
-                                    <img
-                                        src="/screenshots/desktop/library-desktop-light.png"
-                                        alt="Library View Desktop Light"
-                                        className="hidden h-auto w-full bg-background object-contain md:block dark:md:hidden"
-                                        onError={(e) => {
-                                            e.currentTarget.src =
-                                                'data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 800 450"><rect fill="%23f8fafc" width="800" height="450"/><text fill="%2364748b" font-family="sans-serif" font-size="24" dy="10.5" font-weight="bold" x="50%" y="50%" text-anchor="middle">Library Desktop Light</text></svg>'
-                                        }}
-                                    />
-                                    {/* Desktop Dark */}
-                                    <img
-                                        src="/screenshots/desktop/library-desktop-dark.png"
-                                        alt="Library View Desktop Dark"
-                                        className="hidden h-auto w-full bg-background object-contain md:dark:block"
-                                        onError={(e) => {
-                                            e.currentTarget.src =
-                                                'data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 800 450"><rect fill="%230f172a" width="800" height="450"/><text fill="%2394a3b8" font-family="sans-serif" font-size="24" dy="10.5" font-weight="bold" x="50%" y="50%" text-anchor="middle">Library Desktop Dark</text></svg>'
-                                        }}
-                                    />
-                                    {/* Mobile Light */}
-                                    <img
-                                        src="/screenshots/mobile/library-mobile-light.png"
-                                        alt="Library View Mobile Light"
-                                        className="block h-auto w-full bg-background object-contain md:hidden dark:hidden"
-                                        onError={(e) => {
-                                            e.currentTarget.src =
-                                                'data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 360 640"><rect fill="%23f8fafc" width="360" height="640"/><text fill="%2364748b" font-family="sans-serif" font-size="18" dy="8" font-weight="bold" x="50%" y="50%" text-anchor="middle">Library Mobile Light</text></svg>'
-                                        }}
-                                    />
-                                    {/* Mobile Dark */}
-                                    <img
-                                        src="/screenshots/mobile/library-mobile-dark.png"
-                                        alt="Library View Mobile Dark"
-                                        className="hidden h-auto w-full bg-background object-contain dark:block dark:md:hidden"
-                                        onError={(e) => {
-                                            e.currentTarget.src =
-                                                'data:image/svg+xml;charset=UTF-8,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 360 640"><rect fill="%230f172a" width="360" height="640"/><text fill="%2394a3b8" font-family="sans-serif" font-size="18" dy="8" font-weight="bold" x="50%" y="50%" text-anchor="middle">Library Mobile Dark</text></svg>'
-                                        }}
-                                    />
+                            <div className="space-y-4">
+                                <div className="flex items-start gap-4 rounded-lg border border-border/50 bg-background p-4 shadow-sm">
+                                    <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+                                    <div>
+                                        <p className="font-semibold">Local API Keys</p>
+                                        <p className="text-muted-foreground text-sm">
+                                            Keys are stored securely in your browser.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-4 rounded-lg border border-border/50 bg-background p-4 shadow-sm">
+                                    <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+                                    <div>
+                                        <p className="font-semibold">Open Source</p>
+                                        <p className="text-muted-foreground text-sm">
+                                            Audit our code. Host it yourself if you prefer.
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </section>
 
-                {/* Section 5: CTA */}
+                {/* 7. FAQ */}
+                <section
+                    id="faq"
+                    className="flex min-h-[80vh] snap-start flex-col items-center justify-center bg-muted/10 px-6 py-20"
+                >
+                    <div className="faq-content container mx-auto max-w-3xl">
+                        <div className="mb-12 text-center">
+                            <h2 className="mb-4 font-bold text-3xl md:text-5xl">
+                                Common Questions
+                            </h2>
+                            <p className="text-lg text-muted-foreground">
+                                Everything you need to know about SilkChat.
+                            </p>
+                        </div>
+
+                        <Accordion
+                            type="single"
+                            collapsible
+                            className="w-full rounded-xl border border-border/50 bg-background px-4 shadow-sm md:px-6"
+                        >
+                            <AccordionItem value="item-1">
+                                <AccordionTrigger className="py-6 text-left font-semibold text-lg">
+                                    What does BYOK mean?
+                                </AccordionTrigger>
+                                <AccordionContent className="pb-6 text-base text-muted-foreground leading-relaxed">
+                                    BYOK stands for "Bring Your Own Key". It means you can input
+                                    your own API keys from providers like OpenAI, Anthropic, or
+                                    Google directly into SilkChat.
+                                </AccordionContent>
+                            </AccordionItem>
+                            <AccordionItem value="item-2">
+                                <AccordionTrigger className="py-6 text-left font-semibold text-lg">
+                                    How do Internal Credits work?
+                                </AccordionTrigger>
+                                <AccordionContent className="pb-6 text-base text-muted-foreground leading-relaxed">
+                                    If you don't want to manage multiple API keys, you can use our
+                                    Internal Credits. Top up once and switch between any model
+                                    seamlessly.
+                                </AccordionContent>
+                            </AccordionItem>
+                            <AccordionItem value="item-3">
+                                <AccordionTrigger className="py-6 text-left font-semibold text-lg">
+                                    Are my conversations private?
+                                </AccordionTrigger>
+                                <AccordionContent className="pb-6 text-base text-muted-foreground leading-relaxed">
+                                    Yes. With BYOK your data goes straight to the provider. We do
+                                    not use any user data to train models. The entire platform is
+                                    open-source.
+                                </AccordionContent>
+                            </AccordionItem>
+                            <AccordionItem value="item-4">
+                                <AccordionTrigger className="py-6 text-left font-semibold text-lg">
+                                    Can I import my ChatGPT history?
+                                </AccordionTrigger>
+                                <AccordionContent className="pb-6 text-base text-muted-foreground leading-relaxed">
+                                    Absolutely. Our Universal Import feature lets you upload exports
+                                    from ChatGPT, Claude, and other platforms.
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
+                    </div>
+                </section>
+
+                {/* 8. Final CTA */}
                 <section
                     id="cta"
                     className="flex min-h-screen snap-start flex-col items-center justify-center bg-primary px-6 py-20 text-center text-primary-foreground"
@@ -707,7 +912,7 @@ export function LandingPage() {
                                 AI with SilkChat. Free to start, forever powerful.
                             </p>
                         </div>
-                        <div className="cta-button flex items-center justify-center">
+                        <div className="cta-button">
                             <MagneticButton>
                                 <Link to="/auth/$pathname" params={{ pathname: "login" }}>
                                     <Button
