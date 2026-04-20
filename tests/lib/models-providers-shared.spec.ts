@@ -1,7 +1,10 @@
 import type { SharedModel } from "@/convex/lib/models"
 import {
     getAllowedReasoningEffortsForModel,
+    getReasoningEffortForPlan,
     getReasoningEffortLabelForModel,
+    getRequiredPlanToPickModel,
+    getSelectableReasoningEffortsForPlan,
     hasBuiltInOpenRouterProvider,
     isOpenRouterModelEnabledInBrowser,
     isOpenRouterOnlySharedModel
@@ -121,5 +124,68 @@ describe("models-providers-shared OpenRouter visibility", () => {
         expect(getAllowedReasoningEffortsForModel(model)).toEqual(["off", "low", "medium", "high"])
         expect(getReasoningEffortLabelForModel(model, "low")).toBe("Low")
         expect(getReasoningEffortLabelForModel(model, "high")).toBe("High")
+    })
+
+    it("resolves picker access from availability metadata instead of credit buckets", () => {
+        const proGatedBasicModel = createModel({
+            availableToPickFor: "pro",
+            prototypeCreditTier: "basic"
+        })
+        const freeWithoutReasoningModel = createModel({
+            availableToPickFor: "free",
+            availableToPickForReasoningEfforts: {
+                low: "pro",
+                medium: "pro",
+                high: "pro"
+            },
+            prototypeCreditTier: "basic"
+        })
+        const freeUpToLowReasoningModel = createModel({
+            availableToPickFor: "free",
+            availableToPickForReasoningEfforts: {
+                medium: "pro",
+                high: "pro"
+            },
+            prototypeCreditTier: "basic"
+        })
+
+        expect(getRequiredPlanToPickModel(proGatedBasicModel, "off")).toBe("pro")
+        expect(getRequiredPlanToPickModel(freeWithoutReasoningModel, "off")).toBe("free")
+        expect(getRequiredPlanToPickModel(freeWithoutReasoningModel, "low")).toBe("pro")
+        expect(getRequiredPlanToPickModel(freeUpToLowReasoningModel, "low")).toBe("free")
+        expect(getRequiredPlanToPickModel(freeUpToLowReasoningModel, "medium")).toBe("pro")
+    })
+
+    it("limits selectable reasoning efforts by plan without hiding pro-only choices globally", () => {
+        const freeUpToLowReasoningModel = createModel({
+            abilities: ["reasoning", "effort_control"],
+            supportsDisablingReasoning: true,
+            availableToPickFor: "free",
+            availableToPickForReasoningEfforts: {
+                medium: "pro",
+                high: "pro"
+            }
+        })
+        const freeWithoutReasoningModel = createModel({
+            abilities: ["reasoning"],
+            supportsDisablingReasoning: true,
+            availableToPickFor: "free",
+            availableToPickForReasoningEfforts: {
+                medium: "pro"
+            }
+        })
+
+        expect(getSelectableReasoningEffortsForPlan(freeUpToLowReasoningModel, "free")).toEqual([
+            "off",
+            "low"
+        ])
+        expect(getSelectableReasoningEffortsForPlan(freeUpToLowReasoningModel, "pro")).toEqual([
+            "off",
+            "low",
+            "medium",
+            "high"
+        ])
+        expect(getReasoningEffortForPlan(freeUpToLowReasoningModel, "high", "free")).toBe("low")
+        expect(getReasoningEffortForPlan(freeWithoutReasoningModel, "medium", "free")).toBe("off")
     })
 })

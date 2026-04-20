@@ -402,8 +402,9 @@ describe("chatPOST", () => {
                     "shared-text": {}
                 }
             },
+            availableToPickFor: "pro",
             prototypeCreditTier: "basic",
-            prototypeCreditTierWithReasoning: "pro"
+            prototypeCreditTierWithReasoning: undefined
         })
 
         const response = await chatPOST(
@@ -415,7 +416,8 @@ describe("chatPOST", () => {
                     role: "user",
                     parts: [{ type: "text", text: "hello" }]
                 },
-                enabledTools: []
+                enabledTools: [],
+                reasoningEffort: "off"
             })
         )
 

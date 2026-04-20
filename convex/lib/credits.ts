@@ -1,5 +1,6 @@
 export type PrototypeCreditPlan = "free" | "pro"
 export type PrototypeCreditBucket = "basic" | "pro" | "none"
+export type PrototypeAccessPlan = PrototypeCreditPlan
 export type PrototypeCreditProviderSource =
     | "internal"
     | "byok"
@@ -8,6 +9,9 @@ export type PrototypeCreditProviderSource =
     | "unknown"
 export type PrototypeCreditFeature = "chat" | "image" | "tool"
 export type PrototypeReasoningEffort = "off" | "low" | "medium" | "high"
+export type PrototypeReasoningAccessPlanMap = Partial<
+    Record<PrototypeReasoningEffort, PrototypeAccessPlan>
+>
 
 export const DEFAULT_PROTOTYPE_CREDITS: Record<
     PrototypeCreditPlan,
@@ -119,4 +123,36 @@ export const resolvePrototypeCreditCharge = ({
         counted: true,
         units: 1
     }
+}
+
+export const resolveRequiredPlanForPrototypeModel = ({
+    modelMode,
+    reasoningEffort,
+    prototypeCreditTier,
+    prototypeCreditTierWithReasoning
+}: {
+    modelMode: "text" | "image"
+    reasoningEffort: PrototypeReasoningEffort
+    prototypeCreditTier?: Exclude<PrototypeCreditBucket, "none">
+    prototypeCreditTierWithReasoning?: Exclude<PrototypeCreditBucket, "none">
+}): PrototypeCreditPlan => {
+    if (reasoningEffort !== "off" && prototypeCreditTierWithReasoning) {
+        return prototypeCreditTierWithReasoning === "pro" ? "pro" : "free"
+    }
+
+    const bucket = prototypeCreditTier ?? (modelMode === "image" ? "pro" : "basic")
+    return bucket === "pro" ? "pro" : "free"
+}
+
+export const resolveRequiredPlanForModelAccess = ({
+    reasoningEffort,
+    availableToPickFor,
+    availableToPickForReasoningEfforts
+}: {
+    reasoningEffort: PrototypeReasoningEffort
+    availableToPickFor?: PrototypeAccessPlan
+    availableToPickForReasoningEfforts?: PrototypeReasoningAccessPlanMap
+}): PrototypeAccessPlan => {
+    const basePlan = availableToPickFor ?? "pro"
+    return availableToPickForReasoningEfforts?.[reasoningEffort] ?? basePlan
 }

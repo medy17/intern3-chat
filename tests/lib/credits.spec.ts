@@ -4,7 +4,9 @@ import {
     getConfiguredCreditLimits,
     getCreditPeriodBounds,
     getCurrentCreditPeriodKey,
-    resolvePrototypeCreditCharge
+    resolvePrototypeCreditCharge,
+    resolveRequiredPlanForModelAccess,
+    resolveRequiredPlanForPrototypeModel
 } from "../../convex/lib/credits"
 
 describe("credits", () => {
@@ -74,5 +76,64 @@ describe("credits", () => {
             counted: false,
             units: 0
         })
+    })
+
+    it("resolves required plans from prototype model tiers", () => {
+        expect(
+            resolveRequiredPlanForPrototypeModel({
+                modelMode: "text",
+                reasoningEffort: "off",
+                prototypeCreditTier: "basic"
+            })
+        ).toBe("free")
+
+        expect(
+            resolveRequiredPlanForPrototypeModel({
+                modelMode: "image",
+                reasoningEffort: "off"
+            })
+        ).toBe("pro")
+
+        expect(
+            resolveRequiredPlanForPrototypeModel({
+                modelMode: "text",
+                reasoningEffort: "high",
+                prototypeCreditTier: "basic",
+                prototypeCreditTierWithReasoning: "pro"
+            })
+        ).toBe("pro")
+    })
+
+    it("resolves picker access separately from credit buckets", () => {
+        expect(
+            resolveRequiredPlanForModelAccess({
+                reasoningEffort: "off",
+                availableToPickFor: "pro"
+            })
+        ).toBe("pro")
+
+        expect(
+            resolveRequiredPlanForModelAccess({
+                reasoningEffort: "off",
+                availableToPickFor: "free",
+                availableToPickForReasoningEfforts: {
+                    low: "pro",
+                    medium: "pro",
+                    high: "pro"
+                }
+            })
+        ).toBe("free")
+
+        expect(
+            resolveRequiredPlanForModelAccess({
+                reasoningEffort: "medium",
+                availableToPickFor: "free",
+                availableToPickForReasoningEfforts: {
+                    low: "pro",
+                    medium: "pro",
+                    high: "pro"
+                }
+            })
+        ).toBe("pro")
     })
 })

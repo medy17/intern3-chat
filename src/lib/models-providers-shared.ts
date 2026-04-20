@@ -310,6 +310,19 @@ export const getPrototypeCreditTierForModel = (
     )
 }
 
+export const getRequiredPlanToPickModel = (
+    model: DisplayModel,
+    reasoningEffort: ReasoningEffort = "off"
+): "free" | "pro" => {
+    if ("isCustom" in model && model.isCustom) {
+        return "pro"
+    }
+
+    const sharedModel = model as SharedModel
+    const basePlan = sharedModel.availableToPickFor ?? "pro"
+    return sharedModel.availableToPickForReasoningEfforts?.[reasoningEffort] ?? basePlan
+}
+
 export const getAllowedReasoningEffortsForModel = (
     model: SharedModel | null | undefined
 ): ReasoningEffort[] => {
@@ -326,6 +339,44 @@ export const getAllowedReasoningEffortsForModel = (
     }
 
     return []
+}
+
+export const getSelectableReasoningEffortsForPlan = (
+    model: SharedModel | null | undefined,
+    creditPlan: "free" | "pro" | null | undefined
+): ReasoningEffort[] => {
+    const allowedEfforts = getAllowedReasoningEffortsForModel(model)
+
+    if (creditPlan !== "free" || !model) {
+        return allowedEfforts
+    }
+
+    return allowedEfforts.filter((effort) => getRequiredPlanToPickModel(model, effort) === "free")
+}
+
+export const getReasoningEffortForPlan = (
+    model: SharedModel | null | undefined,
+    reasoningEffort: ReasoningEffort,
+    creditPlan: "free" | "pro" | null | undefined
+): ReasoningEffort | null => {
+    const selectableEfforts = getSelectableReasoningEffortsForPlan(model, creditPlan)
+
+    if (selectableEfforts.includes(reasoningEffort)) {
+        return reasoningEffort
+    }
+
+    const effortRank: Record<ReasoningEffort, number> = {
+        off: 0,
+        low: 1,
+        medium: 2,
+        high: 3
+    }
+    const requestedRank = effortRank[reasoningEffort]
+    const nearestLowerEffort = selectableEfforts
+        .filter((effort) => effortRank[effort] <= requestedRank)
+        .sort((left, right) => effortRank[right] - effortRank[left])[0]
+
+    return nearestLowerEffort ?? selectableEfforts[0] ?? null
 }
 
 export const getReasoningEffortLabelForModel = (

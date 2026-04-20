@@ -45,7 +45,10 @@ import {
 import { useModelStore } from "@/lib/model-store"
 import {
     getAllowedReasoningEffortsForModel,
-    getReasoningEffortLabelForModel
+    getPrototypeCreditTierForModel,
+    getReasoningEffortForPlan,
+    getReasoningEffortLabelForModel,
+    getRequiredPlanToPickModel
 } from "@/lib/models-providers-shared"
 import { useSharedModels } from "@/lib/shared-models"
 import type { AbilityId } from "@/lib/tool-abilities"
@@ -59,6 +62,7 @@ import {
     ChevronDown,
     ChevronUp,
     Code,
+    Crown,
     FileType,
     Globe,
     Image as ImageIcon,
@@ -202,13 +206,17 @@ export const ImageResolutionSelector = ({ selectedModel }: { selectedModel: stri
 
 export const ReasoningEffortSelector = ({
     selectedModel,
-    tone = "default"
+    tone = "default",
+    creditPlan
 }: {
     selectedModel: string | null
     tone?: "default" | "on-primary"
+    creditPlan?: CreditPlan | null
 }) => {
     const { reasoningEffort, setReasoningEffort } = useModelStore()
     const { models: sharedModels } = useSharedModels()
+    const loadedCreditPlan = usePrototypeCreditPlan(creditPlan === undefined)
+    const resolvedCreditPlan = creditPlan === undefined ? loadedCreditPlan : creditPlan
 
     const selectedSharedModel = useMemo(
         () => sharedModels.find((model) => model.id === selectedModel),
@@ -222,11 +230,26 @@ export const ReasoningEffortSelector = ({
 
     useEffect(() => {
         if (!modelSupportsReasoningControl) return
-        if (!allowedEfforts.includes(reasoningEffort)) {
-            setReasoningEffort(allowedEfforts.includes("medium") ? "medium" : allowedEfforts[0]!)
+        const resolvedEffort = getReasoningEffortForPlan(
+            selectedSharedModel,
+            reasoningEffort,
+            resolvedCreditPlan
+        )
+        if (resolvedEffort && resolvedEffort !== reasoningEffort) {
+            setReasoningEffort(resolvedEffort)
         }
-    }, [allowedEfforts, modelSupportsReasoningControl, reasoningEffort, setReasoningEffort])
+    }, [
+        modelSupportsReasoningControl,
+        reasoningEffort,
+        resolvedCreditPlan,
+        selectedSharedModel,
+        setReasoningEffort
+    ])
     const isReasoningOff = reasoningEffort === "off"
+    const selectedEffortUsesProCredits =
+        resolvedCreditPlan === "pro" &&
+        selectedSharedModel !== undefined &&
+        getPrototypeCreditTierForModel(selectedSharedModel, reasoningEffort) === "pro"
 
     if (!modelSupportsReasoningControl) return null
 
@@ -247,14 +270,56 @@ export const ReasoningEffortSelector = ({
                         {isReasoningOff ? <Zap className="size-4" /> : <Brain className="size-4" />}
                         <SelectValue />
                     </div>
-                    <Zap className="size-4 sm:hidden" />
+                    <span className="relative sm:hidden">
+                        <Zap className="size-4" />
+                        {selectedEffortUsesProCredits && (
+                            <Crown
+                                className="-right-1 -top-1 absolute size-2.5"
+                                aria-label="Uses Pro credits"
+                            />
+                        )}
+                    </span>
                 </SelectTrigger>
                 <SelectContent>
-                    {allowedEfforts.map((effort) => (
-                        <SelectItem key={effort} value={effort} className="text-xs sm:text-sm">
-                            {getReasoningEffortLabelForModel(selectedSharedModel, effort)}
-                        </SelectItem>
-                    ))}
+                    {allowedEfforts.map((effort) => {
+                        const isEffortLocked =
+                            resolvedCreditPlan === "free" &&
+                            selectedSharedModel !== undefined &&
+                            getRequiredPlanToPickModel(selectedSharedModel, effort) === "pro"
+                        const effortUsesProCredits =
+                            resolvedCreditPlan === "pro" &&
+                            selectedSharedModel !== undefined &&
+                            getPrototypeCreditTierForModel(selectedSharedModel, effort) === "pro"
+
+                        return (
+                            <SelectItem
+                                key={effort}
+                                value={effort}
+                                disabled={isEffortLocked}
+                                className="text-xs sm:text-sm"
+                            >
+                                <span className="flex w-full items-center justify-between gap-3">
+                                    <span>
+                                        {getReasoningEffortLabelForModel(
+                                            selectedSharedModel,
+                                            effort
+                                        )}
+                                    </span>
+                                    {isEffortLocked && (
+                                        <span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium text-[10px] text-primary uppercase">
+                                            Pro
+                                        </span>
+                                    )}
+                                    {effortUsesProCredits && (
+                                        <Crown
+                                            className="size-3.5 shrink-0"
+                                            aria-label="Uses Pro credits"
+                                        />
+                                    )}
+                                </span>
+                            </SelectItem>
+                        )
+                    })}
                 </SelectContent>
             </Select>
         </PromptInputAction>
@@ -268,6 +333,52 @@ export interface MultimodalInputRef {
 
 const mobileMenuRowClassName =
     "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent/60"
+
+type CreditPlan = "free" | "pro"
+
+const usePrototypeCreditPlan = (enabled = true) => {
+    const session = useSession()
+    const auth = useConvexAuth()
+    const [creditPlan, setCreditPlan] = useState<CreditPlan | null>(null)
+
+    useEffect(() => {
+        if (!enabled || !session.user?.id || auth.isLoading) {
+            setCreditPlan(null)
+            return
+        }
+
+        let cancelled = false
+
+        const loadCreditPlan = async () => {
+            try {
+                const response = await fetch("/api/credit-summary", {
+                    credentials: "include"
+                })
+
+                if (!response.ok) {
+                    throw new Error("Failed to load credit summary")
+                }
+
+                const data = (await response.json()) as { plan?: CreditPlan }
+                if (!cancelled) {
+                    setCreditPlan(data.plan === "pro" ? "pro" : "free")
+                }
+            } catch {
+                if (!cancelled) {
+                    setCreditPlan("free")
+                }
+            }
+        }
+
+        void loadCreditPlan()
+
+        return () => {
+            cancelled = true
+        }
+    }, [auth.isLoading, enabled, session.user?.id])
+
+    return creditPlan
+}
 
 function MobileMenuIcon({
     slashed = false,
@@ -297,6 +408,7 @@ function MobileOverflowMenu({
     modelSupportsImageResolution,
     allowedReasoningEfforts,
     selectedSharedModel,
+    creditPlan,
     hasSupermemory,
     mcpServers,
     currentMcpOverrides,
@@ -314,6 +426,7 @@ function MobileOverflowMenu({
     modelSupportsImageResolution: boolean
     allowedReasoningEfforts: ReturnType<typeof getAllowedReasoningEffortsForModel>
     selectedSharedModel?: SharedModel
+    creditPlan: CreditPlan | null
     hasSupermemory: boolean
     mcpServers: Array<{ name: string }>
     currentMcpOverrides: Record<string, boolean>
@@ -324,6 +437,10 @@ function MobileOverflowMenu({
     const { enabledTools, reasoningEffort, setReasoningEffort } = useModelStore()
     const [reasoningExpanded, setReasoningExpanded] = useState(false)
     const reasoningLabel = getReasoningEffortLabelForModel(selectedSharedModel, reasoningEffort)
+    const selectedEffortUsesProCredits =
+        creditPlan === "pro" &&
+        selectedSharedModel !== undefined &&
+        getPrototypeCreditTierForModel(selectedSharedModel, reasoningEffort) === "pro"
     const webSearchEnabled = enabledTools.includes("web_search")
     const supermemoryEnabled = enabledTools.includes("supermemory")
 
@@ -377,6 +494,12 @@ function MobileOverflowMenu({
                                 <span className="min-w-0 flex-1 truncate">
                                     Reasoning: {reasoningLabel}
                                 </span>
+                                {selectedEffortUsesProCredits && (
+                                    <Crown
+                                        className="size-3.5 shrink-0"
+                                        aria-label="Uses Pro credits"
+                                    />
+                                )}
                                 {reasoningExpanded ? (
                                     <ChevronUp className="size-4 shrink-0" />
                                 ) : (
@@ -391,20 +514,48 @@ function MobileOverflowMenu({
                                             effort
                                         )
                                         const isSelected = reasoningEffort === effort
+                                        const isEffortLocked =
+                                            creditPlan === "free" &&
+                                            selectedSharedModel !== undefined &&
+                                            getRequiredPlanToPickModel(
+                                                selectedSharedModel,
+                                                effort
+                                            ) === "pro"
+                                        const effortUsesProCredits =
+                                            creditPlan === "pro" &&
+                                            selectedSharedModel !== undefined &&
+                                            getPrototypeCreditTierForModel(
+                                                selectedSharedModel,
+                                                effort
+                                            ) === "pro"
 
                                         return (
                                             <button
                                                 key={effort}
                                                 type="button"
                                                 className={cn(
-                                                    "flex w-full items-center rounded-md px-9 py-2 text-left text-sm transition-colors hover:bg-accent/60",
-                                                    isSelected && "bg-accent/50 text-primary"
+                                                    "flex w-full items-center gap-2 rounded-md px-9 py-2 text-left text-sm transition-colors hover:bg-accent/60",
+                                                    isSelected && "bg-accent/50 text-primary",
+                                                    isEffortLocked &&
+                                                        "cursor-not-allowed opacity-50 hover:bg-transparent"
                                                 )}
+                                                disabled={isEffortLocked}
                                                 onClick={() => setReasoningEffort(effort)}
                                             >
                                                 <span className="min-w-0 flex-1 truncate">
                                                     {effortLabel}
                                                 </span>
+                                                {isEffortLocked && (
+                                                    <span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium text-[10px] text-primary uppercase">
+                                                        Pro
+                                                    </span>
+                                                )}
+                                                {effortUsesProCredits && (
+                                                    <Crown
+                                                        className="size-3.5 shrink-0"
+                                                        aria-label="Uses Pro credits"
+                                                    />
+                                                )}
                                                 {isSelected && (
                                                     <Check className="size-4 shrink-0" />
                                                 )}
@@ -508,6 +659,7 @@ export const MultimodalInput = forwardRef<
     const session = useSession()
     const auth = useConvexAuth()
     const { models: sharedModels } = useSharedModels()
+    const creditPlan = usePrototypeCreditPlan()
 
     const {
         selectedModel,
@@ -1221,11 +1373,13 @@ export const MultimodalInput = forwardRef<
                                             />
                                         </PromptInputAction>
 
-                                        <ReasoningEffortSelector selectedModel={selectedModel} />
+                                        <ReasoningEffortSelector
+                                            selectedModel={selectedModel}
+                                            creditPlan={creditPlan}
+                                        />
                                     </>
                                 )}
                             </motion.div>
-
                         </motion.div>
 
                         {/* Mobile-only overflow actions stay on the right edge to keep menu content on-screen. */}
@@ -1245,6 +1399,7 @@ export const MultimodalInput = forwardRef<
                                     modelSupportsImageResolution={modelSupportsImageResolution}
                                     allowedReasoningEfforts={allowedReasoningEfforts}
                                     selectedSharedModel={selectedSharedModel}
+                                    creditPlan={creditPlan}
                                     hasSupermemory={hasSupermemory}
                                     mcpServers={mcpServers}
                                     currentMcpOverrides={currentMcpOverrides}

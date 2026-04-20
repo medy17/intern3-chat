@@ -44,10 +44,13 @@ import {
     type DisplayModel,
     getAbilityIcon,
     getAbilityLabel,
+    getAllowedReasoningEffortsForModel,
     getModelDescription,
     getModelShortDescription,
     getPrototypeCreditTierForModel,
     getProviderDisplayName,
+    getReasoningEffortForPlan,
+    getRequiredPlanToPickModel,
     isImageGenerationCapableModel,
     useAvailableModels
 } from "@/lib/models-providers-shared"
@@ -60,6 +63,7 @@ import {
     Check,
     ChevronDown,
     CircleHelp,
+    Crown,
     ExternalLink,
     Globe,
     GraduationCap,
@@ -864,7 +868,8 @@ const ModelCard = React.memo(function ModelCard({
     onClose,
     currentProviders,
     disabled,
-    badgeLabel
+    badgeLabel,
+    usesProCredits
 }: {
     model: DisplayModel
     selectedModel: string
@@ -873,6 +878,7 @@ const ModelCard = React.memo(function ModelCard({
     currentProviders: ReturnType<typeof useAvailableModels>["currentProviders"]
     disabled?: boolean
     badgeLabel?: string
+    usesProCredits?: boolean
 }) {
     const isSelected = model.id === selectedModel
     const modelAbilities = getModelAbilities(model)
@@ -913,6 +919,17 @@ const ModelCard = React.memo(function ModelCard({
                                         >
                                             {badgeLabel}
                                         </Badge>
+                                    )}
+                                    {usesProCredits && (
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Crown
+                                                    className="size-3.5 shrink-0"
+                                                    aria-label="Uses Pro credits"
+                                                />
+                                            </TooltipTrigger>
+                                            <TooltipContent>Uses Pro credits</TooltipContent>
+                                        </Tooltip>
                                     )}
                                     {isSelected && (
                                         <Check className="size-4 shrink-0 text-primary" />
@@ -1008,6 +1025,7 @@ export function ModelSelector({
     const [desktopPopoverWidth, setDesktopPopoverWidth] = React.useState<number | null>(null)
     const isMobile = useIsMobile()
     const reasoningEffort = useModelStore((state) => state.reasoningEffort)
+    const setReasoningEffort = useModelStore((state) => state.setReasoningEffort)
     const [creditPlan, setCreditPlan] = React.useState<"free" | "pro" | null>(null)
 
     const { availableModels, currentProviders } = useAvailableModels(
@@ -1103,10 +1121,21 @@ export function ModelSelector({
 
     const isModelLocked = React.useCallback(
         (model: DisplayModel) =>
-            creditPlan === "free" &&
-            getPrototypeCreditTierForModel(model, reasoningEffort) === "pro",
+            creditPlan === "free" && getRequiredPlanToPickModel(model, reasoningEffort) === "pro",
         [creditPlan, reasoningEffort]
     )
+
+    const selectedSharedModel = React.useMemo(
+        () => sharedModels.find((model) => model.id === selectedModel),
+        [selectedModel, sharedModels]
+    )
+
+    const fallbackReasoningEffort = React.useMemo(() => {
+        if (creditPlan !== "free" || !selectedSharedModel) return null
+        if (!getAllowedReasoningEffortsForModel(selectedSharedModel).length) return null
+
+        return getReasoningEffortForPlan(selectedSharedModel, reasoningEffort, creditPlan)
+    }, [creditPlan, reasoningEffort, selectedSharedModel])
 
     const fallbackModelId = React.useMemo(
         () => availableModels.find((model) => !isModelLocked(model))?.id,
@@ -1116,10 +1145,23 @@ export function ModelSelector({
     React.useEffect(() => {
         if (!selectedModelData || !fallbackModelId) return
         if (!isModelLocked(selectedModelData)) return
+        if (fallbackReasoningEffort && fallbackReasoningEffort !== reasoningEffort) {
+            setReasoningEffort(fallbackReasoningEffort)
+            return
+        }
         if (fallbackModelId === selectedModel) return
 
         onModelChange(fallbackModelId)
-    }, [fallbackModelId, isModelLocked, onModelChange, selectedModel, selectedModelData])
+    }, [
+        fallbackModelId,
+        fallbackReasoningEffort,
+        isModelLocked,
+        onModelChange,
+        reasoningEffort,
+        selectedModel,
+        selectedModelData,
+        setReasoningEffort
+    ])
 
     const [activeProvider, setActiveProvider] = React.useState<string | null>(null)
 
@@ -1270,9 +1312,14 @@ export function ModelSelector({
                     currentProviders={currentProviders}
                     disabled={isModelLocked(model)}
                     badgeLabel={
-                        getPrototypeCreditTierForModel(model, reasoningEffort) === "pro"
+                        creditPlan === "free" &&
+                        getRequiredPlanToPickModel(model, reasoningEffort) === "pro"
                             ? "Pro"
                             : undefined
+                    }
+                    usesProCredits={
+                        creditPlan === "pro" &&
+                        getPrototypeCreditTierForModel(model, "off") === "pro"
                     }
                 />
             ))}

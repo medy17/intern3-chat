@@ -10,6 +10,7 @@ import {
     SELECTABLE_IMAGE_ASPECT_RATIOS,
     type SelectableImageAspectRatio
 } from "@/lib/image-aspect-ratios"
+import { getRequiredPlanToPickModel } from "@/lib/models-providers-shared"
 import { useSharedModels } from "@/lib/shared-models"
 import { cn } from "@/lib/utils"
 import { useAction } from "convex/react"
@@ -57,8 +58,56 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
     const [referenceFiles, setReferenceFiles] = useState<{ file: File; preview: string }[]>([])
     const [showGradient, setShowGradient] = useState(false)
     const [fakeResponseTimeSeconds, setFakeResponseTimeSeconds] = useState(15)
+    const [creditPlan, setCreditPlan] = useState<"free" | "pro" | null>(null)
     const scrollContainerRef = useRef<HTMLDivElement>(null)
     const referenceFilesRef = useRef(referenceFiles)
+
+    useEffect(() => {
+        let cancelled = false
+
+        const loadCreditPlan = async () => {
+            try {
+                const response = await fetch("/api/credit-summary", {
+                    credentials: "include"
+                })
+
+                if (!response.ok) {
+                    throw new Error("Failed to load credit summary")
+                }
+
+                const data = (await response.json()) as { plan?: "free" | "pro" }
+                if (!cancelled) {
+                    setCreditPlan(data.plan === "pro" ? "pro" : "free")
+                }
+            } catch {
+                if (!cancelled) {
+                    setCreditPlan("free")
+                }
+            }
+        }
+
+        void loadCreditPlan()
+
+        return () => {
+            cancelled = true
+        }
+    }, [])
+
+    const lockedModelIds = useMemo(
+        () =>
+            new Set(
+                creditPlan === "free"
+                    ? imageModels
+                          .filter((model) => getRequiredPlanToPickModel(model) === "pro")
+                          .map((model) => model.id)
+                    : []
+            ),
+        [creditPlan, imageModels]
+    )
+    const selectableImageModels = useMemo(
+        () => imageModels.filter((model) => !lockedModelIds.has(model.id)),
+        [imageModels, lockedModelIds]
+    )
 
     useEffect(() => {
         referenceFilesRef.current = referenceFiles
@@ -66,17 +115,19 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
 
     useEffect(() => {
         setSelectedModelIds((prev) => {
+            const selectableModels = creditPlan === null ? imageModels : selectableImageModels
             const validSelections = prev.filter((id) =>
-                imageModels.some((model) => model.id === id)
+                selectableModels.some((model) => model.id === id)
             )
             if (validSelections.length > 0) {
                 return areStringArraysEqual(prev, validSelections) ? prev : validSelections
             }
 
-            const fallbackSelection = imageModels.length > 0 ? [imageModels[0].id] : []
+            const fallbackPool = selectableModels.length > 0 ? selectableModels : imageModels
+            const fallbackSelection = fallbackPool.length > 0 ? [fallbackPool[0].id] : []
             return areStringArraysEqual(prev, fallbackSelection) ? prev : fallbackSelection
         })
-    }, [imageModels, setSelectedModelIds])
+    }, [creditPlan, imageModels, selectableImageModels, setSelectedModelIds])
 
     useEffect(() => {
         setSelectedModelCounts((prev) => {
@@ -144,7 +195,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
     }, [])
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (disabled) {
+        if (generationPanelDisabled || selectedRequiresPlanUpgrade) {
             if (fileInputRef.current) {
                 fileInputRef.current.value = ""
             }
@@ -173,7 +224,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
     }
 
     const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-        if (disabled) {
+        if (generationPanelDisabled || selectedRequiresPlanUpgrade) {
             e.preventDefault()
             return
         }
@@ -210,6 +261,10 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
     }
 
     const toggleModel = (modelId: string) => {
+        if (lockedModelIds.has(modelId)) {
+            return
+        }
+
         const isSelected = selectedModelIds.includes(modelId)
         if (isSelected && selectedModelIds.length === 1) {
             return
@@ -318,6 +373,13 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
         () => imageModels.filter((model) => selectedModelIds.includes(model.id)),
         [imageModels, selectedModelIds]
     )
+    const selectedRequiresPlanUpgrade = useMemo(
+        () => selectedModels.some((model) => lockedModelIds.has(model.id)),
+        [lockedModelIds, selectedModels]
+    )
+    const generationPlanLocked =
+        creditPlan === "free" && imageModels.length > 0 && selectableImageModels.length === 0
+    const generationPanelDisabled = disabled || generationPlanLocked
 
     const supportsReferenceImagesForSelection = useMemo(
         () =>
@@ -340,7 +402,11 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
     const canGenerateBase =
         selectedModelIds.length > 0 && !isGenerating && commonImageSizes.length > 0
     const normalizedPrompt = prompt.trim()
-    const canSubmitGeneration = canGenerateBase && Boolean(normalizedPrompt)
+    const canSubmitGeneration =
+        canGenerateBase &&
+        Boolean(normalizedPrompt) &&
+        !generationPanelDisabled &&
+        !selectedRequiresPlanUpgrade
 
     const uploadReferenceKeys = async () => {
         if (referenceFiles.length === 0) {
@@ -383,7 +449,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
     }
 
     const handleGenerate = async () => {
-        if (disabled) return
+        if (generationPanelDisabled || selectedRequiresPlanUpgrade) return
         if (!normalizedPrompt || selectedModelIds.length === 0) return
         if (referenceFiles.length > 0 && !supportsReferenceImagesForSelection) {
             toast.error("Reference images are not supported for the selected model set")
@@ -440,7 +506,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
     }
 
     const handleFakeGenerate = async () => {
-        if (disabled) return
+        if (generationPanelDisabled || selectedRequiresPlanUpgrade) return
         if (!isDevMode || !normalizedPrompt || selectedModelIds.length === 0) return
         if (referenceFiles.length > 0 && !supportsReferenceImagesForSelection) {
             toast.error("Reference images are not supported for the selected model set")
@@ -500,8 +566,11 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
     return (
         <div className="custom-scrollbar relative flex h-full w-full flex-col text-foreground text-sm">
             <fieldset
-                disabled={disabled}
-                className={cn("flex h-full w-full flex-col", disabled && "opacity-50")}
+                disabled={generationPanelDisabled}
+                className={cn(
+                    "flex h-full w-full flex-col",
+                    generationPanelDisabled && "opacity-50"
+                )}
             >
                 {/* Prompt Section */}
                 <div className="space-y-3 border-b p-4">
@@ -537,7 +606,9 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                         <button
                             type="button"
                             onClick={() => fileInputRef.current?.click()}
-                            disabled={!supportsReferenceImagesForSelection}
+                            disabled={
+                                !supportsReferenceImagesForSelection || selectedRequiresPlanUpgrade
+                            }
                             className="text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
                         >
                             <Plus className="h-4 w-4" />
@@ -613,6 +684,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                             <div className="flex flex-col space-y-1">
                                 {imageModels.map((model) => {
                                     const isSelected = selectedModelIds.includes(model.id)
+                                    const modelPlanLocked = lockedModelIds.has(model.id)
                                     const modelCount =
                                         selectedModelCounts[model.id] ?? DEFAULT_VARIANTS_PER_MODEL
                                     const modelMaxPerMessage = getModelMaxPerMessage(model)
@@ -625,6 +697,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                                             key={model.id}
                                             className={cn(
                                                 "group rounded-md p-2 transition-all duration-200",
+                                                modelPlanLocked && "cursor-not-allowed opacity-50",
                                                 isSelected
                                                     ? "bg-primary/15 text-primary"
                                                     : "text-muted-foreground hover:bg-muted/50"
@@ -633,7 +706,8 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                                             <button
                                                 type="button"
                                                 onClick={() => toggleModel(model.id)}
-                                                className="flex w-full items-center justify-between p-1 text-left"
+                                                disabled={modelPlanLocked}
+                                                className="flex w-full items-center justify-between p-1 text-left disabled:cursor-not-allowed"
                                             >
                                                 <div className="flex min-w-0 flex-col">
                                                     <span
@@ -645,7 +719,9 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                                                         {model.name}
                                                     </span>
                                                     <span className="mt-0.5 text-[10px] opacity-70">
-                                                        Up to {modelMaxPerMessage} per run
+                                                        {modelPlanLocked
+                                                            ? "Pro plan required"
+                                                            : `Up to ${modelMaxPerMessage} per run`}
                                                     </span>
                                                 </div>
 
@@ -685,7 +761,9 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                                                                     modelCount - 1
                                                                 )
                                                             }
-                                                            disabled={modelCount <= 1}
+                                                            disabled={
+                                                                modelPlanLocked || modelCount <= 1
+                                                            }
                                                             className="flex h-6 w-6 items-center justify-center rounded border border-border/60 text-foreground transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-40"
                                                         >
                                                             <Minus className="h-3 w-3" />
@@ -701,7 +779,9 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                                                                     modelCount + 1
                                                                 )
                                                             }
-                                                            disabled={!canIncrement}
+                                                            disabled={
+                                                                modelPlanLocked || !canIncrement
+                                                            }
                                                             className="flex h-6 w-6 items-center justify-center rounded border border-border/60 text-foreground transition-colors hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-40"
                                                         >
                                                             <Plus className="h-3 w-3" />
@@ -925,13 +1005,16 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                     </Button>
                 </div>
             </fieldset>
-            {disabled && (
+            {generationPanelDisabled && (
                 <div className="absolute inset-0 z-20 flex items-center justify-center bg-sidebar/70 p-6 text-center backdrop-blur-sm">
                     <div className="max-w-xs rounded-lg border border-border/60 bg-background/90 p-4 shadow-lg">
-                        <p className="font-medium text-sm">Image generation unavailable</p>
+                        <p className="font-medium text-sm">
+                            {disabled ? "Image generation unavailable" : "Upgrade to Pro"}
+                        </p>
                         <p className="mt-1 text-muted-foreground text-xs leading-5">
-                            You cannot generate images in the Archive view. Switch to the Library
-                            view to continue generating images.
+                            {disabled
+                                ? "You cannot generate images in the Archive view. Switch to the Library view to continue generating images."
+                                : "Free users may view their image library, but creating new images requires a Pro plan."}
                         </p>
                     </div>
                 </div>

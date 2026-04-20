@@ -34,6 +34,7 @@ export type ImageResolution = ("1K" | "2K" | "4K") & {}
 
 export type ReasoningEffortTier = "off" | "low" | "medium" | "high"
 export type PrototypeCreditTier = "basic" | "pro"
+export type PrototypeAccessPlan = "free" | "pro"
 type EffortTierMap<T> = Partial<Record<ReasoningEffortTier, T>>
 
 export type ArtificialAnalysisModelType = "llm" | "text-to-image" | "image-editing"
@@ -82,6 +83,8 @@ export type SharedModel<Abilities extends ModelAbility[] = ModelAbility[]> = {
     customIcon?: "stability-ai" | "openai" | "bflabs" | "google" | "meta" | "xai"
     supportsDisablingReasoning?: boolean
     reasoningProfiles?: ModelReasoningProfiles
+    availableToPickFor?: PrototypeAccessPlan
+    availableToPickForReasoningEfforts?: EffortTierMap<PrototypeAccessPlan>
     prototypeCreditTier?: PrototypeCreditTier
     prototypeCreditTierWithReasoning?: PrototypeCreditTier
     legacy?: boolean

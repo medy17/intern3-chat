@@ -11,6 +11,7 @@ import { action } from "./_generated/server"
 import { r2 } from "./attachments"
 import { getModel } from "./chat_http/get_model"
 import { generateAndStoreImage } from "./chat_http/image_generation"
+import { resolvePrototypeCreditCharge, resolveRequiredPlanForModelAccess } from "./lib/credits"
 import { getUserIdentity } from "./lib/identity"
 import { MODELS_SHARED } from "./lib/models"
 import type { ImageResolution, ImageSize } from "./lib/models"
@@ -201,6 +202,26 @@ const buildDevFakeSvg = ({
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+const getUserCreditPlan = (user: { creditPlan?: string }) =>
+    user.creditPlan === "pro" ? "pro" : "free"
+
+const enforceImageGenerationPlan = ({
+    userCreditPlan,
+    availableToPickFor
+}: {
+    userCreditPlan: "free" | "pro"
+    availableToPickFor?: "free" | "pro"
+}) => {
+    const requiredPlan = resolveRequiredPlanForModelAccess({
+        reasoningEffort: "off",
+        availableToPickFor
+    })
+
+    if (requiredPlan === "pro" && userCreditPlan !== "pro") {
+        throw new Error("Pro plan required for image generation.")
+    }
+}
+
 export const generateStandaloneImage = action({
     args: {
         prompt: v.string(),
@@ -217,6 +238,18 @@ export const generateStandaloneImage = action({
         if (modelData instanceof ChatError) throw new Error(modelData.message)
 
         const { model } = modelData
+        enforceImageGenerationPlan({
+            userCreditPlan: getUserCreditPlan(user as typeof user & { creditPlan?: string }),
+            availableToPickFor: modelData.availableToPickFor
+        })
+        const creditCharge = resolvePrototypeCreditCharge({
+            providerSource: modelData.providerSource,
+            modelMode: model.modelType,
+            enabledTools: [],
+            reasoningEffort: "off",
+            prototypeCreditTier: modelData.prototypeCreditTier,
+            prototypeCreditTierWithReasoning: modelData.prototypeCreditTierWithReasoning
+        })
 
         const result = await generateAndStoreImage({
             prompt: args.prompt,
@@ -242,6 +275,19 @@ export const generateStandaloneImage = action({
                 resolution: args.resolution
             })
             insertedIds.push(id)
+
+            const creditEventKey = `standalone-image:${id}`
+            await ctx.runMutation(internal.credits.recordCreditEventForMessage, {
+                userId: user.id,
+                messageId: creditEventKey,
+                messageKey: creditEventKey,
+                modelId: args.modelId,
+                providerSource: modelData.providerSource,
+                feature: creditCharge.feature,
+                bucket: creditCharge.bucket,
+                units: creditCharge.units,
+                counted: creditCharge.counted
+            })
         }
 
         return insertedIds
@@ -264,6 +310,11 @@ export const generateFakeStandaloneImage = action({
 
         const modelName =
             MODELS_SHARED.find((model) => model.id === args.modelId)?.name ?? args.modelId
+        const sharedModel = MODELS_SHARED.find((model) => model.id === args.modelId)
+        enforceImageGenerationPlan({
+            userCreditPlan: getUserCreditPlan(user as typeof user & { creditPlan?: string }),
+            availableToPickFor: sharedModel?.availableToPickFor
+        })
         const aspectRatio = args.aspectRatio || "1:1"
         const responseTimeSeconds = clampFakeResponseTimeSeconds(args.responseTimeSeconds)
         const prompt = args.prompt.trim()

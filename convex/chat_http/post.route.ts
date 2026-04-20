@@ -21,7 +21,7 @@ import { internal } from "../_generated/api"
 import type { Id } from "../_generated/dataModel"
 import { httpAction } from "../_generated/server"
 import { r2 } from "../attachments"
-import { resolvePrototypeCreditCharge } from "../lib/credits"
+import { resolvePrototypeCreditCharge, resolveRequiredPlanForModelAccess } from "../lib/credits"
 import { dbMessagesToCore } from "../lib/db_to_core_messages"
 import { getGoogleAuthMode } from "../lib/google_provider"
 import { getUserIdentity } from "../lib/identity"
@@ -365,24 +365,6 @@ const resolveEffectiveReasoningEffort = (
     return reasoningEffort
 }
 
-const resolveRequiredPlanForModel = ({
-    modelMode,
-    reasoningEffort,
-    prototypeCreditTier,
-    prototypeCreditTierWithReasoning
-}: {
-    modelMode: "text" | "image"
-    reasoningEffort: ReasoningEffort
-    prototypeCreditTier?: "basic" | "pro"
-    prototypeCreditTierWithReasoning?: "basic" | "pro"
-}) => {
-    if (reasoningEffort !== "off" && prototypeCreditTierWithReasoning) {
-        return prototypeCreditTierWithReasoning
-    }
-
-    return prototypeCreditTier ?? (modelMode === "image" ? "pro" : "basic")
-}
-
 const createSafeResumableSseStream = ({
     stream,
     threadId,
@@ -583,11 +565,10 @@ export const chatPOST = httpAction(async (ctx, req) => {
         supportsEffortControl
     )
     const reasoningProfiles = resolveReasoningProfiles(body.model)
-    const requiredPlanForModel = resolveRequiredPlanForModel({
-        modelMode: model.modelType,
+    const requiredPlanForModel = resolveRequiredPlanForModelAccess({
         reasoningEffort: effectiveReasoningEffort,
-        prototypeCreditTier: modelData.prototypeCreditTier,
-        prototypeCreditTierWithReasoning: modelData.prototypeCreditTierWithReasoning
+        availableToPickFor: modelData.availableToPickFor,
+        availableToPickForReasoningEfforts: modelData.availableToPickForReasoningEfforts
     })
 
     if (requiredPlanForModel === "pro" && userCreditPlan !== "pro") {

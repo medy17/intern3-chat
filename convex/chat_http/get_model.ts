@@ -331,6 +331,8 @@ export const getModel = async (
         providerSource,
         runtimeProvider,
         runtimeApiKey,
+        availableToPickFor: model.availableToPickFor,
+        availableToPickForReasoningEfforts: model.availableToPickForReasoningEfforts,
         prototypeCreditTier: model.prototypeCreditTier,
         prototypeCreditTierWithReasoning: model.prototypeCreditTierWithReasoning
     }

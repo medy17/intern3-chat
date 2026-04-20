@@ -12,6 +12,19 @@ const openAiImageAdapters = (modelId: string, openRouterModelId?: string): Regis
     ...(openRouterModelId ? ([`openrouter:${openRouterModelId}`] as RegistryKey[]) : [])
 ]
 
+const FREE_ACCESS = {
+    availableToPickFor: "free"
+} satisfies Pick<SharedModel, "availableToPickFor">
+
+const FREE_WITHOUT_REASONING_ACCESS = {
+    availableToPickFor: "free",
+    availableToPickForReasoningEfforts: {
+        low: "pro",
+        medium: "pro",
+        high: "pro"
+    }
+} satisfies Pick<SharedModel, "availableToPickFor" | "availableToPickForReasoningEfforts">
+
 export const OPENAI_MODELS: SharedModel[] = [
     {
         id: "gpt-5.4-nano",
@@ -29,6 +42,7 @@ export const OPENAI_MODELS: SharedModel[] = [
         adapters: openAiTextAdapters("gpt-5.4-nano"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
         supportsDisablingReasoning: true,
+        ...FREE_WITHOUT_REASONING_ACCESS,
         prototypeCreditTier: "basic"
     },
     {
@@ -47,6 +61,7 @@ export const OPENAI_MODELS: SharedModel[] = [
         adapters: openAiTextAdapters("gpt-5.4-mini"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
         supportsDisablingReasoning: true,
+        ...FREE_WITHOUT_REASONING_ACCESS,
         prototypeCreditTier: "basic"
     },
     {
@@ -65,6 +80,7 @@ export const OPENAI_MODELS: SharedModel[] = [
         adapters: openAiTextAdapters("gpt-5.4"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
         supportsDisablingReasoning: true,
+        ...FREE_WITHOUT_REASONING_ACCESS,
         prototypeCreditTier: "basic",
         prototypeCreditTierWithReasoning: "pro"
     },
@@ -76,6 +92,7 @@ export const OPENAI_MODELS: SharedModel[] = [
         adapters: openAiTextAdapters("gpt-5.3"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
         supportsDisablingReasoning: true,
+        ...FREE_WITHOUT_REASONING_ACCESS,
         prototypeCreditTier: "basic",
         prototypeCreditTierWithReasoning: "pro",
         legacy: true
@@ -88,6 +105,7 @@ export const OPENAI_MODELS: SharedModel[] = [
         adapters: openAiTextAdapters("gpt-5.2"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
         supportsDisablingReasoning: true,
+        ...FREE_WITHOUT_REASONING_ACCESS,
         prototypeCreditTier: "basic",
         prototypeCreditTierWithReasoning: "pro",
         legacy: true
@@ -100,6 +118,7 @@ export const OPENAI_MODELS: SharedModel[] = [
         adapters: openAiTextAdapters("gpt-5.1"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
         supportsDisablingReasoning: true,
+        ...FREE_WITHOUT_REASONING_ACCESS,
         prototypeCreditTier: "basic",
         prototypeCreditTierWithReasoning: "pro",
         legacy: true
@@ -140,6 +159,7 @@ export const OPENAI_MODELS: SharedModel[] = [
         adapters: openAiTextAdapters("gpt-5"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
         supportsDisablingReasoning: true,
+        ...FREE_WITHOUT_REASONING_ACCESS,
         prototypeCreditTier: "basic",
         prototypeCreditTierWithReasoning: "pro",
         legacy: true
@@ -152,6 +172,7 @@ export const OPENAI_MODELS: SharedModel[] = [
         adapters: openAiTextAdapters("gpt-5-mini"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
         supportsDisablingReasoning: true,
+        ...FREE_WITHOUT_REASONING_ACCESS,
         prototypeCreditTier: "basic",
         legacy: true
     },
@@ -163,6 +184,7 @@ export const OPENAI_MODELS: SharedModel[] = [
         adapters: openAiTextAdapters("gpt-5-nano"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
         supportsDisablingReasoning: true,
+        ...FREE_WITHOUT_REASONING_ACCESS,
         prototypeCreditTier: "basic",
         legacy: true
     },
@@ -205,6 +227,7 @@ export const OPENAI_MODELS: SharedModel[] = [
         releaseOrder: 20261008,
         adapters: openAiTextAdapters("gpt-4.1"),
         abilities: ["vision", "function_calling", "pdf"],
+        ...FREE_ACCESS,
         prototypeCreditTier: "basic",
         legacy: true
     },
@@ -215,6 +238,7 @@ export const OPENAI_MODELS: SharedModel[] = [
         releaseOrder: 20261007,
         adapters: openAiTextAdapters("gpt-4.1-mini"),
         abilities: ["vision", "function_calling", "pdf"],
+        ...FREE_ACCESS,
         prototypeCreditTier: "basic",
         legacy: true
     },
@@ -225,6 +249,7 @@ export const OPENAI_MODELS: SharedModel[] = [
         releaseOrder: 20261006,
         adapters: openAiTextAdapters("gpt-4.1-nano"),
         abilities: ["vision", "function_calling", "pdf"],
+        ...FREE_ACCESS,
         prototypeCreditTier: "basic",
         legacy: true
     },
@@ -235,6 +260,7 @@ export const OPENAI_MODELS: SharedModel[] = [
         releaseOrder: 20261005,
         adapters: openAiTextAdapters("gpt-4.5-preview"),
         abilities: ["vision", "function_calling", "pdf"],
+        ...FREE_ACCESS,
         prototypeCreditTier: "basic",
         legacy: true
     },
@@ -265,6 +291,7 @@ export const OPENAI_MODELS: SharedModel[] = [
         releaseOrder: 20261001,
         adapters: openAiTextAdapters("gpt-4o"),
         abilities: ["vision", "function_calling", "pdf"],
+        ...FREE_ACCESS,
         prototypeCreditTier: "basic",
         legacy: true
     },
@@ -275,6 +302,7 @@ export const OPENAI_MODELS: SharedModel[] = [
         releaseOrder: 20261002,
         adapters: openAiTextAdapters("gpt-4o-mini"),
         abilities: ["vision", "function_calling", "pdf"],
+        ...FREE_ACCESS,
         prototypeCreditTier: "basic",
         legacy: true
     },
