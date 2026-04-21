@@ -33,7 +33,7 @@ import {
 } from "lucide-react"
 import { CheckCircle, MoonIcon, SunIcon } from "lucide-react"
 import { AnimatePresence, MotionConfig, motion } from "motion/react"
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 interface OnboardingStep {
     id: string
@@ -253,8 +253,8 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
                 <div className="space-y-3">
                     <h3 className="font-semibold text-xl tracking-tight">Feature packed</h3>
                     <p className="text-muted-foreground text-sm leading-relaxed">
-                        Our intern couldn't fit our tremendous feature list into actual slides, so
-                        here's a list instead.
+                        We couldn't fit our tremendous feature list into actual slides, so here's a
+                        list instead.
                     </p>
                 </div>
             </div>
@@ -394,6 +394,12 @@ function ThemeSelector() {
 export function OnboardingDialog({ isOpen, onComplete }: OnboardingDialogProps) {
     const [currentStep, setCurrentStep] = useState(0)
     const currentStepData = ONBOARDING_STEPS[currentStep]
+
+    useEffect(() => {
+        if (isOpen) {
+            setCurrentStep(0)
+        }
+    }, [isOpen])
 
     const handleNext = useCallback(() => {
         if (currentStep < ONBOARDING_STEPS.length - 1) {

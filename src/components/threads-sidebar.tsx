@@ -1,9 +1,12 @@
 import { CommandK } from "@/components/commandk"
+import { openDevOnboarding } from "@/components/onboarding/dev-onboarding"
+import { Button } from "@/components/ui/button"
 import {
     Sidebar,
     SidebarContent,
     SidebarGroup,
     SidebarGroupContent,
+    SidebarGroupLabel,
     SidebarRail,
     useSidebar
 } from "@/components/ui/sidebar"
@@ -26,6 +29,7 @@ import { exportMultipleThreads, exportSingleThread } from "@/lib/thread-export-c
 import { cn } from "@/lib/utils"
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router"
 import { useConvex, useConvexAuth, useMutation, useQuery } from "convex/react"
+import { PlayCircle } from "lucide-react"
 import type { MouseEvent } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
@@ -91,6 +95,28 @@ function EmptyState({ message }: { message: string }) {
         <SidebarGroup>
             <SidebarGroupContent>
                 <div className="p-4 text-center text-muted-foreground">{message}</div>
+            </SidebarGroupContent>
+        </SidebarGroup>
+    )
+}
+
+function DevToolsGroup({ onShowOnboarding }: { onShowOnboarding: () => void }) {
+    return (
+        <SidebarGroup>
+            <SidebarGroupLabel>Dev</SidebarGroupLabel>
+            <SidebarGroupContent>
+                <div className="px-2">
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 w-full justify-start"
+                        onClick={onShowOnboarding}
+                    >
+                        <PlayCircle className="h-4 w-4" />
+                        Show onboarding
+                    </Button>
+                </div>
             </SidebarGroupContent>
         </SidebarGroup>
     )
@@ -658,6 +684,11 @@ export function ThreadsSidebar() {
         setCommandKOpen(true)
     })
 
+    const handleShowOnboardingClick = useFunction(() => {
+        setOpenMobile(false)
+        openDevOnboarding()
+    })
+
     const renderContent = () => {
         if (isLoading) {
             return <LoadingSkeleton shouldShowCredits={false} />
@@ -762,6 +793,9 @@ export function ThreadsSidebar() {
                             shouldShowPrototypeCredits={shouldShowPrototypeCredits}
                             shouldShowDevCreditPlanToggle={shouldShowDevCreditPlanToggle}
                         />
+                        {shouldShowDevCreditPlanToggle && (
+                            <DevToolsGroup onShowOnboarding={handleShowOnboardingClick} />
+                        )}
                         {renderContent()}
                     </SidebarContent>
 
