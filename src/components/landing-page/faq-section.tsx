@@ -78,7 +78,8 @@ export function FaqSection() {
                         </AccordionTrigger>
                         <AccordionContent className="pb-6 text-base text-muted-foreground leading-relaxed">
                             If you don't want to manage multiple API keys, you can use our Internal
-                            Credits. Top up once and switch between any model seamlessly.
+                            Credits. Subscribe and use any model seamlessly with generous credit
+                            quotas.
                         </AccordionContent>
                     </AccordionItem>
                     <AccordionItem value="item-3">

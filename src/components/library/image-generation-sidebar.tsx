@@ -347,9 +347,13 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
         }))
     }
 
+    const selectedModels = useMemo(
+        () => imageModels.filter((model) => selectedModelIds.includes(model.id)),
+        [imageModels, selectedModelIds]
+    )
+
     const commonImageSizes = useMemo<SelectableImageAspectRatio[]>(() => {
-        if (selectedModelIds.length === 0) return []
-        const selectedModels = imageModels.filter((m) => selectedModelIds.includes(m.id))
+        if (selectedModels.length === 0) return []
         let intersection = selectedModels[0].supportedImageSizes || SELECTABLE_IMAGE_ASPECT_RATIOS
 
         for (let i = 1; i < selectedModels.length; i++) {
@@ -358,7 +362,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
         }
 
         return SELECTABLE_IMAGE_ASPECT_RATIOS.filter((size) => intersection.includes(size))
-    }, [selectedModelIds, imageModels])
+    }, [selectedModels])
 
     useEffect(() => {
         if (
@@ -370,8 +374,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
     }, [commonImageSizes, aspectRatio, setAspectRatio])
 
     const commonImageResolutions = useMemo(() => {
-        if (selectedModelIds.length === 0) return ["1K"]
-        const selectedModels = imageModels.filter((m) => selectedModelIds.includes(m.id))
+        if (selectedModels.length === 0) return ["1K"]
 
         const allSupport = selectedModels.every(
             (m) => m.supportedImageResolutions && m.supportedImageResolutions.length > 0
@@ -391,7 +394,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
         }
 
         return intersection.length > 0 ? intersection : ["1K"]
-    }, [selectedModelIds, imageModels])
+    }, [selectedModels])
 
     useEffect(() => {
         if (commonImageResolutions.length > 0 && !commonImageResolutions.includes(resolution)) {
@@ -399,10 +402,6 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
         }
     }, [commonImageResolutions, resolution, setResolution])
 
-    const selectedModels = useMemo(
-        () => imageModels.filter((model) => selectedModelIds.includes(model.id)),
-        [imageModels, selectedModelIds]
-    )
     const selectedRequiresPlanUpgrade = useMemo(
         () => selectedModels.some((model) => lockedModelIds.has(model.id)),
         [lockedModelIds, selectedModels]
