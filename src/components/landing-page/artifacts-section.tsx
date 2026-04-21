@@ -158,7 +158,7 @@ export function ArtifactsSection() {
                                     <span className="font-medium text-sm">Preview</span>
                                 </div>
                             </div>
-                            <div className="flex h-full items-center justify-center bg-[url('https://t3.chat/images/noise.png')] p-8">
+                            <div className="flex h-full items-center justify-center bg-[url('../../noise.png')] p-8">
                                 <div className="flex w-full max-w-[280px] flex-col items-center justify-center rounded-xl border border-border/60 bg-card p-8 text-card-foreground shadow-lg transition-all hover:shadow-xl">
                                     <h2 className="mb-6 font-bold text-5xl tabular-nums tracking-tight">
                                         {artifactCount}
