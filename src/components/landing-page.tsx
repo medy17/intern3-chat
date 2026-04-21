@@ -1,9 +1,10 @@
 import {
     ClaudeIcon,
-    GoogleIcon,
+    DeepSeekIcon,
+    GeminiIcon,
     OpenAIIcon,
-    OpenRouterIcon,
-    XAIIcon
+    XAIIcon,
+    ZAIIcon
 } from "@/components/brand-icons"
 import { LogoMark } from "@/components/logo"
 import { MagicCard } from "@/components/magic-cards"
@@ -24,14 +25,21 @@ import {
     ArrowRight,
     BrainCircuit,
     Check,
+    Code,
     FileText,
     FileUp,
     Github,
     Globe,
     Image as ImageIcon,
+    LayoutTemplate,
     Minus,
+    MousePointerClick,
+    Search,
     ShieldCheck,
-    Users
+    Sparkles,
+    Terminal,
+    Users,
+    VenetianMask
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
@@ -40,6 +48,7 @@ gsap.registerPlugin(ScrollTrigger)
 export function LandingPage() {
     const [activeSection, setActiveSection] = useState(0)
     const [isNavVisible, setIsNavVisible] = useState(true)
+    const [artifactCount, setArtifactCount] = useState(0)
     const lastScrollY = useRef(0)
 
     const containerRef = useRef<HTMLDivElement>(null)
@@ -156,6 +165,59 @@ export function LandingPage() {
             )
 
             gsap.fromTo(
+                ".use-case-header",
+                { y: 40, opacity: 0, filter: "blur(10px)" },
+                {
+                    y: 0,
+                    opacity: 1,
+                    filter: "blur(0px)",
+                    duration: 1,
+                    ease: "power3.out",
+                    scrollTrigger: { trigger: "#use-cases", scroller, start: "top 75%" }
+                }
+            )
+
+            gsap.fromTo(
+                ".use-case-card",
+                { y: 50, opacity: 0, scale: 0.95 },
+                {
+                    y: 0,
+                    opacity: 1,
+                    scale: 1,
+                    duration: 0.8,
+                    stagger: 0.1,
+                    ease: "back.out(1.2)",
+                    scrollTrigger: { trigger: "#use-cases", scroller, start: "top 65%" }
+                }
+            )
+
+            gsap.fromTo(
+                ".artifacts-header",
+                { y: 40, opacity: 0, filter: "blur(10px)" },
+                {
+                    y: 0,
+                    opacity: 1,
+                    filter: "blur(0px)",
+                    duration: 1,
+                    ease: "power3.out",
+                    scrollTrigger: { trigger: "#artifacts", scroller, start: "top 75%" }
+                }
+            )
+
+            gsap.fromTo(
+                ".artifacts-content",
+                { y: 50, opacity: 0, scale: 0.95 },
+                {
+                    y: 0,
+                    opacity: 1,
+                    scale: 1,
+                    duration: 1.2,
+                    ease: "power3.out",
+                    scrollTrigger: { trigger: "#artifacts", scroller, start: "top 65%" }
+                }
+            )
+
+            gsap.fromTo(
                 ".comparison-content",
                 { y: 40, opacity: 0 },
                 {
@@ -164,6 +226,32 @@ export function LandingPage() {
                     duration: 1,
                     ease: "power3.out",
                     scrollTrigger: { trigger: "#comparison", scroller, start: "top 75%" }
+                }
+            )
+
+            gsap.fromTo(
+                ".providers-header",
+                { y: 40, opacity: 0, filter: "blur(10px)" },
+                {
+                    y: 0,
+                    opacity: 1,
+                    filter: "blur(0px)",
+                    duration: 1,
+                    ease: "power3.out",
+                    scrollTrigger: { trigger: "#providers", scroller, start: "top 75%" }
+                }
+            )
+
+            gsap.fromTo(
+                ".providers-mockup",
+                { y: 50, opacity: 0, scale: 0.95 },
+                {
+                    y: 0,
+                    opacity: 1,
+                    scale: 1,
+                    duration: 1.2,
+                    ease: "power3.out",
+                    scrollTrigger: { trigger: "#providers", scroller, start: "top 65%" }
                 }
             )
 
@@ -278,8 +366,11 @@ export function LandingPage() {
     const sections = [
         { id: "hero", label: "Hero" },
         { id: "features", label: "Features" },
+        { id: "use-cases", label: "Use Cases" },
         { id: "showcase", label: "Interface" },
+        { id: "artifacts", label: "Artifacts" },
         { id: "comparison", label: "Comparison" },
+        { id: "providers", label: "Models" },
         { id: "byok", label: "Pricing" },
         { id: "security", label: "Security" },
         { id: "faq", label: "FAQ" },
@@ -406,10 +497,11 @@ export function LandingPage() {
                         className="mt-20 flex flex-wrap justify-center gap-8 opacity-50 grayscale transition-all hover:opacity-100 hover:grayscale-0 md:gap-16"
                     >
                         <OpenAIIcon className="h-8 w-8" />
-                        <ClaudeIcon className="h-8 w-8 text-[#D97757]" />
-                        <GoogleIcon className="h-8 w-8" />
+                        <ClaudeIcon className="h-8 w-8" />
+                        <GeminiIcon className="h-8 w-8" />
                         <XAIIcon className="h-8 w-8" />
-                        <OpenRouterIcon className="h-8 w-8" />
+                        <DeepSeekIcon className="h-8 w-8" />
+                        <ZAIIcon className="h-8 w-8" />
                     </div>
                 </section>
 
@@ -529,6 +621,126 @@ export function LandingPage() {
                     </div>
                 </section>
 
+                {/* 2.5 Use Cases */}
+                <section
+                    id="use-cases"
+                    className="flex min-h-[80vh] snap-start flex-col items-center justify-center bg-muted/5 px-6 py-20"
+                >
+                    <div className="container mx-auto max-w-6xl">
+                        <div className="use-case-header mb-16 text-center">
+                            <h2 className="mb-4 font-bold text-3xl md:text-5xl">
+                                Built for everyone
+                            </h2>
+                            <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
+                                Whether you're writing code or drafting an essay, SilkChat adapts to
+                                your workflow.
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                            <div className="use-case-card flex flex-col items-center rounded-xl border border-border/50 bg-background/50 p-6 text-center lg:p-8">
+                                <div className="mb-6 flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
+                                    <Code className="h-8 w-8" />
+                                </div>
+                                <h3 className="mb-4 font-bold text-2xl">Developers</h3>
+                                <p className="mb-6 flex-1 text-muted-foreground text-sm leading-relaxed lg:text-base">
+                                    Compare answers across models instantly. Use Smart Artifacts to
+                                    preview UI components right in the chat.
+                                </p>
+                                <ul className="w-full space-y-2 text-left text-muted-foreground text-sm">
+                                    <li className="flex items-center gap-2">
+                                        <Check className="h-4 w-4 shrink-0 text-blue-500" /> Code
+                                        refactoring
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <Check className="h-4 w-4 shrink-0 text-blue-500" /> Live UI
+                                        previews
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <Check className="h-4 w-4 shrink-0 text-blue-500" /> Complex
+                                        debugging
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div className="use-case-card flex flex-col items-center rounded-xl border border-border/50 bg-background/50 p-6 text-center lg:p-8">
+                                <div className="mb-6 flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-purple-500/10 text-purple-500">
+                                    <Sparkles className="h-8 w-8" />
+                                </div>
+                                <h3 className="mb-4 font-bold text-2xl">Creators</h3>
+                                <p className="mb-6 flex-1 text-muted-foreground text-sm leading-relaxed lg:text-base">
+                                    Brainstorm ideas with the sharpest models, and generate
+                                    breathtaking images using top-tier models like FLUX.
+                                </p>
+                                <ul className="w-full space-y-2 text-left text-muted-foreground text-sm">
+                                    <li className="flex items-center gap-2">
+                                        <Check className="h-4 w-4 shrink-0 text-purple-500" />{" "}
+                                        High-res image generation
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <Check className="h-4 w-4 shrink-0 text-purple-500" />{" "}
+                                        Ideation & outlining
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <Check className="h-4 w-4 shrink-0 text-purple-500" />{" "}
+                                        Creative feedback
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div className="use-case-card flex flex-col items-center rounded-xl border border-border/50 bg-background/50 p-6 text-center lg:p-8">
+                                <div className="mb-6 flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+                                    <FileText className="h-8 w-8" />
+                                </div>
+                                <h3 className="mb-4 font-bold text-2xl">Researchers</h3>
+                                <p className="mb-6 flex-1 text-muted-foreground text-sm leading-relaxed lg:text-base">
+                                    Utilize real-time web search to ground your questions in fact.
+                                    Upload dense documents for rapid analysis.
+                                </p>
+                                <ul className="w-full space-y-2 text-left text-muted-foreground text-sm">
+                                    <li className="flex items-center gap-2">
+                                        <Check className="h-4 w-4 shrink-0 text-emerald-500" /> Live
+                                        web grounding
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <Check className="h-4 w-4 shrink-0 text-emerald-500" />{" "}
+                                        Document analysis
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <Check className="h-4 w-4 shrink-0 text-emerald-500" />{" "}
+                                        Source summarization
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div className="use-case-card flex flex-col items-center rounded-xl border border-border/50 bg-background/50 p-6 text-center lg:p-8">
+                                <div className="mb-6 flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-pink-500/10 text-pink-500">
+                                    <VenetianMask className="h-8 w-8" />
+                                </div>
+                                <h3 className="mb-4 font-bold text-2xl">Roleplayers</h3>
+                                <p className="mb-6 flex-1 text-muted-foreground text-sm leading-relaxed lg:text-base">
+                                    Immerse yourself in infinite worlds. Build custom Personas with
+                                    deep backstories and distinct, unfiltered voices.
+                                </p>
+                                <ul className="w-full space-y-2 text-left text-muted-foreground text-sm">
+                                    <li className="flex items-center gap-2">
+                                        <Check className="h-4 w-4 shrink-0 text-pink-500" /> Deep
+                                        character prompts
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <Check className="h-4 w-4 shrink-0 text-pink-500" />{" "}
+                                        Consistent persona voice
+                                    </li>
+                                    <li className="flex items-center gap-2">
+                                        <Check className="h-4 w-4 shrink-0 text-pink-500" />{" "}
+                                        Unfiltered model choices
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 {/* 3. Interface */}
                 <section
                     id="showcase"
@@ -604,6 +816,128 @@ export function LandingPage() {
                     </div>
                 </section>
 
+                {/* 3.5 Smart Artifacts */}
+                <section
+                    id="artifacts"
+                    className="flex min-h-[80vh] snap-start flex-col items-center justify-center bg-muted/5 px-6 py-20"
+                >
+                    <div className="container mx-auto max-w-5xl">
+                        <div className="artifacts-header mb-12 text-center">
+                            <h2 className="mb-4 font-bold text-3xl md:text-5xl">Code that runs.</h2>
+                            <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
+                                Smart Artifacts render React, HTML, and Markdown directly in the
+                                chat. <br className="hidden md:block" /> Stop copy-pasting and start
+                                seeing results instantly.
+                            </p>
+                        </div>
+
+                        <div className="artifacts-content mx-auto w-full overflow-hidden rounded-xl border border-border/50 bg-popover shadow-2xl">
+                            <div className="grid grid-cols-1 lg:grid-cols-2">
+                                {/* Left: Code */}
+                                <div className="flex flex-col border-border/50 border-b bg-muted/10 lg:border-r lg:border-b-0">
+                                    <div className="flex items-center gap-2 border-border/50 border-b bg-muted/30 px-4 py-3">
+                                        <Terminal className="size-4 text-muted-foreground" />
+                                        <span className="font-medium text-muted-foreground text-sm">
+                                            counter.tsx
+                                        </span>
+                                    </div>
+                                    <div className="overflow-x-auto p-6 font-mono text-muted-foreground text-sm">
+                                        <pre>
+                                            <code className="language-tsx leading-loose">
+                                                <span className="text-pink-500">
+                                                    export default
+                                                </span>{" "}
+                                                <span className="text-blue-400">function</span>{" "}
+                                                <span className="text-emerald-400">Counter</span>(){" "}
+                                                {"{\n"}
+                                                {"  "}
+                                                <span className="text-blue-400">const</span> [count,
+                                                setCount] ={" "}
+                                                <span className="text-purple-400">useState</span>(
+                                                <span className="text-orange-400">0</span>);{"\n\n"}
+                                                {"  "}
+                                                <span className="text-pink-500">return</span> (
+                                                {"\n"}
+                                                {"    "}&lt;
+                                                <span className="text-blue-400">div</span>{" "}
+                                                <span className="text-emerald-400">className</span>=
+                                                <span className="text-orange-400">
+                                                    "p-8 border rounded-xl bg-card text-center"
+                                                </span>
+                                                &gt;{"\n"}
+                                                {"      "}&lt;
+                                                <span className="text-blue-400">h2</span>{" "}
+                                                <span className="text-emerald-400">className</span>=
+                                                <span className="text-orange-400">
+                                                    "text-4xl font-bold mb-4"
+                                                </span>
+                                                &gt;{"\n"}
+                                                {"        "}
+                                                {"{"}count{"}"}
+                                                {"\n"}
+                                                {"      "}&lt;/
+                                                <span className="text-blue-400">h2</span>&gt;{"\n"}
+                                                {"      "}&lt;
+                                                <span className="text-blue-400">button</span>
+                                                {"\n"}
+                                                {"        "}
+                                                <span className="text-emerald-400">className</span>=
+                                                <span className="text-orange-400">
+                                                    "px-6 py-2 bg-primary text-primary-foreground
+                                                    rounded-md"
+                                                </span>
+                                                {"\n"}
+                                                {"        "}
+                                                <span className="text-purple-400">onClick</span>=
+                                                {"{"}
+                                                <span className="text-blue-400">() =&gt;</span>{" "}
+                                                setCount(c{" "}
+                                                <span className="text-pink-500">=&gt;</span> c +{" "}
+                                                <span className="text-orange-400">1</span>){"}"}
+                                                {"\n"}
+                                                {"      "}&gt;{"\n"}
+                                                {"        "}Increment{"\n"}
+                                                {"      "}&lt;/
+                                                <span className="text-blue-400">button</span>&gt;
+                                                {"\n"}
+                                                {"    "}&lt;/
+                                                <span className="text-blue-400">div</span>&gt;{"\n"}
+                                                {"  "});{"\n"}
+                                                {"}"}
+                                            </code>
+                                        </pre>
+                                    </div>
+                                </div>
+
+                                {/* Right: Preview */}
+                                <div className="flex flex-col bg-background">
+                                    <div className="flex items-center justify-between border-border/50 border-b bg-muted/30 px-4 py-3">
+                                        <div className="flex items-center gap-2">
+                                            <LayoutTemplate className="size-4 text-primary" />
+                                            <span className="font-medium text-sm">Preview</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex h-full items-center justify-center bg-[url('https://t3.chat/images/noise.png')] p-8">
+                                        <div className="flex w-full max-w-[280px] flex-col items-center justify-center rounded-xl border border-border/60 bg-card p-8 text-card-foreground shadow-lg transition-all hover:shadow-xl">
+                                            <h2 className="mb-6 font-bold text-5xl tabular-nums tracking-tight">
+                                                {artifactCount}
+                                            </h2>
+                                            <Button
+                                                size="lg"
+                                                className="w-full gap-2 font-semibold transition-transform active:scale-95"
+                                                onClick={() => setArtifactCount((c) => c + 1)}
+                                            >
+                                                <MousePointerClick className="size-4" />
+                                                Increment
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 {/* 4. Comparison */}
                 <section
                     id="comparison"
@@ -615,7 +949,7 @@ export function LandingPage() {
                             See how we stack up against traditional single-model AI subscriptions.
                         </p>
 
-                        <div className="overflow-x-auto rounded-xl border border-border/50 bg-background/50 shadow-xl backdrop-blur-sm">
+                        <div className="overflow-x-auto rounded-xl border border-border/50 bg-background/50">
                             <table className="w-full table-fixed border-collapse text-left text-sm md:text-base">
                                 <thead className="border-border/50 border-b bg-muted/50">
                                     <tr>
@@ -645,7 +979,7 @@ export function LandingPage() {
                                     <tr className="transition-colors hover:bg-muted/20">
                                         <td className="p-4 text-muted-foreground">Pricing Model</td>
                                         <td className="border-border/50 border-l bg-primary/5 p-4 font-medium">
-                                            Credit based usage
+                                            Credit based usage from only $8.99
                                         </td>
                                         <td className="border-border/50 border-l p-4 text-muted-foreground">
                                             Rigid $20/month subscription
@@ -694,6 +1028,154 @@ export function LandingPage() {
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                </section>
+
+                {/* 4.5 Providers Banner */}
+                <section
+                    id="providers"
+                    className="flex min-h-[70vh] snap-start items-center justify-center bg-background px-6 py-12 md:py-24"
+                >
+                    <div className="container mx-auto max-w-4xl">
+                        <div className="providers-header mb-12 text-center">
+                            <h2 className="mb-4 font-bold text-3xl md:text-5xl">
+                                Countless Models. One Interface.
+                            </h2>
+                            <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
+                                Seamlessly switch between the best LLMs, image generators, and
+                                multimodal systems from OpenAI, Google, Anthropic, and more.
+                            </p>
+                        </div>
+
+                        {/* Static Mockup of the Model Selector */}
+                        <div className="providers-mockup mx-auto w-full max-w-2xl overflow-hidden rounded-xl border border-border/50 bg-popover shadow-2xl">
+                            {/* Header */}
+                            <div className="shrink-0 border-border/50 border-b bg-muted/50 p-3 pb-2">
+                                <div className="relative">
+                                    <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground" />
+                                    <div className="flex h-10 w-full items-center rounded-md bg-secondary/60 pl-9 text-muted-foreground text-sm">
+                                        Search models...
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid h-[400px] grid-cols-[80px_minmax(0,1fr)]">
+                                {/* Sidebar (Providers) */}
+                                <div className="flex flex-col border-border/50 border-r bg-muted/30 p-2">
+                                    <div className="relative flex flex-col items-center justify-center gap-1 rounded-l-xl border-border border-y border-l bg-popover px-2 py-3 text-foreground shadow-sm">
+                                        <div className="flex size-7 items-center justify-center rounded-md bg-secondary/70">
+                                            <OpenAIIcon className="size-4" />
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-center justify-center gap-1 rounded-l-xl px-2 py-3 text-muted-foreground opacity-50">
+                                        <div className="flex size-7 items-center justify-center rounded-md">
+                                            <ClaudeIcon className="size-4" />
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-center justify-center gap-1 rounded-l-xl px-2 py-3 text-muted-foreground opacity-50">
+                                        <div className="flex size-7 items-center justify-center rounded-md">
+                                            <GeminiIcon className="size-4" />
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-center justify-center gap-1 rounded-l-xl px-2 py-3 text-muted-foreground opacity-50">
+                                        <div className="flex size-7 items-center justify-center rounded-md">
+                                            <XAIIcon className="size-4" />
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-center justify-center gap-1 rounded-l-xl px-2 py-3 text-muted-foreground opacity-50">
+                                        <div className="flex size-7 items-center justify-center rounded-md">
+                                            <ZAIIcon className="size-4" />
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-center justify-center gap-1 rounded-l-xl px-2 py-3 text-muted-foreground opacity-50">
+                                        <div className="flex size-7 items-center justify-center rounded-md">
+                                            <DeepSeekIcon className="size-4" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Main Content (Models List) */}
+                                <div className="flex flex-col p-3">
+                                    <div className="mb-3 flex items-center justify-between">
+                                        <div>
+                                            <h3 className="font-medium text-base">OpenAI</h3>
+                                            <p className="text-muted-foreground text-sm">
+                                                Latest models available
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        {/* Selected Item */}
+                                        <div className="relative cursor-pointer overflow-hidden rounded-xl border border-border bg-accent/10 px-3 py-2 text-left shadow-sm">
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="truncate font-medium text-base">
+                                                            GPT-5.4
+                                                        </span>
+                                                        <Check className="size-4 shrink-0 text-primary" />
+                                                    </div>
+                                                    <p className="mt-1 line-clamp-2 text-muted-foreground text-sm">
+                                                        OpenAI's SOTA, high-intelligence flagship
+                                                        model for complex, multi-step tasks.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Unselected Item */}
+                                        <div className="relative cursor-pointer overflow-hidden rounded-xl border border-transparent px-3 py-2 text-left transition-colors hover:bg-muted/50">
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="truncate font-medium text-base">
+                                                            GPT-5.4 mini
+                                                        </span>
+                                                    </div>
+                                                    <p className="mt-1 line-clamp-2 text-muted-foreground text-sm">
+                                                        OpenAI's fast and intelligent model for
+                                                        everyday chat, search, and tool use.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Unselected Item */}
+                                        <div className="relative cursor-pointer overflow-hidden rounded-xl border border-transparent px-3 py-2 text-left transition-colors hover:bg-muted/50">
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="truncate font-medium text-base">
+                                                            GPT-5.4 nano
+                                                        </span>
+                                                    </div>
+                                                    <p className="mt-1 line-clamp-2 text-muted-foreground text-sm">
+                                                        OpenAI's fast and lightweight model for
+                                                        simple tasks.
+                                                    </p>
+                                                </div>
+                                                <div className="mt-2 hidden shrink-0 flex-col items-end gap-2 pr-10 sm:flex">
+                                                    <div className="flex flex-wrap justify-end gap-1">
+                                                        <div className="flex items-center gap-1.5 rounded-md border border-border/50 bg-background/50 px-1.5 py-0.5 text-[10px] text-muted-foreground uppercase tracking-wider backdrop-blur-sm">
+                                                            {" "}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-12 text-center">
+                            <Link to="/auth/$pathname" params={{ pathname: "login" }}>
+                                <Button variant="default" size="lg" className="gap-2">
+                                    Start using them today <ArrowRight className="h-4 w-4" />
+                                </Button>
+                            </Link>
                         </div>
                     </div>
                 </section>
@@ -788,9 +1270,9 @@ export function LandingPage() {
                     className="flex min-h-[60vh] snap-start flex-col items-center justify-center bg-background px-6 py-20"
                 >
                     <div className="security-content container mx-auto max-w-4xl">
-                        <div className="grid grid-cols-1 items-center gap-8 rounded-2xl border border-border/50 bg-muted/30 p-8 md:grid-cols-2 md:p-12">
+                        <div className="grid grid-cols-1 items-center gap-8 rounded-xl border border-border/50 bg-muted/30 p-8 md:grid-cols-2 md:p-12">
                             <div>
-                                <div className="mb-6 inline-flex items-center justify-center rounded-full bg-emerald-500/10 p-3 text-emerald-500">
+                                <div className="mb-6 inline-flex items-center justify-center rounded-lg bg-emerald-500/10 p-3 text-emerald-500">
                                     <ShieldCheck className="h-8 w-8" />
                                 </div>
                                 <h3 className="mb-4 font-bold text-3xl">Secure & Transparent</h3>
