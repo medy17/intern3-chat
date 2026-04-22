@@ -6,11 +6,20 @@ const openAiTextAdapters = (modelId: string): RegistryKey[] => [
     `openrouter:openai/${modelId}`
 ]
 
-const openAiImageAdapters = (modelId: string, openRouterModelId?: string): RegistryKey[] => [
-    `i3-openai:${modelId}`,
-    `openai:${modelId}`,
-    ...(openRouterModelId ? ([`openrouter:${openRouterModelId}`] as RegistryKey[]) : [])
-]
+const openAiImageAdapters = (modelId: string, openRouterModelId = `openai/${modelId}`) =>
+    [`openrouter:${openRouterModelId}`] satisfies RegistryKey[]
+
+const openAiDirectImageAdapters = (modelId: string) =>
+    [`i3-openai:${modelId}`, `openai:${modelId}`] satisfies RegistryKey[]
+
+const GPT_IMAGE_2_SIZES = [
+    "1:1",
+    "16:9",
+    "9:16",
+    "4:3",
+    "3:4",
+    "21:9"
+] satisfies SharedModel["supportedImageSizes"]
 
 const FREE_ACCESS = {
     availableToPickFor: "free"
@@ -124,6 +133,23 @@ export const OPENAI_MODELS: SharedModel[] = [
         legacy: true
     },
     {
+        id: "gpt-5.4-image-2",
+        name: "GPT 5.4 Image 2",
+        shortName: "5.4 Image 2",
+        releaseOrder: 20261023,
+        // Re-check @ai-sdk/openai before changing this back: 3.0.53 and 4.0.0-beta.38
+        // still treat gpt-image-2 as an unknown image model and add invalid response_format.
+        adapters: openAiDirectImageAdapters("gpt-image-2"),
+        abilities: [],
+        mode: "image",
+        maxPerMessage: 2,
+        customIcon: "openai",
+        supportedImageSizes: [...GPT_IMAGE_2_SIZES],
+        supportedImageResolutions: ["1K", "2K", "4K"],
+        defaultImageQuality: "low",
+        prototypeCreditTier: "pro"
+    },
+    {
         id: "gpt-5-image-mini",
         name: "GPT 5 Image Mini",
         shortName: "5 Image Mini",
@@ -135,7 +161,9 @@ export const OPENAI_MODELS: SharedModel[] = [
         openrouterImageModalities: ["image", "text"],
         customIcon: "openai",
         supportedImageSizes: ["1024x1024", "1536x1024", "1024x1536"],
-        prototypeCreditTier: "pro"
+        prototypeCreditTier: "pro",
+        legacy: true,
+        replacementId: "gpt-5.4-image-2"
     },
     {
         id: "gpt-5-image",
@@ -149,7 +177,9 @@ export const OPENAI_MODELS: SharedModel[] = [
         openrouterImageModalities: ["image", "text"],
         customIcon: "openai",
         supportedImageSizes: ["1024x1024", "1536x1024", "1024x1536"],
-        prototypeCreditTier: "pro"
+        prototypeCreditTier: "pro",
+        legacy: true,
+        replacementId: "gpt-5.4-image-2"
     },
     {
         id: "gpt-5",
@@ -321,6 +351,8 @@ export const OPENAI_MODELS: SharedModel[] = [
         maxPerMessage: 2,
         customIcon: "openai",
         supportedImageSizes: ["1024x1024", "1536x1024", "1024x1536"],
-        prototypeCreditTier: "pro"
+        prototypeCreditTier: "pro",
+        legacy: true,
+        replacementId: "gpt-5.4-image-2"
     }
 ]

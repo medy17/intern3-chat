@@ -31,6 +31,7 @@ export type BaseResolution = `${number}x${number}`
 export type AllAspects = (BaseAspects | `${BaseAspects}-hd`) & {}
 export type ImageSize = (AllAspects | BaseResolution) & {}
 export type ImageResolution = ("1K" | "2K" | "4K") & {}
+export type ImageQuality = ("low" | "medium" | "high" | "auto") & {}
 
 export type ReasoningEffortTier = "off" | "low" | "medium" | "high"
 export type PrototypeCreditTier = "basic" | "pro"
@@ -80,6 +81,7 @@ export type SharedModel<Abilities extends ModelAbility[] = ModelAbility[]> = {
     openrouterImageModalities?: Array<"image" | "text">
     supportedImageSizes?: ImageSize[]
     supportedImageResolutions?: ImageResolution[]
+    defaultImageQuality?: ImageQuality
     customIcon?: "stability-ai" | "openai" | "bflabs" | "google" | "meta" | "xai"
     supportsDisablingReasoning?: boolean
     reasoningProfiles?: ModelReasoningProfiles

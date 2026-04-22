@@ -55,6 +55,16 @@ vi.mock("../../convex/lib/models", async () => {
                 supportsReferenceImages: true,
                 supportedImageSizes: ["1:1", "16:9", "9:16"],
                 supportedImageResolutions: ["1K", "2K"]
+            },
+            {
+                id: "gpt-5.4-image-2",
+                name: "GPT 5.4 Image 2",
+                mode: "image",
+                adapters: ["i3-openai:gpt-image-2", "openai:gpt-image-2"],
+                abilities: [],
+                supportedImageSizes: ["1:1", "16:9", "9:16", "4:3", "3:4", "21:9"],
+                supportedImageResolutions: ["1K", "2K", "4K"],
+                defaultImageQuality: "low"
             }
         ],
         ImageResolution: undefined,
@@ -120,6 +130,96 @@ describe("generateAndStoreImage", () => {
             })
         )
         expect(storeMock).toHaveBeenCalledTimes(1)
+    })
+
+    it("uses direct OpenAI with low quality for GPT Image 2", async () => {
+        fetchMock.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                data: [
+                    {
+                        b64_json: "AQID"
+                    }
+                ]
+            })
+        })
+
+        await generateAndStoreImage({
+            prompt: "A square product shot",
+            imageSize: "1:1",
+            imageResolution: "1K",
+            imageModel: {
+                provider: "openai.image",
+                modelId: "gpt-image-2"
+            } as never,
+            modelId: "gpt-5.4-image-2",
+            userId: "user-1",
+            actionCtx: {} as never,
+            maxAssets: 1,
+            runtimeApiKey: "openai-key"
+        })
+
+        expect(generateImageMock).not.toHaveBeenCalled()
+        expect(fetchMock).toHaveBeenCalledWith(
+            "https://api.openai.com/v1/images/generations",
+            expect.objectContaining({
+                method: "POST",
+                headers: expect.objectContaining({
+                    Authorization: "Bearer openai-key",
+                    "Content-Type": "application/json"
+                }),
+                body: JSON.stringify({
+                    model: "gpt-image-2",
+                    prompt: "A square product shot",
+                    n: 1,
+                    size: "1024x1024",
+                    quality: "low"
+                })
+            })
+        )
+        expect(storeMock).toHaveBeenCalledTimes(1)
+    })
+
+    it("maps Library aspect ratio and resolution controls to OpenAI pixel sizes", async () => {
+        fetchMock.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                data: [
+                    {
+                        b64_json: "AQID"
+                    }
+                ]
+            })
+        })
+
+        await generateAndStoreImage({
+            prompt: "A wide banner",
+            imageSize: "21:9",
+            imageResolution: "4K",
+            imageModel: {
+                provider: "openai.image",
+                modelId: "gpt-image-2"
+            } as never,
+            modelId: "gpt-5.4-image-2",
+            userId: "user-1",
+            actionCtx: {} as never,
+            maxAssets: 1,
+            runtimeApiKey: "openai-key"
+        })
+
+        expect(generateImageMock).not.toHaveBeenCalled()
+        expect(fetchMock).toHaveBeenCalledWith(
+            "https://api.openai.com/v1/images/generations",
+            expect.objectContaining({
+                body: JSON.stringify({
+                    model: "gpt-image-2",
+                    prompt: "A wide banner",
+                    n: 1,
+                    size: "3808x1632",
+                    quality: "low"
+                })
+            })
+        )
     })
 
     it("uses the actual returned xAI image dimensions instead of the requested aspect ratio", async () => {

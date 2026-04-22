@@ -170,6 +170,8 @@ export const getModel = async (
 
                     finalModel = getOpenAIImageModel(providerSpecificModelId, openAiApiKey)
                     providerSource = "internal"
+                    runtimeProvider = providerId
+                    runtimeApiKey = openAiApiKey
                     break
                 }
 
@@ -227,6 +229,8 @@ export const getModel = async (
                 if (providerIdRaw === "openai") {
                     finalModel = getOpenAIImageModel(providerSpecificModelId, provider.key)
                     providerSource = "byok"
+                    runtimeProvider = providerIdRaw as CoreProvider
+                    runtimeApiKey = provider.key
                     break
                 }
 

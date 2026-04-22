@@ -44,6 +44,7 @@ export const SHARED_MODELS_VERSION = JSON.stringify(
         model.openrouterImageModalities,
         model.supportedImageSizes,
         model.supportedImageResolutions,
+        model.defaultImageQuality,
         model.customIcon,
         model.supportsDisablingReasoning,
         model.availableToPickFor,

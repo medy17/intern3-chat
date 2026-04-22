@@ -48,6 +48,14 @@ vi.mock("../../convex/lib/models", () => ({
             prototypeCreditTier: "pro"
         },
         {
+            id: "gpt-5.4-image-2",
+            name: "GPT 5.4 Image 2",
+            mode: "image",
+            abilities: [],
+            adapters: ["i3-openai:gpt-image-2", "openai:gpt-image-2"],
+            prototypeCreditTier: "pro"
+        },
+        {
             id: "shared-grok",
             name: "Shared Grok",
             mode: "text",
@@ -334,6 +342,54 @@ describe("getModel", () => {
             runtimeApiKey: "internal-xai-key",
             model: {
                 provider: "xai",
+                modelType: "image"
+            }
+        })
+    })
+
+    it("uses direct internal OpenAI for GPT Image 2 even when OpenRouter is configured", async () => {
+        process.env.OPENAI_API_KEY = "internal-openai-key"
+        process.env.OPENROUTER_API_KEY = "or-key"
+
+        const imageModelMock = vi.fn().mockReturnValue({
+            provider: "openai.image",
+            maxImagesPerCall: 10
+        })
+        createProviderMock.mockResolvedValueOnce({})
+        createOpenAIMock.mockReturnValueOnce({
+            imageModel: imageModelMock
+        })
+
+        const result = await getModel(
+            createCtx({
+                providers: {},
+                models: {
+                    "gpt-5.4-image-2": {
+                        id: "gpt-5.4-image-2",
+                        name: "GPT 5.4 Image 2",
+                        mode: "image",
+                        abilities: [],
+                        adapters: ["i3-openai:gpt-image-2", "openai:gpt-image-2"],
+                        prototypeCreditTier: "pro"
+                    }
+                }
+            }),
+            "gpt-5.4-image-2"
+        )
+
+        expect(createProviderMock).toHaveBeenCalledWith("openai", "internal", {
+            modelId: "gpt-image-2"
+        })
+        expect(createOpenAIMock).toHaveBeenCalledWith({
+            apiKey: "internal-openai-key"
+        })
+        expect(imageModelMock).toHaveBeenCalledWith("gpt-image-2")
+        expect(result).toMatchObject({
+            providerSource: "internal",
+            runtimeProvider: "openai",
+            runtimeApiKey: "internal-openai-key",
+            model: {
+                provider: "openai.image",
                 modelType: "image"
             }
         })

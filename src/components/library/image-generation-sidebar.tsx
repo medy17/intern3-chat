@@ -19,16 +19,70 @@ import { getRequiredPlanToPickModel } from "@/lib/models-providers-shared"
 import { useSharedModels } from "@/lib/shared-models"
 import { cn } from "@/lib/utils"
 import { useAction } from "convex/react"
-import { Loader2, Minus, Plus, Sparkles, X } from "lucide-react"
+import { Archive, Loader2, Minus, Plus, Sparkles, X } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { useGenerationStore } from "./generation-store"
 
 const DEFAULT_VARIANTS_PER_MODEL = 1
 const MAX_TOTAL_GENERATIONS_PER_RUN = 10
+const LEGACY_IMAGE_MODEL_MIGRATION_KEY_PREFIX = "legacy-image-model-migrated"
 
 const getModelMaxPerMessage = (model: SharedModel) =>
     model.maxPerMessage ?? DEFAULT_VARIANTS_PER_MODEL
+
+const isLegacyImageModel = (model: SharedModel) => model.legacy === true
+
+const getLegacyImageModelMigrationKey = (original: SharedModel, replacement: SharedModel) =>
+    `${LEGACY_IMAGE_MODEL_MIGRATION_KEY_PREFIX}:${original.id}:${
+        original.replacementId ?? "fallback"
+    }:${replacement.id}`
+
+const hasStoredLegacyImageModelMigration = (key: string) => {
+    if (typeof window === "undefined") return false
+
+    try {
+        return window.localStorage.getItem(key) === "true"
+    } catch {
+        return false
+    }
+}
+
+const storeLegacyImageModelMigration = (key: string) => {
+    if (typeof window === "undefined") return
+
+    try {
+        window.localStorage.setItem(key, "true")
+    } catch {}
+}
+
+const notifyLegacyImageModelReplacement = (original: SharedModel, replacement: SharedModel) => {
+    toast.warning(
+        `${original.name} is now a legacy image model. We selected ${replacement.name} instead, but you can still pick ${original.name} from legacy models.`
+    )
+}
+
+const resolveLegacyImageModelReplacement = (
+    original: SharedModel,
+    candidateModels: readonly SharedModel[]
+) => {
+    const candidatesById = new Map(candidateModels.map((model) => [model.id, model]))
+    const visited = new Set<string>()
+    let current: SharedModel | undefined = original
+
+    while (current?.replacementId && !visited.has(current.id)) {
+        visited.add(current.id)
+        const replacement = candidatesById.get(current.replacementId)
+        if (!replacement) break
+        if (!isLegacyImageModel(replacement)) return replacement
+        current = replacement
+    }
+
+    return candidateModels.find((model) => model.id !== original.id && !isLegacyImageModel(model))
+}
+
+const clampModelCount = (model: SharedModel, count: number) =>
+    Math.max(1, Math.min(count, getModelMaxPerMessage(model)))
 
 const areStringArraysEqual = (left: string[], right: string[]) =>
     left.length === right.length && left.every((value, index) => value === right[index])
@@ -43,8 +97,8 @@ const areModelCountsEqual = (left: Record<string, number>, right: Record<string,
 export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolean }) {
     const { token } = useToken()
     const { models } = useSharedModels()
-    const imageModels = useMemo(
-        () => models.filter((m) => m.mode === "image" && !isModelSunset(m)),
+    const imageModels = useMemo<SharedModel[]>(
+        () => (models as SharedModel[]).filter((m) => m.mode === "image" && !isModelSunset(m)),
         [models]
     )
     const {
@@ -67,8 +121,14 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
     const [showGradient, setShowGradient] = useState(false)
     const [fakeResponseTimeSeconds, setFakeResponseTimeSeconds] = useState(15)
     const [creditPlan, setCreditPlan] = useState<"free" | "pro" | null>(null)
+    const [expandedLegacyModels, setExpandedLegacyModels] = useState(false)
+    const [sessionRevealedLegacyModelIds, setSessionRevealedLegacyModelIds] = useState<Set<string>>(
+        () => new Set()
+    )
     const scrollContainerRef = useRef<HTMLDivElement>(null)
     const referenceFilesRef = useRef(referenceFiles)
+    const seenLegacyMigrationKeysRef = useRef<Set<string>>(new Set())
+    const sessionRevealedLegacyModelIdsRef = useRef<Set<string>>(new Set())
 
     useEffect(() => {
         let cancelled = false
@@ -158,6 +218,108 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
             return areStringArraysEqual(prev, fallbackSelection) ? prev : fallbackSelection
         })
     }, [creditPlan, imageModels, models, selectableImageModels, setSelectedModelIds])
+
+    useEffect(() => {
+        if (creditPlan === null || selectedModelIds.length === 0) return
+
+        const candidateModels =
+            selectableImageModels.length > 0 ? selectableImageModels : imageModels
+        if (candidateModels.length === 0) return
+
+        const imageModelsById = new Map(imageModels.map((model) => [model.id, model]))
+        const migrations = selectedModelIds
+            .map((modelId) => {
+                const original = imageModelsById.get(modelId)
+                if (!original || !isLegacyImageModel(original) || isModelSunset(original)) {
+                    return null
+                }
+                if (
+                    sessionRevealedLegacyModelIds.has(original.id) ||
+                    sessionRevealedLegacyModelIdsRef.current.has(original.id)
+                ) {
+                    return null
+                }
+
+                const replacement = resolveLegacyImageModelReplacement(original, candidateModels)
+                if (!replacement || replacement.id === original.id) {
+                    return null
+                }
+
+                const storageKey = getLegacyImageModelMigrationKey(original, replacement)
+                if (
+                    seenLegacyMigrationKeysRef.current.has(storageKey) ||
+                    hasStoredLegacyImageModelMigration(storageKey)
+                ) {
+                    return null
+                }
+
+                return { original, replacement, storageKey }
+            })
+            .filter(
+                (
+                    migration
+                ): migration is {
+                    original: SharedModel
+                    replacement: SharedModel
+                    storageKey: string
+                } => migration !== null
+            )
+
+        if (migrations.length === 0) return
+
+        const replacementByOriginalId = new Map(
+            migrations.map((migration) => [migration.original.id, migration.replacement])
+        )
+        const nextSelectedModelIds = selectedModelIds
+            .map((modelId) => replacementByOriginalId.get(modelId)?.id ?? modelId)
+            .filter((modelId, index, values) => values.indexOf(modelId) === index)
+
+        for (const migration of migrations) {
+            seenLegacyMigrationKeysRef.current.add(migration.storageKey)
+            storeLegacyImageModelMigration(migration.storageKey)
+            notifyLegacyImageModelReplacement(migration.original, migration.replacement)
+        }
+
+        if (!areStringArraysEqual(selectedModelIds, nextSelectedModelIds)) {
+            setSelectedModelIds(nextSelectedModelIds)
+        }
+
+        setSelectedModelCounts((prev) => {
+            const nextCounts = { ...prev }
+            let changed = false
+
+            for (const migration of migrations) {
+                const originalCount =
+                    nextCounts[migration.original.id] ?? DEFAULT_VARIANTS_PER_MODEL
+                delete nextCounts[migration.original.id]
+
+                const replacementCount = nextCounts[migration.replacement.id] ?? 0
+                const mergedCount = clampModelCount(
+                    migration.replacement,
+                    replacementCount + originalCount
+                )
+
+                if (nextCounts[migration.replacement.id] !== mergedCount) {
+                    nextCounts[migration.replacement.id] = mergedCount
+                    changed = true
+                }
+
+                if (migration.original.id in prev) {
+                    changed = true
+                }
+            }
+
+            return changed && !areModelCountsEqual(prev, nextCounts) ? nextCounts : prev
+        })
+    }, [
+        creditPlan,
+        imageModels,
+        selectableImageModels,
+        selectedModelIds,
+        sessionRevealedLegacyModelIds,
+        setSelectedModelCounts,
+        setSelectedModelIds
+    ])
 
     useEffect(() => {
         setSelectedModelCounts((prev) => {
@@ -295,6 +457,17 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
             return
         }
 
+        const toggledModel = imageModels.find((model) => model.id === modelId)
+        if (toggledModel && isLegacyImageModel(toggledModel)) {
+            sessionRevealedLegacyModelIdsRef.current.add(modelId)
+            setSessionRevealedLegacyModelIds((prev) => {
+                if (prev.has(modelId)) return prev
+                const next = new Set(prev)
+                next.add(modelId)
+                return next
+            })
+        }
+
         const isSelected = selectedModelIds.includes(modelId)
         if (isSelected && selectedModelIds.length === 1) {
             return
@@ -351,6 +524,38 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
         () => imageModels.filter((model) => selectedModelIds.includes(model.id)),
         [imageModels, selectedModelIds]
     )
+    const collapsedVisibleLegacyModelIds = useMemo(() => {
+        const visibleLegacyModelIds = new Set(sessionRevealedLegacyModelIds)
+        for (const modelId of selectedModelIds) {
+            const model = imageModels.find((candidate) => candidate.id === modelId)
+            if (model && isLegacyImageModel(model)) {
+                visibleLegacyModelIds.add(modelId)
+            }
+        }
+
+        return new Set(
+            imageModels
+                .filter((model) => isLegacyImageModel(model) && visibleLegacyModelIds.has(model.id))
+                .map((model) => model.id)
+        )
+    }, [imageModels, selectedModelIds, sessionRevealedLegacyModelIds])
+    const visibleImageModels = useMemo(() => {
+        const currentModels = imageModels.filter((model) => !isLegacyImageModel(model))
+        const legacyModels = imageModels.filter((model) => isLegacyImageModel(model))
+        const visibleLegacyModels = expandedLegacyModels
+            ? legacyModels
+            : legacyModels.filter((model) => collapsedVisibleLegacyModelIds.has(model.id))
+
+        return [...currentModels, ...visibleLegacyModels]
+    }, [collapsedVisibleLegacyModelIds, expandedLegacyModels, imageModels])
+    const hiddenLegacyModelCount = useMemo(() => {
+        if (expandedLegacyModels) return 0
+
+        return imageModels.filter(
+            (model) => isLegacyImageModel(model) && !collapsedVisibleLegacyModelIds.has(model.id)
+        ).length
+    }, [collapsedVisibleLegacyModelIds, expandedLegacyModels, imageModels])
+    const visibleSelectedOrRevealedLegacyCount = collapsedVisibleLegacyModelIds.size
 
     const commonImageSizes = useMemo<SelectableImageAspectRatio[]>(() => {
         if (selectedModels.length === 0) return []
@@ -713,9 +918,10 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                             </div>
 
                             <div className="flex flex-col space-y-1">
-                                {imageModels.map((model) => {
+                                {visibleImageModels.map((model) => {
                                     const isSelected = selectedModelIds.includes(model.id)
                                     const modelPlanLocked = lockedModelIds.has(model.id)
+                                    const isLegacyModel = isLegacyImageModel(model)
                                     const modelCount =
                                         selectedModelCounts[model.id] ?? DEFAULT_VARIANTS_PER_MODEL
                                     const modelMaxPerMessage = getModelMaxPerMessage(model)
@@ -752,7 +958,9 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                                                     <span className="mt-0.5 text-[10px] opacity-70">
                                                         {modelPlanLocked
                                                             ? "Pro plan required"
-                                                            : `Up to ${modelMaxPerMessage} per run`}
+                                                            : `${
+                                                                  isLegacyModel ? "Legacy • " : ""
+                                                              }Up to ${modelMaxPerMessage} per run`}
                                                     </span>
                                                 </div>
 
@@ -823,6 +1031,19 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                                         </div>
                                     )
                                 })}
+                                {hiddenLegacyModelCount > 0 && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        className="mt-1 h-9 w-full justify-center gap-2 text-muted-foreground text-xs hover:text-foreground"
+                                        onClick={() => setExpandedLegacyModels(true)}
+                                    >
+                                        <Archive className="h-3.5 w-3.5" />
+                                        {visibleSelectedOrRevealedLegacyCount > 0
+                                            ? "Show more legacy models"
+                                            : "Show legacy models"}
+                                    </Button>
+                                )}
                             </div>
                         </div>
 
