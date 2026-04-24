@@ -25,6 +25,31 @@ export function useChatDataProcessor({ messages, status }: UseChatDataProcessorP
     const navigate = useNavigate()
 
     useEffect(() => {
+        if (!threadId) return
+
+        const currentKnownStreams = attachedStreamIds[threadId] || []
+        const newStreamsFound: string[] = []
+
+        for (const message of messages) {
+            if (message.role === "assistant" && message.metadata?.streamId) {
+                const streamId = message.metadata.streamId as string
+                if (
+                    !currentKnownStreams.includes(streamId) &&
+                    !newStreamsFound.includes(streamId)
+                ) {
+                    newStreamsFound.push(streamId)
+                }
+            }
+        }
+
+        if (newStreamsFound.length > 0) {
+            newStreamsFound.forEach((streamId) => {
+                setAttachedStreamId(threadId, streamId)
+            })
+        }
+    }, [messages, threadId, attachedStreamIds, setAttachedStreamId])
+
+    useEffect(() => {
         const latestAssistant = [...messages]
             .reverse()
             .find((message) => message.role === "assistant")
@@ -56,8 +81,9 @@ export function useChatDataProcessor({ messages, status }: UseChatDataProcessorP
             const effectiveThreadId = latestAssistant.metadata.threadId ?? threadId
             if (effectiveThreadId) {
                 const currentStreams = attachedStreamIds[effectiveThreadId] || []
+                // Only clear pendingStream if this is a completely unseen streamId
+                // that wasn't known from the existing message history.
                 if (!currentStreams.includes(latestAssistant.metadata.streamId)) {
-                    setAttachedStreamId(effectiveThreadId, latestAssistant.metadata.streamId)
                     if (pendingStreams[effectiveThreadId] !== false) {
                         setPendingStream(effectiveThreadId, false)
                     }
