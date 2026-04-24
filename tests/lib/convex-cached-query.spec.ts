@@ -22,6 +22,24 @@ import {
     useDiskCachedQuery
 } from "@/lib/convex-cached-query"
 
+const useDiskCachedQueryTest = useDiskCachedQuery as unknown as (
+    query: never,
+    cacheOptions: {
+        key: string
+        maxItems?: number
+        default: unknown
+        forceCache?: boolean
+    },
+    ...args: unknown[]
+) => unknown
+
+const useDiskCachedPaginatedQueryTest = useDiskCachedPaginatedQuery as unknown as (
+    query: never,
+    cacheOptions: { key: string; maxItems?: number },
+    args: unknown,
+    options: { initialNumItems: number }
+) => { results: unknown[]; loadMore: ReturnType<typeof vi.fn>; status: string }
+
 describe("convex-cached-query", () => {
     beforeEach(() => {
         localStorage.clear()
@@ -35,12 +53,12 @@ describe("convex-cached-query", () => {
         useQueryMock.mockReturnValue([{ id: "item-1" }, { id: "item-2" }, { id: "item-3" }])
 
         const { result } = renderHook(() =>
-            useDiskCachedQuery(
+            useDiskCachedQueryTest(
                 "query-ref" as never,
                 {
                     key: "items",
                     maxItems: 2,
-                    default: []
+                    default: [] as Array<{ id: string }>
                 },
                 { threadId: "thread-1" } as never
             )
@@ -58,11 +76,11 @@ describe("convex-cached-query", () => {
         useQueryMock.mockReturnValue(undefined)
 
         const { result } = renderHook(() =>
-            useDiskCachedQuery(
+            useDiskCachedQueryTest(
                 "query-ref" as never,
                 {
                     key: "items",
-                    default: []
+                    default: [] as Array<{ id: string }>
                 },
                 { threadId: "thread-1" } as never
             )
@@ -86,7 +104,7 @@ describe("convex-cached-query", () => {
         useQueryMock.mockReturnValue(310)
 
         const { result } = renderHook(() =>
-            useDiskCachedQuery(
+            useDiskCachedQueryTest(
                 "query-ref" as never,
                 {
                     key: "count",
@@ -106,11 +124,11 @@ describe("convex-cached-query", () => {
 
         const { result, rerender } = renderHook(
             (forceCache: boolean) =>
-                useDiskCachedQuery(
+                useDiskCachedQueryTest(
                     "query-ref" as never,
                     {
                         key: "items",
-                        default: [],
+                        default: [] as Array<{ id: string }>,
                         forceCache
                     },
                     "skip" as never
@@ -139,7 +157,7 @@ describe("convex-cached-query", () => {
         usePaginatedQueryMock.mockImplementation(() => paginatedState)
 
         const { result, rerender } = renderHook(() =>
-            useDiskCachedPaginatedQuery(
+            useDiskCachedPaginatedQueryTest(
                 "query-ref" as never,
                 { key: "pages" },
                 { folderId: "folder-1" } as never,

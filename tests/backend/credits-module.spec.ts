@@ -33,9 +33,19 @@ import {
     setMyPrototypeCreditPlan
 } from "../../convex/credits"
 
+const getMyCreditSummaryHandler = getMyCreditSummary as unknown as {
+    handler: (ctx: any, args: any) => Promise<any>
+}
+const recordCreditEventForMessageHandler = recordCreditEventForMessage as unknown as {
+    handler: (ctx: any, args: any) => Promise<any>
+}
+const setMyPrototypeCreditPlanHandler = setMyPrototypeCreditPlan as unknown as {
+    handler: (ctx: any, args: any) => Promise<any>
+}
+
 type CreditAccount = Record<string, unknown>
 type CreditEvent = Record<string, unknown>
-type CreditsCtx = Parameters<typeof getMyCreditSummary.handler>[0]
+type CreditsCtx = Parameters<typeof getMyCreditSummaryHandler.handler>[0]
 
 const createCtx = (options?: {
     account?: CreditAccount
@@ -76,7 +86,7 @@ describe("credits module", () => {
         process.env.MONTHLY_CREDITS_PRO = "1200"
         process.env.MONTHLY_PRO_CREDITS = "25"
 
-        const result = await getMyCreditSummary.handler(
+        const result = await getMyCreditSummaryHandler.handler(
             createCtx({
                 account: {
                     userId: "user-1",
@@ -118,7 +128,7 @@ describe("credits module", () => {
     it("does not duplicate credit events for the same user/message key", async () => {
         const existingEvent = { _id: "existing-event-id" }
 
-        const result = await recordCreditEventForMessage.handler(
+        const result = await recordCreditEventForMessageHandler.handler(
             createCtx({
                 existingEvent
             }),
@@ -151,7 +161,7 @@ describe("credits module", () => {
             }
         })
 
-        const result = await setMyPrototypeCreditPlan.handler(ctx, {
+        const result = await setMyPrototypeCreditPlanHandler.handler(ctx, {
             plan: "pro"
         })
 

@@ -51,7 +51,15 @@ vi.mock("../../convex/lib/resumable_stream_context", () => ({
 
 import { chatGET } from "../../convex/chat_http/get.route"
 
-type ChatGetCtx = Parameters<typeof chatGET>[0]
+const chatGETHandler = chatGET as unknown as (
+    ctx: {
+        auth: Record<string, never>
+        runQuery: ReturnType<typeof vi.fn>
+    },
+    request: Request
+) => Promise<Response>
+
+type ChatGetCtx = Parameters<typeof chatGETHandler>[0]
 
 const createCtx = () =>
     ({
@@ -79,7 +87,7 @@ describe("chatGET", () => {
     it("returns 204 when resumable streams are unavailable", async () => {
         getResumableStreamContextMock.mockReturnValueOnce(null)
 
-        const response = await chatGET(
+        const response = await chatGETHandler(
             createCtx(),
             new Request("https://example.com/chat?chatId=thread-1")
         )
@@ -90,7 +98,7 @@ describe("chatGET", () => {
     it("rejects requests without a chat id", async () => {
         getResumableStreamContextMock.mockReturnValueOnce({})
 
-        const response = await chatGET(createCtx(), new Request("https://example.com/chat"))
+        const response = await chatGETHandler(createCtx(), new Request("https://example.com/chat"))
 
         expect(response.status).toBe(400)
         await expect(response.json()).resolves.toMatchObject({
@@ -102,7 +110,7 @@ describe("chatGET", () => {
         getResumableStreamContextMock.mockReturnValueOnce({})
         getUserIdentityMock.mockResolvedValueOnce({ error: "Unauthorized" })
 
-        const response = await chatGET(
+        const response = await chatGETHandler(
             createCtx(),
             new Request("https://example.com/chat?chatId=thread-1")
         )
@@ -123,7 +131,10 @@ describe("chatGET", () => {
             authorId: "user-2"
         })
 
-        const response = await chatGET(ctx, new Request("https://example.com/chat?chatId=thread-1"))
+        const response = await chatGETHandler(
+            ctx,
+            new Request("https://example.com/chat?chatId=thread-1")
+        )
 
         expect(response.status).toBe(403)
         await expect(response.json()).resolves.toMatchObject({
@@ -143,7 +154,10 @@ describe("chatGET", () => {
             })
             .mockResolvedValueOnce([])
 
-        const response = await chatGET(ctx, new Request("https://example.com/chat?chatId=thread-1"))
+        const response = await chatGETHandler(
+            ctx,
+            new Request("https://example.com/chat?chatId=thread-1")
+        )
 
         expect(response.status).toBe(404)
         await expect(response.json()).resolves.toMatchObject({
@@ -168,7 +182,10 @@ describe("chatGET", () => {
             })
             .mockResolvedValueOnce([{ _id: "stream-1" }])
 
-        const response = await chatGET(ctx, new Request("https://example.com/chat?chatId=thread-1"))
+        const response = await chatGETHandler(
+            ctx,
+            new Request("https://example.com/chat?chatId=thread-1")
+        )
 
         expect(response.status).toBe(204)
         expect(resumeExistingStream).toHaveBeenCalledWith("stream-1")
@@ -196,7 +213,10 @@ describe("chatGET", () => {
                 }
             ])
 
-        const response = await chatGET(ctx, new Request("https://example.com/chat?chatId=thread-1"))
+        const response = await chatGETHandler(
+            ctx,
+            new Request("https://example.com/chat?chatId=thread-1")
+        )
 
         expect(response.status).toBe(200)
         expect(response.headers.get("content-type")).toBe("text/event-stream")
@@ -218,7 +238,10 @@ describe("chatGET", () => {
             })
             .mockResolvedValueOnce([{ _id: "stream-1" }])
 
-        const response = await chatGET(ctx, new Request("https://example.com/chat?chatId=thread-1"))
+        const response = await chatGETHandler(
+            ctx,
+            new Request("https://example.com/chat?chatId=thread-1")
+        )
 
         expect(response.status).toBe(200)
         expect(response.headers.get("content-type")).toBe("text/event-stream")

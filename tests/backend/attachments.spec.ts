@@ -35,8 +35,27 @@ vi.mock("../../convex/lib/identity", () => ({
 
 import { deleteFile, getFile, listGeneratedFiles, r2, uploadFile } from "../../convex/attachments"
 
-type UploadCtx = Parameters<typeof uploadFile>[0]
-type DeleteCtx = Parameters<typeof deleteFile>[0]
+const uploadFileHandler = uploadFile as unknown as (
+    ctx: Record<string, unknown>,
+    request: Request
+) => Promise<Response>
+const deleteFileHandler = deleteFile as unknown as (
+    ctx: Record<string, unknown>,
+    args: { key: string }
+) => Promise<unknown>
+const listGeneratedFilesHandler = listGeneratedFiles as unknown as (
+    ctx: Record<string, unknown>,
+    args: { limit?: number; sortBy?: "size" | "newest" | "oldest" }
+) => Promise<Array<{ key: string }>>
+const getFileHandler = getFile as unknown as (
+    ctx: Record<string, unknown>,
+    request: Request
+) => Promise<Response>
+
+type UploadCtx = {
+    auth: Record<string, never>
+}
+type DeleteCtx = UploadCtx
 
 const createHttpCtx = () =>
     ({
@@ -70,7 +89,7 @@ describe("attachments", () => {
         getUserIdentityMock.mockReset()
         vi.spyOn(console, "error").mockImplementation(() => {})
         vi.spyOn(console, "warn").mockImplementation(() => {})
-        vi.spyOn(crypto, "randomUUID").mockReturnValue("uuid-1")
+        vi.spyOn(crypto, "randomUUID").mockReturnValue("123e4567-e89b-12d3-a456-426614174000")
 
         r2.store = vi.fn()
         r2.getMetadata = vi.fn()
@@ -82,7 +101,7 @@ describe("attachments", () => {
     it("rejects unauthorized uploads", async () => {
         getUserIdentityMock.mockResolvedValueOnce({ error: "Unauthorized" })
 
-        const response = await uploadFile(createHttpCtx(), createFileRequest())
+        const response = await uploadFileHandler(createHttpCtx(), createFileRequest())
 
         expect(response.status).toBe(401)
         await expect(response.json()).resolves.toMatchObject({
@@ -93,7 +112,7 @@ describe("attachments", () => {
     it("rejects uploads without a file", async () => {
         getUserIdentityMock.mockResolvedValueOnce({ id: "user-1" })
 
-        const response = await uploadFile(
+        const response = await uploadFileHandler(
             createHttpCtx(),
             createFileRequest({ fileName: "notes.txt" })
         )
@@ -107,7 +126,7 @@ describe("attachments", () => {
     it("rejects unsupported file types", async () => {
         getUserIdentityMock.mockResolvedValueOnce({ id: "user-1" })
 
-        const response = await uploadFile(
+        const response = await uploadFileHandler(
             createHttpCtx(),
             createFileRequest({
                 file: new Blob(["binary"], { type: "application/octet-stream" }),
@@ -124,7 +143,7 @@ describe("attachments", () => {
     it("rejects text files whose estimated token count exceeds the limit", async () => {
         getUserIdentityMock.mockResolvedValueOnce({ id: "user-1" })
 
-        const response = await uploadFile(
+        const response = await uploadFileHandler(
             createHttpCtx(),
             createFileRequest({
                 file: new Blob(["a".repeat(128_001)], { type: "text/plain" }),
@@ -142,7 +161,7 @@ describe("attachments", () => {
         getUserIdentityMock.mockResolvedValueOnce({ id: "user-1" })
         ;(r2.store as ReturnType<typeof vi.fn>).mockResolvedValueOnce("stored-key")
 
-        const response = await uploadFile(
+        const response = await uploadFileHandler(
             createHttpCtx(),
             createFileRequest({
                 file: new Blob(["const x = 1;"], { type: "application/octet-stream" }),
@@ -174,7 +193,7 @@ describe("attachments", () => {
             new Error("R2 is not configured")
         )
 
-        const response = await uploadFile(
+        const response = await uploadFileHandler(
             createHttpCtx(),
             createFileRequest({
                 file: new Blob(["hello"], { type: "text/plain" }),
@@ -194,7 +213,7 @@ describe("attachments", () => {
             authorId: "user-2"
         })
 
-        const result = await deleteFile(createQueryCtx(), { key: "file-1" })
+        const result = await deleteFileHandler(createQueryCtx(), { key: "file-1" })
 
         expect(result).toEqual({
             success: false,
@@ -209,7 +228,7 @@ describe("attachments", () => {
             authorId: "user-1"
         })
 
-        const result = await deleteFile(createQueryCtx(), { key: "file-1" })
+        const result = await deleteFileHandler(createQueryCtx(), { key: "file-1" })
 
         expect(r2.deleteObject).toHaveBeenCalledWith(expect.anything(), "file-1")
         expect(result).toEqual({ success: true })
@@ -232,7 +251,7 @@ describe("attachments", () => {
                 continueCursor: "cursor-1"
             })
 
-        const result = await listGeneratedFiles(createQueryCtx(), {
+        const result = await listGeneratedFilesHandler(createQueryCtx(), {
             limit: 10,
             sortBy: "size"
         })
@@ -274,7 +293,7 @@ describe("attachments", () => {
         const fetchMock = vi.fn().mockResolvedValueOnce(upstreamResponse)
         vi.stubGlobal("fetch", fetchMock)
 
-        const response = await getFile(
+        const response = await getFileHandler(
             createHttpCtx(),
             new Request("https://example.com/file?key=file-1")
         )
@@ -301,7 +320,7 @@ describe("attachments", () => {
         const fetchMock = vi.fn().mockResolvedValueOnce(upstreamResponse)
         vi.stubGlobal("fetch", fetchMock)
 
-        const response = await getFile(
+        const response = await getFileHandler(
             createHttpCtx(),
             new Request("https://example.com/file?key=generations%2Fuser-1%2Ffile-1.png")
         )

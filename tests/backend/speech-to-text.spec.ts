@@ -48,7 +48,15 @@ vi.mock("../../convex/lib/google_provider", () => ({
 
 import { transcribeAudio } from "../../convex/speech_to_text"
 
-type SpeechCtx = Parameters<typeof transcribeAudio>[0]
+const transcribeAudioHandler = transcribeAudio as unknown as (
+    ctx: {
+        auth: Record<string, never>
+        runQuery: ReturnType<typeof vi.fn>
+    },
+    request: Request
+) => Promise<Response>
+
+type SpeechCtx = Parameters<typeof transcribeAudioHandler>[0]
 
 const createCtx = (settings?: Record<string, unknown>) =>
     ({
@@ -92,7 +100,7 @@ describe("transcribeAudio", () => {
     it("returns 401 for unauthorized users", async () => {
         getUserIdentityMock.mockResolvedValueOnce({ error: "Unauthorized" })
 
-        const response = await transcribeAudio(createCtx(), createAudioRequest())
+        const response = await transcribeAudioHandler(createCtx(), createAudioRequest())
 
         expect(response.status).toBe(401)
         await expect(response.json()).resolves.toEqual({ error: "Unauthorized" })
@@ -102,7 +110,7 @@ describe("transcribeAudio", () => {
         getUserIdentityMock.mockResolvedValueOnce({ id: "user-1" })
         hasInternalGoogleVertexConfigMock.mockReturnValue(false)
 
-        const response = await transcribeAudio(
+        const response = await transcribeAudioHandler(
             createCtx({
                 coreAIProviders: {}
             }),
@@ -127,14 +135,17 @@ describe("transcribeAudio", () => {
             }
         })
 
-        const missingResponse = await transcribeAudio(createCtx(), createAudioRequest())
+        const missingResponse = await transcribeAudioHandler(createCtx(), createAudioRequest())
         expect(missingResponse.status).toBe(400)
         await expect(missingResponse.json()).resolves.toEqual({
             error: "No audio file provided"
         })
 
         const largeBlob = new Blob([new Uint8Array(25 * 1024 * 1024 + 1)], { type: "audio/webm" })
-        const largeResponse = await transcribeAudio(createCtx(), createAudioRequest(largeBlob))
+        const largeResponse = await transcribeAudioHandler(
+            createCtx(),
+            createAudioRequest(largeBlob)
+        )
         expect(largeResponse.status).toBe(400)
         await expect(largeResponse.json()).resolves.toEqual({
             error: "Audio file too large (max 25MB)"
@@ -166,7 +177,7 @@ describe("transcribeAudio", () => {
         )
         vi.stubGlobal("fetch", fetchMock)
 
-        const response = await transcribeAudio(
+        const response = await transcribeAudioHandler(
             createCtx({
                 coreAIProviders: {}
             }),
@@ -201,7 +212,7 @@ describe("transcribeAudio", () => {
             .mockResolvedValueOnce(new Response("slow down", { status: 429 }))
         vi.stubGlobal("fetch", unauthorizedFetch)
 
-        const unauthorizedResponse = await transcribeAudio(
+        const unauthorizedResponse = await transcribeAudioHandler(
             createCtx({
                 coreAIProviders: {}
             }),
@@ -212,7 +223,7 @@ describe("transcribeAudio", () => {
             error: "Invalid Groq credentials. Please check your Groq configuration."
         })
 
-        const rateLimitResponse = await transcribeAudio(
+        const rateLimitResponse = await transcribeAudioHandler(
             createCtx({
                 coreAIProviders: {}
             }),

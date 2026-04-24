@@ -27,6 +27,7 @@ describe("persona prompt helpers", () => {
             source: "user",
             sourceId: "persona-1",
             name: "Essay Columnist",
+            shortName: "Essay",
             description: "Writes with structure and voice.",
             instructions: "Use a confident editorial tone.",
             defaultModelId: "gpt-5.4-mini",

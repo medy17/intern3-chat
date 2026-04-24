@@ -37,6 +37,19 @@ import { Route as CreditSummaryRoute } from "@/routes/api/credit-summary"
 import { Route as DevCreditPlanRoute } from "@/routes/api/dev/credit-plan"
 import { Route as PosthogProxyRoute } from "@/routes/api/phr/$"
 
+type RouteHandlers = {
+    server: {
+        handlers: {
+            GET?: (args: { request: Request }) => Promise<Response>
+            POST?: (args: { request: Request }) => Promise<Response>
+        }
+    }
+}
+
+const creditSummaryHandlers = (CreditSummaryRoute as unknown as RouteHandlers).server.handlers
+const devCreditPlanHandlers = (DevCreditPlanRoute as unknown as RouteHandlers).server.handlers
+const posthogProxyHandlers = (PosthogProxyRoute as unknown as RouteHandlers).server.handlers
+
 describe("API routes", () => {
     beforeEach(() => {
         getSessionMock.mockReset()
@@ -59,7 +72,7 @@ describe("API routes", () => {
             pro: 100
         })
 
-        const response = await CreditSummaryRoute.server.handlers.GET({
+        const response = await creditSummaryHandlers.GET!({
             request: new Request("https://example.com/api/credit-summary")
         })
 
@@ -79,7 +92,7 @@ describe("API routes", () => {
     it("enforces auth and dev-only constraints on the credit-plan route", async () => {
         process.env.NODE_ENV = "production"
 
-        const prodResponse = await DevCreditPlanRoute.server.handlers.POST({
+        const prodResponse = await devCreditPlanHandlers.POST!({
             request: new Request("https://example.com/api/dev/credit-plan", {
                 method: "POST",
                 body: JSON.stringify({ plan: "pro" })
@@ -95,7 +108,7 @@ describe("API routes", () => {
             }
         })
 
-        const invalidPlanResponse = await DevCreditPlanRoute.server.handlers.POST({
+        const invalidPlanResponse = await devCreditPlanHandlers.POST!({
             request: new Request("https://example.com/api/dev/credit-plan", {
                 method: "POST",
                 body: JSON.stringify({ plan: "enterprise" })
@@ -117,7 +130,7 @@ describe("API routes", () => {
         })
         setUserCreditPlanMock.mockResolvedValueOnce("free")
 
-        const response = await DevCreditPlanRoute.server.handlers.POST({
+        const response = await devCreditPlanHandlers.POST!({
             request: new Request("https://example.com/api/dev/credit-plan", {
                 method: "POST",
                 body: JSON.stringify({ plan: "free" })
@@ -146,7 +159,7 @@ describe("API routes", () => {
         )
         vi.stubGlobal("fetch", fetchMock)
 
-        const response = await PosthogProxyRoute.server.handlers.GET({
+        const response = await posthogProxyHandlers.GET!({
             request: new Request("https://example.com/api/phr/capture?foo=bar", {
                 headers: {
                     host: "example.com",

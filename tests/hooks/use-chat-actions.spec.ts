@@ -145,9 +145,9 @@ describe("useChatActions", () => {
         const setMessages = vi.fn()
         const regenerate = vi.fn()
         const messages: TestMessage[] = [
-            { id: "m1", role: "user" },
-            { id: "m2", role: "assistant" },
-            { id: "m3", role: "user" }
+            { id: "m1", role: "user", parts: [] },
+            { id: "m2", role: "assistant", parts: [] },
+            { id: "m3", role: "user", parts: [] }
         ]
 
         useChatStore.setState({
@@ -192,7 +192,6 @@ describe("useChatActions", () => {
             {
                 id: "m2",
                 role: "user",
-                content: "before",
                 parts: [
                     {
                         type: "file",
@@ -239,9 +238,7 @@ describe("useChatActions", () => {
         })
         expect(setMessages).toHaveBeenCalledWith([
             messages[0],
-            {
-                ...messages[1],
-                content: "after edit",
+            expect.objectContaining({
                 parts: [
                     ...remainingFileParts,
                     {
@@ -249,7 +246,7 @@ describe("useChatActions", () => {
                         text: "after edit"
                     }
                 ]
-            }
+            })
         ])
         expect(regenerate).toHaveBeenCalledWith({
             messageId: "m2",

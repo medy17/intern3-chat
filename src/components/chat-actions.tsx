@@ -48,14 +48,6 @@ type ImageGenerationAsset = {
     imageUrl?: string
 }
 
-type ImageGenerationToolPart = {
-    type: "tool-image_generation"
-    state?: string
-    output?: {
-        assets?: ImageGenerationAsset[]
-    } | null
-}
-
 const AssistantFooterMarquee = memo(({ segments }: { segments: FooterSegment[] }) => {
     const viewportRef = useRef<HTMLDivElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
@@ -264,25 +256,22 @@ export const ChatActions = memo(
 
         const imageGenerationAssets = useMemo(() => {
             const assets: string[] = []
-            message.parts
-                .filter(
-                    (part): part is ImageGenerationToolPart => part.type === "tool-image_generation"
-                )
-                .forEach((part) => {
-                    if (
-                        part.state === "output-available" &&
-                        part.output &&
-                        typeof part.output === "object" &&
-                        "assets" in part.output &&
-                        Array.isArray(part.output.assets)
-                    ) {
-                        part.output.assets.forEach((asset) => {
-                            if (asset.imageUrl) {
-                                assets.push(asset.imageUrl)
-                            }
-                        })
+            message.parts.forEach((part) => {
+                if (part.type !== "tool-image_generation") return
+                if (!("state" in part) || part.state !== "output-available") return
+                if (!("output" in part)) return
+
+                const output = part.output
+                if (!output || typeof output !== "object" || !("assets" in output)) return
+                if (!Array.isArray(output.assets)) return
+
+                output.assets.forEach((asset) => {
+                    const imageAsset = asset as ImageGenerationAsset | null | undefined
+                    if (imageAsset?.imageUrl) {
+                        assets.push(imageAsset.imageUrl)
                     }
                 })
+            })
             return assets
         }, [message.parts])
 

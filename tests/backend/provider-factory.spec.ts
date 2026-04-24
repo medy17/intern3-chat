@@ -96,12 +96,12 @@ describe("provider_factory", () => {
     })
 
     it("uses the Google AI Studio provider for non-vertex auth", async () => {
-        getGoogleAuthModeMock.mockReturnValueOnce("studio")
+        getGoogleAuthModeMock.mockReturnValueOnce("ai-studio")
         getGoogleAiStudioApiKeyMock.mockReturnValueOnce("google-ai-studio-key")
         createGoogleGenerativeAIMock.mockReturnValueOnce({ provider: "google-studio" })
 
         const provider = await createProvider("google", "internal", {
-            googleAuthMode: "api-key",
+            googleAuthMode: "ai-studio",
             modelId: "gemini-2.5-pro"
         })
 
@@ -126,7 +126,7 @@ describe("provider_factory", () => {
         createVertexMock.mockReturnValueOnce({ provider: "vertex" })
 
         const provider = await createProvider("google", "internal", {
-            googleAuthMode: "service-account",
+            googleAuthMode: "vertex",
             modelId: "gemini-3.0-fast"
         })
 
@@ -170,29 +170,29 @@ describe("provider_factory", () => {
 
         expect(() =>
             createGoogleOpenAICompatibleProvider("internal", {
-                googleAuthMode: "service-account"
+                googleAuthMode: "vertex"
             })
         ).toThrow("Google OpenAI-compatible image models require AI Studio authentication")
     })
 
     it("requires an AI Studio key for the OpenAI-compatible Google provider", () => {
-        getGoogleAuthModeMock.mockReturnValueOnce("studio")
+        getGoogleAuthModeMock.mockReturnValueOnce("ai-studio")
         getGoogleAiStudioApiKeyMock.mockReturnValueOnce(undefined)
 
         expect(() =>
             createGoogleOpenAICompatibleProvider("internal", {
-                googleAuthMode: "api-key"
+                googleAuthMode: "ai-studio"
             })
         ).toThrow("Google AI Studio API key is required")
     })
 
     it("creates the OpenAI-compatible Google provider with the expected base URL", () => {
-        getGoogleAuthModeMock.mockReturnValueOnce("studio")
+        getGoogleAuthModeMock.mockReturnValueOnce("ai-studio")
         getGoogleAiStudioApiKeyMock.mockReturnValueOnce("google-ai-studio-key")
         createOpenAIMock.mockReturnValueOnce({ provider: "google-openai" })
 
         const provider = createGoogleOpenAICompatibleProvider("internal", {
-            googleAuthMode: "api-key"
+            googleAuthMode: "ai-studio"
         })
 
         expect(createOpenAIMock).toHaveBeenCalledWith({

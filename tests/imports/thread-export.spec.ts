@@ -53,7 +53,8 @@ describe("thread-export", () => {
                     parts: [{ type: "reasoning" }]
                 }
             ],
-            convexApiUrl: "https://convex.example.com/"
+            convexApiUrl: "https://convex.example.com/",
+            exportedAt: Date.UTC(2026, 2, 31, 0, 0, 0)
         })
 
         expect(exported.fileName).toBe("2026-03-31--resume-review--thread-123.md")

@@ -26,7 +26,18 @@ vi.mock("@tanstack/react-router", () => ({
     createFileRoute: () => (config: unknown) => config
 }))
 
-import { Route } from "@/routes/api/auth/$.ts"
+import { Route } from "@/routes/api/auth/$"
+
+const routeHandlers = (
+    Route as unknown as {
+        server: {
+            handlers: {
+                GET: (args: { request: Request }) => Promise<Response>
+                POST: (args: { request: Request }) => Promise<Response>
+            }
+        }
+    }
+).server.handlers
 
 describe("api auth route", () => {
     beforeEach(() => {
@@ -44,7 +55,7 @@ describe("api auth route", () => {
             .mockRejectedValueOnce(new Error("Failed to decrypt private private key"))
             .mockResolvedValueOnce(recoveredResponse)
 
-        const response = await Route.server.handlers.GET({
+        const response = await routeHandlers.GET({
             request: new Request("https://example.com/api/auth/sign-in")
         })
 
@@ -59,7 +70,7 @@ describe("api auth route", () => {
             .mockResolvedValueOnce(new Response("broken", { status: 500 }))
             .mockResolvedValueOnce(new Response("recovered", { status: 200 }))
 
-        const response = await Route.server.handlers.GET({
+        const response = await routeHandlers.GET({
             request: new Request("https://example.com/api/auth/get-session")
         })
 
@@ -73,7 +84,7 @@ describe("api auth route", () => {
         authHandlerMock.mockRejectedValueOnce(new Error("some other auth failure"))
 
         await expect(
-            Route.server.handlers.POST({
+            routeHandlers.POST({
                 request: new Request("https://example.com/api/auth/sign-out", {
                     method: "POST"
                 })
@@ -87,7 +98,7 @@ describe("api auth route", () => {
         const response = new Response("fine", { status: 200 })
         authHandlerMock.mockResolvedValueOnce(response)
 
-        const result = await Route.server.handlers.GET({
+        const result = await routeHandlers.GET({
             request: new Request("https://example.com/api/auth/callback")
         })
 

@@ -95,9 +95,16 @@ vi.mock("../../convex/schema/settings", () => ({
 import { ChatError } from "@/lib/errors"
 import { getUserRegistryInternal, updateUserSettings } from "../../convex/settings"
 
-type SettingsCtx = Parameters<typeof getUserRegistryInternal.handler>[0]
+const getUserRegistryInternalHandler = getUserRegistryInternal as unknown as {
+    handler: (ctx: any, args: any) => Promise<any>
+}
+const updateUserSettingsHandler = updateUserSettings as unknown as {
+    handler: (ctx: any, args: any) => Promise<any>
+}
 
-const createCtx = (settings: Record<string, unknown>) =>
+type SettingsCtx = Parameters<typeof getUserRegistryInternalHandler.handler>[0]
+
+const createCtx = (settings: Record<string, unknown> | null) =>
     ({
         auth: {},
         db: {
@@ -126,7 +133,7 @@ describe("settings", () => {
             return providerId === "openai"
         })
 
-        const result = await getUserRegistryInternal.handler(
+        const result = await getUserRegistryInternalHandler.handler(
             createCtx({
                 userId: "user-1",
                 coreAIProviders: {
@@ -222,7 +229,7 @@ describe("settings", () => {
             }
         })
 
-        await updateUserSettings.handler(ctx, {
+        await updateUserSettingsHandler.handler(ctx, {
             userId: "user-1",
             baseSettings: {
                 userId: "user-1",
@@ -298,7 +305,7 @@ describe("settings", () => {
         getUserIdentityMock.mockResolvedValueOnce({ id: "other-user" })
 
         await expect(
-            updateUserSettings.handler(createCtx(null), {
+            updateUserSettingsHandler.handler(createCtx(null), {
                 userId: "user-1",
                 baseSettings: {
                     userId: "user-1",

@@ -30,6 +30,15 @@ vi.mock("../../convex/import_jobs_http", () => ({
     uploadImportSource: "uploadImportHandler"
 }))
 
+vi.mock("../../convex/persona_uploads", () => ({
+    uploadPersonaAvatar: "uploadPersonaAvatarHandler",
+    uploadPersonaDoc: "uploadPersonaDocHandler"
+}))
+
+vi.mock("../../convex/private_blur", () => ({
+    getPrivateBlur: "getPrivateBlurHandler"
+}))
+
 vi.mock("../../convex/speech_to_text", () => ({
     transcribeAudio: "transcribeHandler"
 }))
@@ -67,7 +76,7 @@ describe("convex/http", () => {
             allowCredentials: true
         })
 
-        expect(corsRoute).toHaveBeenCalledTimes(5)
+        expect(corsRoute).toHaveBeenCalledTimes(9)
         expect(corsRoute).toHaveBeenNthCalledWith(1, {
             path: "/chat",
             method: "POST",
@@ -84,21 +93,36 @@ describe("convex/http", () => {
             handler: "uploadFileHandler"
         })
         expect(corsRoute).toHaveBeenNthCalledWith(4, {
+            path: "/upload/persona-avatar",
+            method: "POST",
+            handler: "uploadPersonaAvatarHandler"
+        })
+        expect(corsRoute).toHaveBeenNthCalledWith(5, {
+            path: "/upload/persona-doc",
+            method: "POST",
+            handler: "uploadPersonaDocHandler"
+        })
+        expect(corsRoute).toHaveBeenNthCalledWith(6, {
             path: "/import-upload",
             method: "POST",
             handler: "uploadImportHandler"
         })
-        expect(corsRoute).toHaveBeenNthCalledWith(5, {
+        expect(corsRoute).toHaveBeenNthCalledWith(7, {
             path: "/transcribe",
             method: "POST",
             handler: "transcribeHandler"
         })
-
-        expect(httpRoute).toHaveBeenCalledWith({
+        expect(corsRoute).toHaveBeenNthCalledWith(8, {
             path: "/r2",
             method: "GET",
             handler: "getFileHandler"
         })
+        expect(corsRoute).toHaveBeenNthCalledWith(9, {
+            path: "/private-blur",
+            method: "GET",
+            handler: "getPrivateBlurHandler"
+        })
+        expect(httpRoute).not.toHaveBeenCalled()
         expect(module.default).toBe(http)
     })
 })

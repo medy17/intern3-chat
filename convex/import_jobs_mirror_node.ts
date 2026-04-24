@@ -9,6 +9,7 @@ import {
     isImageMimeType,
     isSupportedFile
 } from "@/lib/file_constants"
+import type { ActionCtx } from "./_generated/server"
 import { r2 } from "./attachments"
 import { ensureAttachmentFilename } from "./lib/thread_import_core"
 
@@ -157,7 +158,7 @@ export const mirrorRemoteAttachment = async ({
     url,
     filename
 }: {
-    ctx: Parameters<typeof r2.store>[0]
+    ctx: Pick<ActionCtx, "runAction" | "runMutation" | "runQuery">
     authorId: string
     url: string
     filename: string

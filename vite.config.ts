@@ -43,7 +43,7 @@ export default defineConfig(({ mode }) => {
                               requestPath.replace(/^\/convex-http/, convexApiBasePath)
                       }
                   }
-                : {}
+                : undefined
         },
         plugins: [
             (process.env.ANALYZE && analyzer()) || null,

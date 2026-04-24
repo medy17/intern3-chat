@@ -74,7 +74,10 @@ import { createThreadOrInsertMessages } from "../../convex/threads"
 
 type ThreadDoc = Record<string, unknown>
 type MessageDoc = Record<string, unknown>
-type ThreadsCtx = Parameters<typeof createThreadOrInsertMessages.handler>[0]
+const createThreadOrInsertMessagesHandler = createThreadOrInsertMessages as unknown as {
+    handler: (ctx: any, args: any) => Promise<any>
+}
+type ThreadsCtx = Parameters<typeof createThreadOrInsertMessagesHandler.handler>[0]
 
 const createMessageQuery = (
     messages: MessageDoc[],
@@ -146,7 +149,7 @@ describe("createThreadOrInsertMessages", () => {
     })
 
     it("returns a bad_request error when userMessage is missing", async () => {
-        const result = await createThreadOrInsertMessages.handler(createCtx(), {
+        const result = await createThreadOrInsertMessagesHandler.handler(createCtx(), {
             authorId: "user-1",
             proposedNewAssistantId: "assistant-1"
         })
@@ -162,7 +165,7 @@ describe("createThreadOrInsertMessages", () => {
             inserts: ["thread-1", "user-msg-doc", "assistant-msg-doc"]
         })
 
-        const result = await createThreadOrInsertMessages.handler(ctx, {
+        const result = await createThreadOrInsertMessagesHandler.handler(ctx, {
             authorId: "user-1",
             proposedNewAssistantId: "assistant-1",
             folderId: "folder-1",
@@ -215,7 +218,7 @@ describe("createThreadOrInsertMessages", () => {
             inserts: ["user-msg-doc", "assistant-msg-doc"]
         })
 
-        const result = await createThreadOrInsertMessages.handler(ctx, {
+        const result = await createThreadOrInsertMessagesHandler.handler(ctx, {
             threadId: "thread-1",
             authorId: "user-1",
             proposedNewAssistantId: "assistant-2",
@@ -264,7 +267,7 @@ describe("createThreadOrInsertMessages", () => {
             }
         })
 
-        const result = await createThreadOrInsertMessages.handler(ctx, {
+        const result = await createThreadOrInsertMessagesHandler.handler(ctx, {
             threadId: "thread-1",
             authorId: "user-1",
             proposedNewAssistantId: "assistant-2",
@@ -308,7 +311,7 @@ describe("createThreadOrInsertMessages", () => {
             }
         })
 
-        const result = await createThreadOrInsertMessages.handler(ctx, {
+        const result = await createThreadOrInsertMessagesHandler.handler(ctx, {
             authorId: "user-1",
             proposedNewAssistantId: "assistant-1",
             userMessage: {
@@ -348,7 +351,7 @@ describe("createThreadOrInsertMessages", () => {
             inserts: ["assistant-doc-new"]
         })
 
-        const result = await createThreadOrInsertMessages.handler(ctx, {
+        const result = await createThreadOrInsertMessagesHandler.handler(ctx, {
             threadId: "thread-1",
             authorId: "user-1",
             proposedNewAssistantId: "assistant-proposed",
@@ -387,7 +390,7 @@ describe("createThreadOrInsertMessages", () => {
     })
 
     it("returns undefined when the target thread does not exist", async () => {
-        const result = await createThreadOrInsertMessages.handler(createCtx(), {
+        const result = await createThreadOrInsertMessagesHandler.handler(createCtx(), {
             threadId: "missing-thread",
             authorId: "user-1",
             proposedNewAssistantId: "assistant-1",

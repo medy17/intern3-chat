@@ -56,7 +56,12 @@ vi.mock("ai", () => ({
 }))
 
 vi.mock("../../convex/_generated/server", () => ({
-    httpAction: (handler: unknown) => handler
+    action: (config: unknown) => config,
+    httpAction: (handler: unknown) => handler,
+    internalMutation: (config: unknown) => config,
+    internalQuery: (config: unknown) => config,
+    mutation: (config: unknown) => config,
+    query: (config: unknown) => config
 }))
 
 vi.mock("../../convex/_generated/api", () => ({
@@ -71,6 +76,9 @@ vi.mock("../../convex/_generated/api", () => ({
         settings: {
             getUserSettingsInternal: "getUserSettingsInternal"
         },
+        personas: {
+            getThreadPersonaSnapshotInternal: "getThreadPersonaSnapshotInternal"
+        },
         streams: {
             appendStreamId: "appendStreamId"
         },
@@ -78,6 +86,12 @@ vi.mock("../../convex/_generated/api", () => ({
             createThreadOrInsertMessages: "createThreadOrInsertMessages",
             updateThreadStreamingState: "updateThreadStreamingState"
         }
+    }
+}))
+
+vi.mock("../../convex/attachments", () => ({
+    r2: {
+        getUrl: vi.fn()
     }
 }))
 
@@ -128,7 +142,16 @@ vi.mock("../../convex/lib/models", () => ({
 import { ChatError } from "@/lib/errors"
 import { chatPOST } from "../../convex/chat_http/post.route"
 
-type ChatPostCtx = Parameters<typeof chatPOST>[0]
+const chatPOSTHandler = chatPOST as unknown as (
+    ctx: {
+        auth: Record<string, never>
+        runMutation: ReturnType<typeof vi.fn>
+        runQuery: ReturnType<typeof vi.fn>
+    },
+    request: Request
+) => Promise<Response>
+
+type ChatPostCtx = Parameters<typeof chatPOSTHandler>[0]
 
 const createObjectStream = (chunks: unknown[]) =>
     new ReadableStream({
@@ -292,7 +315,7 @@ describe("chatPOST", () => {
     })
 
     it("rejects an empty request body", async () => {
-        const response = await chatPOST(
+        const response = await chatPOSTHandler(
             createCtx(),
             new Request("https://example.com/chat", {
                 method: "POST",
@@ -307,7 +330,7 @@ describe("chatPOST", () => {
     })
 
     it("rejects invalid JSON payloads", async () => {
-        const response = await chatPOST(createCtx(), createRequest("{not-json"))
+        const response = await chatPOSTHandler(createCtx(), createRequest("{not-json"))
 
         expect(response.status).toBe(400)
         await expect(response.json()).resolves.toMatchObject({
@@ -316,7 +339,7 @@ describe("chatPOST", () => {
     })
 
     it("rejects missing required fields", async () => {
-        const response = await chatPOST(createCtx(), createRequest({ model: "shared-text" }))
+        const response = await chatPOSTHandler(createCtx(), createRequest({ model: "shared-text" }))
 
         expect(response.status).toBe(400)
         await expect(response.json()).resolves.toMatchObject({
@@ -325,7 +348,7 @@ describe("chatPOST", () => {
     })
 
     it("rejects edit/retry requests without a thread id", async () => {
-        const response = await chatPOST(
+        const response = await chatPOSTHandler(
             createCtx(),
             createRequest({
                 model: "shared-text",
@@ -348,7 +371,7 @@ describe("chatPOST", () => {
     it("rejects unauthorized users before model resolution", async () => {
         getUserIdentityMock.mockResolvedValueOnce({ error: "Unauthorized" })
 
-        const response = await chatPOST(
+        const response = await chatPOSTHandler(
             createCtx(),
             createRequest({
                 model: "shared-text",
@@ -372,7 +395,7 @@ describe("chatPOST", () => {
         getUserIdentityMock.mockResolvedValueOnce({ id: "user-1", creditPlan: "pro" })
         getModelMock.mockResolvedValueOnce(new ChatError("bad_model:api"))
 
-        const response = await chatPOST(
+        const response = await chatPOSTHandler(
             createCtx(),
             createRequest({
                 model: "missing-model",
@@ -397,6 +420,7 @@ describe("chatPOST", () => {
             model: { modelType: "text" },
             modelName: "Shared Text",
             providerSource: "internal",
+            abilities: [],
             registry: {
                 models: {
                     "shared-text": {}
@@ -407,7 +431,7 @@ describe("chatPOST", () => {
             prototypeCreditTierWithReasoning: undefined
         })
 
-        const response = await chatPOST(
+        const response = await chatPOSTHandler(
             createCtx(),
             createRequest({
                 model: "shared-text",
@@ -437,6 +461,7 @@ describe("chatPOST", () => {
             model: { modelType: "text" },
             modelName: "Shared Text",
             providerSource: "internal",
+            abilities: [],
             registry: {
                 models: {
                     "shared-text": {}
@@ -446,7 +471,7 @@ describe("chatPOST", () => {
             prototypeCreditTierWithReasoning: undefined
         })
 
-        const response = await chatPOST(
+        const response = await chatPOSTHandler(
             ctx,
             createRequest({
                 model: "shared-text",
@@ -493,6 +518,8 @@ describe("chatPOST", () => {
                     return {
                         mcpServers: []
                     }
+                case "getThreadPersonaSnapshotInternal":
+                    return null
                 default:
                     throw new Error(`Unexpected query: ${name}`)
             }
@@ -574,7 +601,7 @@ describe("chatPOST", () => {
             finishReason: Promise.resolve("stop")
         })
 
-        const response = await chatPOST(
+        const response = await chatPOSTHandler(
             ctx,
             createRequest({
                 model: "shared-text",
@@ -592,9 +619,13 @@ describe("chatPOST", () => {
         const responseText = await response.text()
 
         expect(generateThreadNameMock).toHaveBeenCalledTimes(1)
-        expect(buildPromptMock).toHaveBeenCalledWith(["web_search"], {
-            mcpServers: []
-        })
+        expect(buildPromptMock).toHaveBeenCalledWith(
+            ["web_search"],
+            {
+                mcpServers: []
+            },
+            undefined
+        )
         expect(getToolkitMock).toHaveBeenCalledWith(ctx, ["web_search"], {
             mcpServers: []
         })
@@ -707,6 +738,8 @@ describe("chatPOST", () => {
                     return {
                         mcpServers: []
                     }
+                case "getThreadPersonaSnapshotInternal":
+                    return null
                 default:
                     throw new Error(`Unexpected query: ${name}`)
             }
@@ -738,7 +771,7 @@ describe("chatPOST", () => {
             finishReason: Promise.resolve("stop")
         })
 
-        const response = await chatPOST(
+        const response = await chatPOSTHandler(
             ctx,
             createRequest({
                 model: "shared-text",
@@ -816,6 +849,8 @@ describe("chatPOST", () => {
                     return {
                         mcpServers: []
                     }
+                case "getThreadPersonaSnapshotInternal":
+                    return null
                 default:
                     throw new Error(`Unexpected query: ${name}`)
             }
@@ -855,7 +890,7 @@ describe("chatPOST", () => {
                 })
         )
 
-        const response = await chatPOST(
+        const response = await chatPOSTHandler(
             ctx,
             createRequest({
                 model: "shared-text",
@@ -902,6 +937,8 @@ describe("chatPOST", () => {
                     return {
                         mcpServers: []
                     }
+                case "getThreadPersonaSnapshotInternal":
+                    return null
                 default:
                     throw new Error(`Unexpected query: ${name}`)
             }
@@ -932,7 +969,7 @@ describe("chatPOST", () => {
             finishReason: Promise.resolve("stop")
         })
 
-        const response = await chatPOST(
+        const response = await chatPOSTHandler(
             ctx,
             createRequest({
                 model: "deepseek-v3.2",

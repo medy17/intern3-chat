@@ -33,8 +33,18 @@ vi.mock("../../convex/lib/models", () => ({
 
 import { getMyModelUsage, getMyUsageChartData, getMyUsageStats } from "../../convex/analytics"
 
+const getMyUsageStatsHandler = getMyUsageStats as unknown as {
+    handler: (ctx: any, args: any) => Promise<any>
+}
+const getMyUsageChartDataHandler = getMyUsageChartData as unknown as {
+    handler: (ctx: any, args: any) => Promise<any>
+}
+const getMyModelUsageHandler = getMyModelUsage as unknown as {
+    handler: (ctx: any, args: any) => Promise<any>
+}
+
 type AnalyticsEvent = Record<string, unknown>
-type AnalyticsCtx = Parameters<typeof getMyUsageStats.handler>[0]
+type AnalyticsCtx = Parameters<typeof getMyUsageStatsHandler.handler>[0]
 
 const createCtx = (events: AnalyticsEvent[]) =>
     ({
@@ -65,7 +75,7 @@ describe("analytics", () => {
     it("returns empty stats for unauthorized users", async () => {
         getUserIdentityMock.mockResolvedValueOnce({ error: "Unauthorized" })
 
-        const result = await getMyUsageStats.handler(createCtx([]), {
+        const result = await getMyUsageStatsHandler.handler(createCtx([]), {
             timeframe: "7d"
         })
 
@@ -79,7 +89,7 @@ describe("analytics", () => {
 
     it("aggregates model usage stats over the requested timeframe", async () => {
         const nowDay = Math.floor(Date.now() / (24 * 60 * 60 * 1000))
-        const result = await getMyUsageStats.handler(
+        const result = await getMyUsageStatsHandler.handler(
             createCtx([
                 { modelId: "model-a", p: 10, c: 5, r: 1, daysSinceEpoch: nowDay },
                 { modelId: "model-a", p: 3, c: 2, r: 0, daysSinceEpoch: nowDay },
@@ -116,7 +126,7 @@ describe("analytics", () => {
 
     it("builds 1d hourly chart data and per-model buckets", async () => {
         const now = Date.now()
-        const result = await getMyUsageChartData.handler(
+        const result = await getMyUsageChartDataHandler.handler(
             createCtx([
                 {
                     modelId: "model-a",
@@ -164,7 +174,7 @@ describe("analytics", () => {
 
     it("returns per-model usage totals", async () => {
         const nowDay = Math.floor(Date.now() / (24 * 60 * 60 * 1000))
-        const result = await getMyModelUsage.handler(
+        const result = await getMyModelUsageHandler.handler(
             createCtx([
                 { modelId: "model-a", p: 5, c: 4, r: 1, daysSinceEpoch: nowDay },
                 { modelId: "model-a", p: 2, c: 1, r: 0, daysSinceEpoch: nowDay }

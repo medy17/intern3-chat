@@ -86,7 +86,7 @@ vi.mock("@ai-sdk/react", () => ({
 
 vi.mock("ai", () => ({
     DefaultChatTransport: class {
-        constructor(config: Record<string, unknown>) {
+        constructor(config: TransportConfig) {
             transportConfigs.push(config)
         }
     }
@@ -125,7 +125,7 @@ const resetChatStore = () => {
 const resetModelStore = () => {
     useModelStore.setState({
         selectedModel: "model-default",
-        enabledTools: ["tool-a"] as ModelStore["enabledTools"],
+        enabledTools: ["web_search"] as ModelStore["enabledTools"],
         selectedImageSize: "1024x1024" as ModelStore["selectedImageSize"],
         selectedImageResolution: "high" as ModelStore["selectedImageResolution"],
         reasoningEffort: "high",
@@ -192,7 +192,7 @@ describe("useChatIntegration", () => {
         nanoidMock.mockReturnValueOnce("assistant-1").mockReturnValueOnce("generated-2")
         useModelStore.setState({
             selectedModel: "model-1",
-            enabledTools: ["search", "web"] as ModelStore["enabledTools"],
+            enabledTools: ["web_search", "mcp"] as ModelStore["enabledTools"],
             selectedImageSize: "1536x1024" as ModelStore["selectedImageSize"],
             selectedImageResolution: "medium" as ModelStore["selectedImageResolution"],
             reasoningEffort: "medium",
@@ -266,7 +266,7 @@ describe("useChatIntegration", () => {
                     role: "user",
                     messageId: "user-message-1"
                 },
-                enabledTools: ["search", "web"],
+                enabledTools: ["web_search", "mcp"],
                 imageSize: "1536x1024",
                 imageResolution: "medium",
                 folderId: "folder-1",
@@ -278,8 +278,9 @@ describe("useChatIntegration", () => {
             }
         })
         expect(useChatStore.getState().pendingStreams["thread-1"]).toBe(true)
-        expect(latestUseChatOptions?.generateId()).toBe("assistant-1")
-        expect(latestUseChatOptions?.generateId()).toBe("generated-2")
+        expect(latestUseChatOptions?.generateId).toBeDefined()
+        expect(latestUseChatOptions!.generateId!()).toBe("assistant-1")
+        expect(latestUseChatOptions!.generateId!()).toBe("generated-2")
 
         const reconnectRequest = await transport.prepareReconnectToStreamRequest({
             api: "https://convex.example/chat",
@@ -294,7 +295,7 @@ describe("useChatIntegration", () => {
         })
 
         act(() => {
-            latestUseChatOptions?.onFinish()
+            latestUseChatOptions?.onFinish?.()
         })
 
         expect(useChatStore.getState().shouldUpdateQuery).toBe(false)
@@ -389,7 +390,7 @@ describe("useChatIntegration", () => {
         setMessages.mockClear()
 
         await act(async () => {
-            await latestAutoResumeProps?.experimental_resume()
+            await latestAutoResumeProps?.experimental_resume?.()
         })
 
         expect(setMessages).toHaveBeenCalledWith(initialMessages)
