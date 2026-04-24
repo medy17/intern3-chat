@@ -13,7 +13,8 @@ import { resolveJwtToken } from "@/lib/auth-token"
 import { browserEnv } from "@/lib/browser-env"
 import {
     SELECTABLE_IMAGE_ASPECT_RATIOS,
-    type SelectableImageAspectRatio
+    type SelectableImageAspectRatio,
+    getCommonSelectableImageAspectRatios
 } from "@/lib/image-aspect-ratios"
 import { getRequiredPlanToPickModel } from "@/lib/models-providers-shared"
 import { useSharedModels } from "@/lib/shared-models"
@@ -559,16 +560,10 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
 
     const commonImageSizes = useMemo<SelectableImageAspectRatio[]>(() => {
         if (selectedModels.length === 0) return []
-        let intersection = selectedModels[0].supportedImageSizes || SELECTABLE_IMAGE_ASPECT_RATIOS
 
-        for (let i = 1; i < selectedModels.length; i++) {
-            const sizes = selectedModels[i].supportedImageSizes || SELECTABLE_IMAGE_ASPECT_RATIOS
-            intersection = intersection.filter((size) =>
-                (sizes as readonly string[]).includes(size)
-            )
-        }
-
-        return SELECTABLE_IMAGE_ASPECT_RATIOS.filter((size) => intersection.includes(size))
+        return getCommonSelectableImageAspectRatios(
+            selectedModels.map((model) => model.supportedImageSizes)
+        )
     }, [selectedModels])
 
     useEffect(() => {

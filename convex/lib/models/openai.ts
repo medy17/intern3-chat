@@ -336,24 +336,5 @@ export const OPENAI_MODELS: SharedModel[] = [
         ...FREE_ACCESS,
         prototypeCreditTier: "basic",
         legacy: true
-    },
-    {
-        id: "gpt-image-1.5",
-        name: "GPT Image 1.5",
-        shortName: "Image 1.5",
-        artificialAnalysis: {
-            type: "text-to-image",
-            slug: "openai-gpt_image-1-5"
-        },
-        releaseOrder: 20260910,
-        adapters: openAiImageAdapters("gpt-image-1.5"),
-        abilities: [],
-        mode: "image",
-        maxPerMessage: 2,
-        customIcon: "openai",
-        supportedImageSizes: ["1024x1024", "1536x1024", "1024x1536"],
-        prototypeCreditTier: "pro",
-        legacy: true,
-        replacementId: "gpt-5.4-image-2"
     }
 ]
