@@ -55,7 +55,8 @@ export function useChatDataProcessor({ messages, status }: UseChatDataProcessorP
         if (latestAssistant.metadata.streamId) {
             const effectiveThreadId = latestAssistant.metadata.threadId ?? threadId
             if (effectiveThreadId) {
-                if (attachedStreamIds[effectiveThreadId] !== latestAssistant.metadata.streamId) {
+                const currentStreams = attachedStreamIds[effectiveThreadId] || []
+                if (!currentStreams.includes(latestAssistant.metadata.streamId)) {
                     setAttachedStreamId(effectiveThreadId, latestAssistant.metadata.streamId)
                     if (pendingStreams[effectiveThreadId] !== false) {
                         setPendingStream(effectiveThreadId, false)

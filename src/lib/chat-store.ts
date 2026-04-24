@@ -26,7 +26,7 @@ interface ChatState {
     lastProcessedDataIndex: number
     shouldUpdateQuery: boolean
     skipNextDataCheck: boolean
-    attachedStreamIds: Record<string, string>
+    attachedStreamIds: Record<string, string[]>
     pendingStreams: Record<string, boolean>
     manuallyStoppedThreads: Record<string, boolean>
     targetFromMessageId: string | undefined
@@ -110,12 +110,16 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
 
     setAttachedStreamId: (threadId, streamId) => {
         if (!threadId) return
-        set((state) => ({
-            attachedStreamIds: {
-                ...state.attachedStreamIds,
-                [threadId]: streamId
+        set((state) => {
+            const currentStreams = state.attachedStreamIds[threadId] || []
+            if (currentStreams.includes(streamId)) return state
+            return {
+                attachedStreamIds: {
+                    ...state.attachedStreamIds,
+                    [threadId]: [...currentStreams, streamId]
+                }
             }
-        }))
+        })
     },
 
     setPendingStream: (threadId, pending) => {
