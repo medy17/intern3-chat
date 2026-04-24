@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react"
+import { act, render, screen } from "@testing-library/react"
 import React from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -27,7 +27,7 @@ const createAssistantMessage = (metadata?: Record<string, unknown>) =>
 
 describe("ChatActions", () => {
     beforeEach(() => {
-        useMessageFooterStore.setState({ footerMode: "simple" })
+        useMessageFooterStore.setState({ footerMode: "simple", footerMetadataByMessageId: {} })
     })
 
     it("renders only the model name in simple mode", () => {
@@ -102,5 +102,47 @@ describe("ChatActions", () => {
 
         expect(screen.getByText("916 tokens (757 in, 159 out)")).toBeTruthy()
         expect(screen.queryByText("992 tokens")).toBeNull()
+    })
+
+    it("updates footer metadata from the footer store without replacing the whole message", () => {
+        useMessageFooterStore.setState({ footerMode: "nerd" })
+
+        const message = createAssistantMessage({
+            timeToFirstVisibleMs: 500
+        })
+
+        const { rerender } = render(
+            React.createElement(ChatActions, {
+                role: "assistant",
+                message
+            })
+        )
+
+        expect(screen.getByText("TTFT 0.50 sec")).toBeTruthy()
+        expect(screen.queryByText("GPT 5.4 Mini (Medium)")).toBeNull()
+
+        act(() => {
+            useMessageFooterStore.getState().setFooterMetadata(message.id, {
+                modelName: "GPT 5.4 Mini",
+                runtimeProvider: "openrouter",
+                reasoningEffort: "medium",
+                promptTokens: 757,
+                completionTokens: 159,
+                totalTokens: 916,
+                serverDurationMs: 2500,
+                timeToFirstVisibleMs: 500
+            })
+        })
+
+        rerender(
+            React.createElement(ChatActions, {
+                role: "assistant",
+                message
+            })
+        )
+
+        expect(screen.getByText("GPT 5.4 Mini (Medium)")).toBeTruthy()
+        expect(screen.getByText("79.50 tok/sec")).toBeTruthy()
+        expect(screen.getByText("916 tokens (757 in, 159 out)")).toBeTruthy()
     })
 })

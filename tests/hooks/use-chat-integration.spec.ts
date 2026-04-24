@@ -529,53 +529,117 @@ describe("useChatIntegration", () => {
         expect(setMessages).toHaveBeenCalledWith(partialAssistantMessage)
     })
 
-    it("replaces the finished assistant message on stop so metadata-driven UI updates immediately", () => {
-        const localMessage = [
+    it("does not replace an active visible stream with a fuller backend snapshot", () => {
+        const localStreamingMessage = [
             {
                 id: "assistant-1",
                 role: "assistant",
-                parts: [{ type: "text", text: "Final reply" }],
-                metadata: {
-                    timeToFirstVisibleMs: 500
-                }
+                parts: [{ type: "text", text: "Partial reply" }]
             }
         ]
-        const finishedMessages = [
+        const fullerBackendMessage = [
             {
                 id: "assistant-1",
                 role: "assistant",
-                parts: [{ type: "text", text: "Final reply" }],
-                metadata: {
-                    modelName: "GPT 5.4 Mini",
-                    runtimeProvider: "openrouter",
-                    promptTokens: 757,
-                    completionTokens: 159,
-                    totalTokens: 916,
-                    timeToFirstVisibleMs: 500
-                }
+                parts: [{ type: "text", text: "Partial reply with more persisted text" }]
             }
         ]
         const setMessages = vi.fn()
         const queryResults: Record<string, unknown> = {
-            getThreadMessages: [{ id: "backend-assistant-1", role: "assistant", parts: [] }],
+            getThreadMessages: [
+                {
+                    id: "backend-message-1",
+                    role: "assistant",
+                    parts: [{ type: "text", text: "Partial reply" }]
+                }
+            ],
             getThread: {
                 _id: "thread-1",
-                isLive: false,
-                currentStreamId: undefined
+                isLive: true,
+                currentStreamId: "stream-1"
             }
         }
 
-        backendToUiMessagesMock.mockReturnValue(localMessage)
+        backendToUiMessagesMock.mockReturnValue(localStreamingMessage)
         useConvexQueryMock.mockImplementation((query: string) => queryResults[query])
-        useChatMock.mockImplementation((options: UseChatOptions) => {
-            latestUseChatOptions = options
-            return {
-                status: "ready",
-                messages: localMessage,
-                setMessages,
-                resumeStream: vi.fn()
+        useChatMock.mockImplementation(() => ({
+            status: "streaming",
+            messages: localStreamingMessage,
+            setMessages,
+            resumeStream: vi.fn()
+        }))
+
+        const { rerender } = renderHook(() =>
+            useChatIntegration({
+                threadId: "thread-1"
+            })
+        )
+
+        setMessages.mockClear()
+        backendToUiMessagesMock.mockReturnValue(fullerBackendMessage)
+        queryResults.getThreadMessages = [
+            {
+                id: "backend-message-1",
+                role: "assistant",
+                parts: [{ type: "text", text: "Partial reply with more persisted text" }]
             }
-        })
+        ]
+
+        rerender()
+
+        expect(setMessages).not.toHaveBeenCalled()
+    })
+
+    it("does not hydrate a newly known thread over an active visible stream", () => {
+        const localStreamingMessages = [
+            {
+                id: "user-1",
+                role: "user",
+                parts: [{ type: "text", text: "prompt" }]
+            },
+            {
+                id: "assistant-1",
+                role: "assistant",
+                parts: [{ type: "text", text: "Partial reply" }]
+            }
+        ]
+        const fullerBackendMessages = [
+            {
+                id: "user-1",
+                role: "user",
+                parts: [{ type: "text", text: "prompt" }]
+            },
+            {
+                id: "assistant-1",
+                role: "assistant",
+                parts: [{ type: "text", text: "Complete persisted reply" }]
+            }
+        ]
+        const setMessages = vi.fn()
+        const queryResults: Record<string, unknown> = {
+            getThreadMessages: [
+                { id: "backend-user-1", role: "user", parts: [{ type: "text", text: "prompt" }] },
+                {
+                    id: "backend-assistant-1",
+                    role: "assistant",
+                    parts: [{ type: "text", text: "Complete persisted reply" }]
+                }
+            ],
+            getThread: {
+                _id: "thread-1",
+                isLive: true,
+                currentStreamId: "stream-1"
+            }
+        }
+
+        backendToUiMessagesMock.mockReturnValue(fullerBackendMessages)
+        useConvexQueryMock.mockImplementation((query: string) => queryResults[query])
+        useChatMock.mockImplementation(() => ({
+            status: "streaming",
+            messages: localStreamingMessages,
+            setMessages,
+            resumeStream: vi.fn()
+        }))
 
         renderHook(() =>
             useChatIntegration({
@@ -583,25 +647,68 @@ describe("useChatIntegration", () => {
             })
         )
 
-        setMessages.mockClear()
-        act(() => {
-            latestUseChatOptions?.onFinish?.({
-                message: finishedMessages[0],
-                messages: finishedMessages,
-                isAbort: false,
-                isDisconnect: false,
-                isError: false,
-                finishReason: "stop"
-            })
-        })
+        expect(setMessages).not.toHaveBeenCalled()
+    })
 
-        expect(setMessages).toHaveBeenCalledWith([
+    it("does not adopt live backend snapshots over visible content even if local status is ready", () => {
+        const localStreamingMessages = [
             {
-                ...finishedMessages[0],
-                parts: [...finishedMessages[0].parts],
-                metadata: { ...finishedMessages[0].metadata }
+                id: "assistant-1",
+                role: "assistant",
+                parts: [{ type: "text", text: "Partial reply" }]
             }
-        ])
+        ]
+        const fullerBackendMessages = [
+            {
+                id: "assistant-1",
+                role: "assistant",
+                parts: [{ type: "text", text: "Complete persisted reply" }]
+            }
+        ]
+        const setMessages = vi.fn()
+        const queryResults: Record<string, unknown> = {
+            getThreadMessages: [
+                {
+                    id: "backend-assistant-1",
+                    role: "assistant",
+                    parts: [{ type: "text", text: "Partial reply" }]
+                }
+            ],
+            getThread: {
+                _id: "thread-1",
+                isLive: true,
+                currentStreamId: "stream-1"
+            }
+        }
+
+        backendToUiMessagesMock.mockReturnValue(localStreamingMessages)
+        useConvexQueryMock.mockImplementation((query: string) => queryResults[query])
+        useChatMock.mockImplementation(() => ({
+            status: "ready",
+            messages: localStreamingMessages,
+            setMessages,
+            resumeStream: vi.fn()
+        }))
+
+        const { rerender } = renderHook(() =>
+            useChatIntegration({
+                threadId: "thread-1"
+            })
+        )
+
+        setMessages.mockClear()
+        backendToUiMessagesMock.mockReturnValue(fullerBackendMessages)
+        queryResults.getThreadMessages = [
+            {
+                id: "backend-assistant-1",
+                role: "assistant",
+                parts: [{ type: "text", text: "Complete persisted reply" }]
+            }
+        ]
+
+        rerender()
+
+        expect(setMessages).not.toHaveBeenCalled()
     })
 
     it("adopts remote retry truncation when the backend thread diverges while idle", () => {

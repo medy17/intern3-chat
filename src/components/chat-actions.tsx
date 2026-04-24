@@ -142,14 +142,21 @@ export const ChatActions = memo(
     }) => {
         const [copied, setCopied] = useState(false)
         const footerMode = useMessageFooterStore((state) => state.footerMode)
+        const cachedMetadata = useMessageFooterStore((state) =>
+            message.role === "assistant" ? state.footerMetadataByMessageId[message.id] : undefined
+        )
 
         const metadata = useMemo((): AssistantMessageMetadata | undefined => {
             if (message.role !== "assistant") return undefined
-            if ("metadata" in message && message.metadata) {
-                return message.metadata as AssistantMessageMetadata
-            }
-            return undefined
-        }, [message])
+
+            const messageMetadata =
+                "metadata" in message && message.metadata
+                    ? (message.metadata as AssistantMessageMetadata)
+                    : undefined
+
+            if (!cachedMetadata) return messageMetadata
+            return { ...messageMetadata, ...cachedMetadata }
+        }, [cachedMetadata, message])
 
         const footerStats = useMemo(() => deriveMessageFooterStats(metadata), [metadata])
 

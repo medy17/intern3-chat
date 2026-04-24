@@ -104,18 +104,21 @@ const getLatestAssistantMessage = (messages: UIMessage[]) =>
 const shouldAdoptBackendMessages = ({
     currentMessages,
     backendMessages,
-    status
+    status,
+    hasActiveStream
 }: {
     currentMessages: UIMessage[]
     backendMessages: UIMessage[]
     status?: string
+    hasActiveStream?: boolean
 }) => {
     if (backendMessages.length === 0) return false
     if (currentMessages.length === 0) return true
 
     const currentIdentity = getMessagesIdentityFingerprint(currentMessages)
     const backendIdentity = getMessagesIdentityFingerprint(backendMessages)
-    const isLocallyMutating = status === "streaming" || status === "submitted"
+    const isLocallyMutating =
+        hasActiveStream === true || status === "streaming" || status === "submitted"
 
     if (currentIdentity !== backendIdentity) {
         return !isLocallyMutating
@@ -130,12 +133,18 @@ const shouldAdoptBackendMessages = ({
 
     const currentAssistant = getLatestAssistantMessage(currentMessages)
     const backendAssistant = getLatestAssistantMessage(backendMessages)
+    const currentAssistantScore = getMessageContentScore(currentAssistant)
+    const backendAssistantScore = getMessageContentScore(backendAssistant)
 
-    if (getMessageContentScore(backendAssistant) > getMessageContentScore(currentAssistant)) {
+    if (isLocallyMutating) {
+        return currentAssistantScore === 0 && backendAssistantScore > 0
+    }
+
+    if (backendAssistantScore > currentAssistantScore) {
         return true
     }
 
-    return !isLocallyMutating
+    return true
 }
 
 const hasMeaningfulAssistantContent = (messages: UIMessage[]) =>
@@ -175,9 +184,6 @@ export function useChatIntegration<IsShared extends boolean>({
     const tokenData = useToken()
     const { rerenderTrigger, shouldUpdateQuery, setShouldUpdateQuery } = useChatStore()
     const seededNextId = useRef<string | null>(null)
-    const setMessagesRef = useRef<
-        ((messages: ChatMessage[] | ((messages: ChatMessage[]) => ChatMessage[])) => void) | null
-    >(null)
     const hydratedThreadIdRef = useRef<string | undefined>(undefined)
     const latestRequestContextRef = useRef({
         folderId,
@@ -313,34 +319,10 @@ export function useChatIntegration<IsShared extends boolean>({
                   }
               }),
         messages: initialMessages,
-        onFinish: ({ message, messages, finishReason, isAbort, isDisconnect, isError }) => {
+        onFinish: () => {
             if (!isShared && shouldUpdateQuery) {
                 setShouldUpdateQuery(false)
             }
-
-            if (
-                finishReason !== "stop" ||
-                isAbort ||
-                isDisconnect ||
-                isError ||
-                message.role !== "assistant"
-            ) {
-                return
-            }
-
-            setMessagesRef.current?.(
-                messages.map((streamedMessage) =>
-                    streamedMessage.id === message.id
-                        ? {
-                              ...streamedMessage,
-                              parts: [...streamedMessage.parts],
-                              ...(streamedMessage.metadata
-                                  ? { metadata: { ...streamedMessage.metadata } }
-                                  : {})
-                          }
-                        : streamedMessage
-                )
-            )
         },
         generateId: () => {
             if (seededNextId.current) {
@@ -351,7 +333,10 @@ export function useChatIntegration<IsShared extends boolean>({
             return nanoid()
         }
     })
-    setMessagesRef.current = chatHelpers.setMessages
+    const hasActiveThreadStream =
+        chatHelpers.status === "streaming" ||
+        chatHelpers.status === "submitted" ||
+        (thread && "isLive" in thread && thread.isLive === true && Boolean(thread.currentStreamId))
 
     useEffect(() => {
         if (isShared) return
@@ -364,10 +349,26 @@ export function useChatIntegration<IsShared extends boolean>({
         if (!threadMessages || "error" in threadMessages) return
 
         if (hydratedThreadIdRef.current !== threadId) {
-            chatHelpers.setMessages(initialMessages)
             hydratedThreadIdRef.current = threadId
+
+            if (!hasActiveThreadStream) {
+                chatHelpers.setMessages(initialMessages)
+                return
+            }
+
+            if (!hasMeaningfulAssistantContent(chatHelpers.messages)) {
+                chatHelpers.setMessages(initialMessages)
+            }
         }
-    }, [isShared, threadId, threadMessages, initialMessages, chatHelpers.setMessages])
+    }, [
+        isShared,
+        threadId,
+        threadMessages,
+        initialMessages,
+        chatHelpers.messages,
+        hasActiveThreadStream,
+        chatHelpers.setMessages
+    ])
 
     useEffect(() => {
         if (isShared) return
@@ -378,7 +379,8 @@ export function useChatIntegration<IsShared extends boolean>({
             shouldAdoptBackendMessages({
                 currentMessages: chatHelpers.messages,
                 backendMessages: initialMessages,
-                status: chatHelpers.status
+                status: chatHelpers.status,
+                hasActiveStream: hasActiveThreadStream
             })
         ) {
             chatHelpers.setMessages(initialMessages)
@@ -390,6 +392,7 @@ export function useChatIntegration<IsShared extends boolean>({
         initialMessages,
         chatHelpers.messages,
         chatHelpers.status,
+        hasActiveThreadStream,
         chatHelpers.setMessages
     ])
 

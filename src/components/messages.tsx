@@ -2,6 +2,8 @@ import type { useChatIntegration } from "@/hooks/use-chat-integration"
 import { useChatStore } from "@/lib/chat-store"
 import { getChatWidthClass, useChatWidthStore } from "@/lib/chat-width-store"
 import { getFileTypeInfo } from "@/lib/file_constants"
+import type { AssistantMessageMetadata } from "@/lib/message-footer-stats"
+import { useMessageFooterStore } from "@/lib/message-footer-store"
 import { getMessageReasoningDetails } from "@/lib/message-reasoning"
 import { useModelStore } from "@/lib/model-store"
 import { resolvePublicFileUrl } from "@/lib/r2-public-url"
@@ -512,6 +514,31 @@ const MESSAGE_VIRTUALIZER_BUFFER = 700
 const MESSAGE_VIRTUALIZER_ITEM_SIZE = 208
 const BOTTOM_SCROLL_THRESHOLD_PX = 4
 
+const getFooterMetadataKey = (message: UIMessage) => {
+    if (message.role !== "assistant" || !("metadata" in message) || !message.metadata) {
+        return undefined
+    }
+
+    const metadata = message.metadata as Record<string, unknown>
+    return [
+        metadata.modelName,
+        metadata.displayProvider,
+        metadata.runtimeProvider,
+        metadata.reasoningEffort,
+        metadata.promptTokens,
+        metadata.completionTokens,
+        metadata.reasoningTokens,
+        metadata.totalTokens,
+        metadata.estimatedCostUsd,
+        metadata.estimatedPromptCostUsd,
+        metadata.estimatedCompletionCostUsd,
+        metadata.serverDurationMs,
+        metadata.timeToFirstVisibleMs
+    ]
+        .map((value) => value ?? "")
+        .join("|")
+}
+
 type PreviewFile = {
     url: string
     filename?: string
@@ -777,6 +804,8 @@ export const Messages = forwardRef<
     }
 
     const lastMessage = messages[messages.length - 1]
+    const lastMessageFooterMetadataKey =
+        lastMessage?.role === "assistant" ? getFooterMetadataKey(lastMessage) : undefined
     const lastMessageReasoning = lastMessage ? getMessageReasoningDetails(lastMessage) : null
     const isStreamingWithoutContent =
         status === "streaming" &&
@@ -888,6 +917,21 @@ export const Messages = forwardRef<
     useEffect(() => {
         updateBottomState(true)
     }, [updateBottomState])
+
+    useEffect(() => {
+        if (
+            lastMessage?.role !== "assistant" ||
+            !("metadata" in lastMessage) ||
+            !lastMessage.metadata ||
+            lastMessageFooterMetadataKey === undefined
+        ) {
+            return
+        }
+
+        useMessageFooterStore
+            .getState()
+            .setFooterMetadata(lastMessage.id, lastMessage.metadata as AssistantMessageMetadata)
+    }, [lastMessage?.id, lastMessage, lastMessageFooterMetadataKey])
 
     useEffect(() => {
         void threadKey
