@@ -183,6 +183,9 @@ export function useChatIntegration<IsShared extends boolean>({
 
     const tokenData = useToken()
     const { rerenderTrigger, shouldUpdateQuery, setShouldUpdateQuery } = useChatStore()
+    const hasPendingLocalStream = useChatStore((state) =>
+        threadId ? state.pendingStreams[threadId] === true : false
+    )
     const seededNextId = useRef<string | null>(null)
     const hydratedThreadIdRef = useRef<string | undefined>(undefined)
     const latestRequestContextRef = useRef({
@@ -320,8 +323,18 @@ export function useChatIntegration<IsShared extends boolean>({
               }),
         messages: initialMessages,
         onFinish: () => {
+            const currentThreadId = latestRequestContextRef.current.threadId
+            if (currentThreadId) {
+                useChatStore.getState().setPendingStream(currentThreadId, false)
+            }
             if (!isShared && shouldUpdateQuery) {
                 setShouldUpdateQuery(false)
+            }
+        },
+        onError: () => {
+            const currentThreadId = latestRequestContextRef.current.threadId
+            if (currentThreadId) {
+                useChatStore.getState().setPendingStream(currentThreadId, false)
             }
         },
         generateId: () => {
@@ -336,6 +349,7 @@ export function useChatIntegration<IsShared extends boolean>({
     const hasActiveThreadStream =
         chatHelpers.status === "streaming" ||
         chatHelpers.status === "submitted" ||
+        hasPendingLocalStream ||
         (thread && "isLive" in thread && thread.isLive === true && Boolean(thread.currentStreamId))
 
     useEffect(() => {
@@ -356,6 +370,10 @@ export function useChatIntegration<IsShared extends boolean>({
                 return
             }
 
+            if (hasPendingLocalStream) {
+                return
+            }
+
             if (!hasMeaningfulAssistantContent(chatHelpers.messages)) {
                 chatHelpers.setMessages(initialMessages)
             }
@@ -367,6 +385,7 @@ export function useChatIntegration<IsShared extends boolean>({
         initialMessages,
         chatHelpers.messages,
         hasActiveThreadStream,
+        hasPendingLocalStream,
         chatHelpers.setMessages
     ])
 

@@ -44,6 +44,7 @@ type UseChatOptions = {
         isError: boolean
         finishReason?: string
     }) => void
+    onError?: (error: Error) => void
     generateId?: () => string
 }
 type AutoResumeInvocation = {
@@ -322,6 +323,7 @@ describe("useChatIntegration", () => {
         })
 
         expect(useChatStore.getState().shouldUpdateQuery).toBe(false)
+        expect(useChatStore.getState().pendingStreams["thread-1"]).toBe(false)
     })
 
     it("uses shared thread data without creating a transport", () => {
@@ -817,5 +819,65 @@ describe("useChatIntegration", () => {
         rerender()
 
         expect(setMessages).not.toHaveBeenCalledWith(olderBackendMessages)
+    })
+
+    it("does not re-adopt stale backend messages while a local thread request is pending", () => {
+        const locallyTruncatedMessages = [
+            {
+                id: "user-1",
+                role: "user",
+                parts: [{ type: "text", text: "edited prompt" }]
+            }
+        ]
+        const staleBackendMessages = [
+            {
+                id: "user-1",
+                role: "user",
+                parts: [{ type: "text", text: "original prompt" }]
+            },
+            {
+                id: "assistant-1",
+                role: "assistant",
+                parts: [{ type: "text", text: "old answer" }]
+            }
+        ]
+        const setMessages = vi.fn()
+        const queryResults: Record<string, unknown> = {
+            getThreadMessages: [
+                {
+                    id: "backend-user-1",
+                    role: "user",
+                    parts: [{ type: "text", text: "original prompt" }]
+                },
+                {
+                    id: "backend-assistant-1",
+                    role: "assistant",
+                    parts: [{ type: "text", text: "old answer" }]
+                }
+            ],
+            getThread: {
+                _id: "thread-1",
+                isLive: false,
+                currentStreamId: undefined
+            }
+        }
+
+        useChatStore.getState().setPendingStream("thread-1", true)
+        backendToUiMessagesMock.mockReturnValue(staleBackendMessages)
+        useConvexQueryMock.mockImplementation((query: string) => queryResults[query])
+        useChatMock.mockImplementation(() => ({
+            status: "idle",
+            messages: locallyTruncatedMessages,
+            setMessages,
+            resumeStream: vi.fn()
+        }))
+
+        renderHook(() =>
+            useChatIntegration({
+                threadId: "thread-1"
+            })
+        )
+
+        expect(setMessages).not.toHaveBeenCalledWith(staleBackendMessages)
     })
 })

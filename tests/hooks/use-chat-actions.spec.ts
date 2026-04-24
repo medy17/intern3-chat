@@ -141,6 +141,8 @@ describe("useChatActions", () => {
                 }
             ]
         })
+        expect(useChatStore.getState().pendingStreams["thread-1"]).toBe(true)
+        expect(useChatStore.getState().manuallyStoppedThreads["thread-1"]).toBe(false)
         expect(useChatStore.getState().uploadedFiles).toEqual([])
     })
 
@@ -175,6 +177,8 @@ describe("useChatActions", () => {
         result.current.handleRetry(messages[1], "model-override")
 
         expect(setMessages).toHaveBeenCalledWith(messages.slice(0, 2))
+        expect(useChatStore.getState().pendingStreams["thread-1"]).toBe(true)
+        expect(useChatStore.getState().manuallyStoppedThreads["thread-1"]).toBe(false)
         expect(useChatStore.getState().targetFromMessageId).toBeUndefined()
         expect(useChatStore.getState().targetMode).toBe("normal")
         expect(regenerate).toHaveBeenCalledWith({
@@ -239,6 +243,8 @@ describe("useChatActions", () => {
         expect(deleteFileMutationMock).toHaveBeenCalledWith({
             key: "file-1"
         })
+        expect(useChatStore.getState().pendingStreams["thread-1"]).toBe(true)
+        expect(useChatStore.getState().manuallyStoppedThreads["thread-1"]).toBe(false)
         expect(setMessages).toHaveBeenCalledWith([
             messages[0],
             expect.objectContaining({

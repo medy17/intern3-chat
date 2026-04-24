@@ -71,6 +71,11 @@ export function useChatActions<TMessage extends UIMessage>({
                 return
             }
 
+            if (threadId) {
+                setPendingStream(threadId, true)
+                setManuallyStoppedThread(threadId, false)
+            }
+
             void sendMessage({
                 id: nanoid(),
                 role: "user",
@@ -114,6 +119,10 @@ export function useChatActions<TMessage extends UIMessage>({
                 messageId: message.id,
                 modelIdOverride
             })
+            if (threadId) {
+                setPendingStream(threadId, true)
+                setManuallyStoppedThread(threadId, false)
+            }
             setMessages(messagesUpToRetry)
             setTargetFromMessageId(undefined)
             setTargetMode("normal")
@@ -126,7 +135,16 @@ export function useChatActions<TMessage extends UIMessage>({
                 }
             })
         },
-        [messages, setMessages, setTargetFromMessageId, setTargetMode, regenerate]
+        [
+            messages,
+            setMessages,
+            setTargetFromMessageId,
+            setTargetMode,
+            regenerate,
+            setPendingStream,
+            setManuallyStoppedThread,
+            threadId
+        ]
     )
 
     const handleEditAndRetry = useCallback(
@@ -161,6 +179,10 @@ export function useChatActions<TMessage extends UIMessage>({
                 messageIndex,
                 messageId
             })
+            if (threadId) {
+                setPendingStream(threadId, true)
+                setManuallyStoppedThread(threadId, false)
+            }
             setMessages([...messagesUpToEdit, updatedEditedMessage])
             setTargetFromMessageId(undefined)
             setTargetMode("normal")
@@ -178,7 +200,10 @@ export function useChatActions<TMessage extends UIMessage>({
             setTargetFromMessageId,
             setTargetMode,
             regenerate,
-            deleteFileMutation
+            deleteFileMutation,
+            setPendingStream,
+            setManuallyStoppedThread,
+            threadId
         ]
     )
 
