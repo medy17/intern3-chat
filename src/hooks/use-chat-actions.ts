@@ -45,7 +45,8 @@ export function useChatActions<TMessage extends UIMessage>({
         setPendingStream,
         setManuallyStoppedThread,
         setTargetFromMessageId,
-        setTargetMode
+        setTargetMode,
+        setLastLocalMutationAt
     } = useChatStore()
     const { status, sendMessage, stop, messages, setMessages, regenerate } = chat
     const deleteFileMutation = useMutation(api.attachments.deleteFile)
@@ -58,8 +59,9 @@ export function useChatActions<TMessage extends UIMessage>({
         flushSync(() => {
             setPendingStream(threadId, true)
             setManuallyStoppedThread(threadId, false)
+            setLastLocalMutationAt(Date.now())
         })
-    }, [setManuallyStoppedThread, setPendingStream, threadId])
+    }, [setManuallyStoppedThread, setPendingStream, setLastLocalMutationAt, threadId])
 
     const handleInputSubmit = useCallback(
         (inputValue?: string, fileValues?: UploadedFile[]) => {
@@ -122,9 +124,6 @@ export function useChatActions<TMessage extends UIMessage>({
             if (messageIndex === -1) return
 
             const messagesUpToRetry = messages.slice(0, messageIndex + 1)
-            const originalAssistantMessage = messages.find(
-                (m, i) => i > messageIndex && m.role === "assistant"
-            )
 
             primeImmediateMessageUpdates()
             flushSync(() => {
@@ -132,10 +131,7 @@ export function useChatActions<TMessage extends UIMessage>({
                 setTargetMode("normal")
             })
             flushSync(() => {
-                setMessages([
-                    ...messagesUpToRetry,
-                    ...(originalAssistantMessage ? [originalAssistantMessage] : [])
-                ])
+                setMessages(messagesUpToRetry)
             })
             void regenerate({
                 messageId: message.id,
@@ -154,7 +150,8 @@ export function useChatActions<TMessage extends UIMessage>({
             regenerate,
             setPendingStream,
             setManuallyStoppedThread,
-            threadId
+            threadId,
+            primeImmediateMessageUpdates
         ]
     )
 
@@ -191,16 +188,8 @@ export function useChatActions<TMessage extends UIMessage>({
                 setTargetMode("normal")
             })
 
-            const originalAssistantMessage = messages.find(
-                (m, i) => i > messageIndex && m.role === "assistant"
-            )
-
             flushSync(() => {
-                setMessages([
-                    ...messagesUpToEdit,
-                    updatedEditedMessage,
-                    ...(originalAssistantMessage ? [originalAssistantMessage] : [])
-                ])
+                setMessages([...messagesUpToEdit, updatedEditedMessage])
             })
             void regenerate({
                 messageId,
@@ -220,7 +209,6 @@ export function useChatActions<TMessage extends UIMessage>({
             primeImmediateMessageUpdates
         ]
     )
-
     return {
         handleInputSubmit,
         handleRetry,

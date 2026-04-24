@@ -194,6 +194,7 @@ export function useChatIntegration<IsShared extends boolean>({
         threadId,
         token: tokenData.token
     })
+    const lastLocalMutationAt = useChatStore((state) => state.lastLocalMutationAt)
     latestRequestContextRef.current = {
         folderId,
         threadId,
@@ -406,6 +407,11 @@ export function useChatIntegration<IsShared extends boolean>({
         if (!threadMessages || "error" in threadMessages) return
         if (hasPendingLocalStream) return
 
+        if (Date.now() - lastLocalMutationAt < 2000) {
+            console.log("[UCI] Ignoring backend messages because of recent local mutation")
+            return
+        }
+
         if (
             shouldAdoptBackendMessages({
                 currentMessages: chatHelpers.messages,
@@ -425,6 +431,7 @@ export function useChatIntegration<IsShared extends boolean>({
         chatHelpers.status,
         hasActiveThreadStream,
         hasPendingLocalStream,
+        lastLocalMutationAt,
         chatHelpers.setMessages
     ])
 

@@ -33,6 +33,7 @@ interface ChatState {
     targetMode: "normal" | "edit" | "retry"
     uploading: boolean
     selectedPersona: PersonaSelection
+    lastLocalMutationAt: number
 }
 
 interface ChatActions {
@@ -53,6 +54,7 @@ interface ChatActions {
     setUploading: (uploading: boolean) => void
     setRerenderTrigger: (rerenderTrigger: string) => void
     setSelectedPersona: (persona: PersonaSelection) => void
+    setLastLocalMutationAt: (time: number) => void
 }
 
 const initialState: ChatState = {
@@ -68,7 +70,8 @@ const initialState: ChatState = {
     targetFromMessageId: undefined,
     targetMode: "normal",
     uploading: false,
-    selectedPersona: { source: "default" }
+    selectedPersona: { source: "default" },
+    lastLocalMutationAt: 0
 }
 
 export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
@@ -90,6 +93,7 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
     setUploading: (uploading) => set({ uploading }),
     setRerenderTrigger: (rerenderTrigger) => set({ rerenderTrigger }),
     setSelectedPersona: (selectedPersona) => set({ selectedPersona }),
+    setLastLocalMutationAt: (lastLocalMutationAt) => set({ lastLocalMutationAt }),
     resetChat: () => {
         set({
             ...initialState,
