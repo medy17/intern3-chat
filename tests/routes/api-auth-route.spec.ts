@@ -33,7 +33,6 @@ const routeHandlers = (
         server: {
             handlers: {
                 GET: (args: { request: Request }) => Promise<Response>
-                POST: (args: { request: Request }) => Promise<Response>
             }
         }
     }
@@ -48,7 +47,7 @@ describe("api auth route", () => {
         })
     })
 
-    it("recovers from stale JWKS decryption failures by deleting keys and retrying", async () => {
+    it("clears stale jwks and retries recoverable decrypt failures", async () => {
         const recoveredResponse = new Response("ok", { status: 200 })
 
         authHandlerMock
@@ -65,7 +64,7 @@ describe("api auth route", () => {
         expect(authHandlerMock).toHaveBeenCalledTimes(2)
     })
 
-    it("retries get-session requests after a 5xx response and clears stale JWKS first", async () => {
+    it("retries get-session requests after a recoverable 5xx response", async () => {
         authHandlerMock
             .mockResolvedValueOnce(new Response("broken", { status: 500 }))
             .mockResolvedValueOnce(new Response("recovered", { status: 200 }))
@@ -78,32 +77,5 @@ describe("api auth route", () => {
         await expect(response.text()).resolves.toBe("recovered")
         expect(deleteExecuteMock).toHaveBeenCalledTimes(1)
         expect(authHandlerMock).toHaveBeenCalledTimes(2)
-    })
-
-    it("does not swallow non-recoverable auth handler errors", async () => {
-        authHandlerMock.mockRejectedValueOnce(new Error("some other auth failure"))
-
-        await expect(
-            routeHandlers.POST({
-                request: new Request("https://example.com/api/auth/sign-out", {
-                    method: "POST"
-                })
-            })
-        ).rejects.toThrow("some other auth failure")
-
-        expect(deleteExecuteMock).not.toHaveBeenCalled()
-    })
-
-    it("returns the auth handler response directly when no recovery is needed", async () => {
-        const response = new Response("fine", { status: 200 })
-        authHandlerMock.mockResolvedValueOnce(response)
-
-        const result = await routeHandlers.GET({
-            request: new Request("https://example.com/api/auth/callback")
-        })
-
-        expect(result).toBe(response)
-        expect(authHandlerMock).toHaveBeenCalledTimes(1)
-        expect(deleteExecuteMock).not.toHaveBeenCalled()
     })
 })

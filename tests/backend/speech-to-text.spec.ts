@@ -80,6 +80,22 @@ const createAudioRequest = (audio?: Blob) => {
     })
 }
 
+const createOversizedAudioRequest = (size: number, type = "audio/webm") =>
+    ({
+        formData: async () => {
+            return {
+                get: (key: string) =>
+                    key === "audio"
+                        ? ({
+                              size,
+                              type,
+                              arrayBuffer: async () => new ArrayBuffer(0)
+                          } as Blob)
+                        : null
+            } as FormData
+        }
+    }) as Request
+
 describe("transcribeAudio", () => {
     beforeEach(() => {
         getUserIdentityMock.mockReset()
@@ -141,10 +157,9 @@ describe("transcribeAudio", () => {
             error: "No audio file provided"
         })
 
-        const largeBlob = new Blob([new Uint8Array(25 * 1024 * 1024 + 1)], { type: "audio/webm" })
         const largeResponse = await transcribeAudioHandler(
             createCtx(),
-            createAudioRequest(largeBlob)
+            createOversizedAudioRequest(25 * 1024 * 1024 + 1)
         )
         expect(largeResponse.status).toBe(400)
         await expect(largeResponse.json()).resolves.toEqual({

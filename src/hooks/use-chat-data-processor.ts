@@ -12,8 +12,16 @@ interface UseChatDataProcessorProps {
 }
 
 export function useChatDataProcessor({ messages, status }: UseChatDataProcessorProps) {
-    const { setThreadId, setShouldUpdateQuery, setAttachedStreamId, threadId, setPendingStream } =
-        useChatStore()
+    const {
+        setThreadId,
+        setShouldUpdateQuery,
+        setAttachedStreamId,
+        threadId,
+        setPendingStream,
+        shouldUpdateQuery,
+        attachedStreamIds,
+        pendingStreams
+    } = useChatStore()
     const navigate = useNavigate()
 
     useEffect(() => {
@@ -23,7 +31,9 @@ export function useChatDataProcessor({ messages, status }: UseChatDataProcessorP
         if (!latestAssistant?.metadata) return
 
         if (latestAssistant.metadata.threadId) {
-            setThreadId(latestAssistant.metadata.threadId)
+            if (threadId !== latestAssistant.metadata.threadId) {
+                setThreadId(latestAssistant.metadata.threadId)
+            }
             if (
                 status !== "submitted" &&
                 status !== "streaming" &&
@@ -37,14 +47,20 @@ export function useChatDataProcessor({ messages, status }: UseChatDataProcessorP
                     replace: true
                 })
             }
-            setShouldUpdateQuery(true)
+            if (!shouldUpdateQuery) {
+                setShouldUpdateQuery(true)
+            }
         }
 
         if (latestAssistant.metadata.streamId) {
             const effectiveThreadId = latestAssistant.metadata.threadId ?? threadId
             if (effectiveThreadId) {
-                setAttachedStreamId(effectiveThreadId, latestAssistant.metadata.streamId)
-                setPendingStream(effectiveThreadId, false)
+                if (attachedStreamIds[effectiveThreadId] !== latestAssistant.metadata.streamId) {
+                    setAttachedStreamId(effectiveThreadId, latestAssistant.metadata.streamId)
+                }
+                if (pendingStreams[effectiveThreadId] !== false) {
+                    setPendingStream(effectiveThreadId, false)
+                }
             }
         }
     }, [
@@ -54,6 +70,9 @@ export function useChatDataProcessor({ messages, status }: UseChatDataProcessorP
         setAttachedStreamId,
         threadId,
         setPendingStream,
+        shouldUpdateQuery,
+        attachedStreamIds,
+        pendingStreams,
         status,
         navigate
     ])

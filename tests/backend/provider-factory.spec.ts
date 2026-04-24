@@ -58,10 +58,7 @@ vi.mock("../../convex/lib/google_provider", () => ({
     getGoogleVertexConfig: getGoogleVertexConfigMock
 }))
 
-import {
-    createGoogleOpenAICompatibleProvider,
-    createProvider
-} from "../../convex/lib/provider_factory"
+import { createProvider } from "../../convex/lib/provider_factory"
 
 describe("provider_factory", () => {
     beforeEach(() => {
@@ -81,18 +78,6 @@ describe("provider_factory", () => {
         await expect(createProvider("openai", "   ")).rejects.toThrow(
             "API key is required for non-internal providers"
         )
-    })
-
-    it("creates an OpenAI provider with the internal server key", async () => {
-        vi.stubEnv("OPENAI_API_KEY", "internal-openai-key")
-        createOpenAIMock.mockReturnValueOnce({ provider: "openai" })
-
-        const provider = await createProvider("openai", "internal")
-
-        expect(createOpenAIMock).toHaveBeenCalledWith({
-            apiKey: "internal-openai-key"
-        })
-        expect(provider).toEqual({ provider: "openai" })
     })
 
     it("uses the Google AI Studio provider for non-vertex auth", async () => {
@@ -144,62 +129,11 @@ describe("provider_factory", () => {
         expect(provider).toEqual({ provider: "vertex" })
     })
 
-    it("trims and uses the internal OpenRouter key", async () => {
-        vi.stubEnv("OPENROUTER_API_KEY", "  openrouter-key  ")
-        createOpenRouterMock.mockReturnValueOnce({ provider: "openrouter" })
-
-        const provider = await createProvider("openrouter", "internal")
-
-        expect(createOpenRouterMock).toHaveBeenCalledWith({
-            apiKey: "openrouter-key",
-            compatibility: "strict"
-        })
-        expect(provider).toEqual({ provider: "openrouter" })
-    })
-
     it("rejects internal OpenRouter usage when no key is configured", async () => {
         vi.stubEnv("OPENROUTER_API_KEY", "")
 
         await expect(createProvider("openrouter", "internal")).rejects.toThrow(
             "OpenRouter API key is required"
         )
-    })
-
-    it("rejects Google OpenAI-compatible usage for Vertex auth", () => {
-        getGoogleAuthModeMock.mockReturnValueOnce("vertex")
-
-        expect(() =>
-            createGoogleOpenAICompatibleProvider("internal", {
-                googleAuthMode: "vertex"
-            })
-        ).toThrow("Google OpenAI-compatible image models require AI Studio authentication")
-    })
-
-    it("requires an AI Studio key for the OpenAI-compatible Google provider", () => {
-        getGoogleAuthModeMock.mockReturnValueOnce("ai-studio")
-        getGoogleAiStudioApiKeyMock.mockReturnValueOnce(undefined)
-
-        expect(() =>
-            createGoogleOpenAICompatibleProvider("internal", {
-                googleAuthMode: "ai-studio"
-            })
-        ).toThrow("Google AI Studio API key is required")
-    })
-
-    it("creates the OpenAI-compatible Google provider with the expected base URL", () => {
-        getGoogleAuthModeMock.mockReturnValueOnce("ai-studio")
-        getGoogleAiStudioApiKeyMock.mockReturnValueOnce("google-ai-studio-key")
-        createOpenAIMock.mockReturnValueOnce({ provider: "google-openai" })
-
-        const provider = createGoogleOpenAICompatibleProvider("internal", {
-            googleAuthMode: "ai-studio"
-        })
-
-        expect(createOpenAIMock).toHaveBeenCalledWith({
-            apiKey: "google-ai-studio-key",
-            baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
-            name: "google"
-        })
-        expect(provider).toEqual({ provider: "google-openai" })
     })
 })

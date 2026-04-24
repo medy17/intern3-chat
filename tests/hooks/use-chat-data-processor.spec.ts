@@ -3,19 +3,7 @@
 import { renderHook } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const {
-    setAttachedStreamIdMock,
-    setPendingStreamMock,
-    setShouldUpdateQueryMock,
-    setThreadIdMock,
-    useChatStoreMock,
-    useNavigateMock
-} = vi.hoisted(() => ({
-    setAttachedStreamIdMock: vi.fn(),
-    setPendingStreamMock: vi.fn(),
-    setShouldUpdateQueryMock: vi.fn(),
-    setThreadIdMock: vi.fn(),
-    useChatStoreMock: vi.fn(),
+const { useNavigateMock } = vi.hoisted(() => ({
     useNavigateMock: vi.fn()
 }))
 
@@ -23,34 +11,36 @@ vi.mock("@tanstack/react-router", () => ({
     useNavigate: useNavigateMock
 }))
 
-vi.mock("@/lib/chat-store", () => ({
-    useChatStore: useChatStoreMock
-}))
-
 import { useChatDataProcessor } from "@/hooks/use-chat-data-processor"
+import { useChatStore } from "@/lib/chat-store"
 
 type ProcessorMessages = Parameters<typeof useChatDataProcessor>[0]["messages"]
 
+const resetChatStore = () => {
+    useChatStore.setState({
+        threadId: undefined,
+        uploadedFiles: [],
+        rerenderTrigger: "rerender-1",
+        lastProcessedDataIndex: -1,
+        shouldUpdateQuery: false,
+        skipNextDataCheck: true,
+        attachedStreamIds: {},
+        pendingStreams: {},
+        targetFromMessageId: undefined,
+        targetMode: "normal",
+        uploading: false,
+        selectedPersona: { source: "default" }
+    })
+}
+
 describe("useChatDataProcessor", () => {
     beforeEach(() => {
-        setAttachedStreamIdMock.mockReset()
-        setPendingStreamMock.mockReset()
-        setShouldUpdateQueryMock.mockReset()
-        setThreadIdMock.mockReset()
-        useChatStoreMock.mockReset()
+        resetChatStore()
         useNavigateMock.mockReset()
         vi.spyOn(console, "log").mockImplementation(() => {})
-
-        useChatStoreMock.mockReturnValue({
-            setThreadId: setThreadIdMock,
-            setShouldUpdateQuery: setShouldUpdateQueryMock,
-            setAttachedStreamId: setAttachedStreamIdMock,
-            threadId: undefined,
-            setPendingStream: setPendingStreamMock
-        })
     })
 
-    it("hydrates thread and stream metadata into the store", () => {
+    it("hydrates thread and stream metadata into the real chat store", () => {
         const navigate = vi.fn()
         useNavigateMock.mockReturnValue(navigate)
 
@@ -77,21 +67,24 @@ describe("useChatDataProcessor", () => {
             })
         )
 
-        expect(setThreadIdMock).toHaveBeenCalledWith("thread-1")
-        expect(setShouldUpdateQueryMock).toHaveBeenCalledWith(true)
-        expect(setAttachedStreamIdMock).toHaveBeenCalledWith("thread-1", "stream-1")
-        expect(setPendingStreamMock).toHaveBeenCalledWith("thread-1", false)
+        expect(useChatStore.getState().threadId).toBe("thread-1")
+        expect(useChatStore.getState().shouldUpdateQuery).toBe(true)
+        expect(useChatStore.getState().attachedStreamIds).toEqual({
+            "thread-1": "stream-1"
+        })
+        expect(useChatStore.getState().pendingStreams).toEqual({
+            "thread-1": false
+        })
         expect(navigate).not.toHaveBeenCalled()
     })
 
-    it("navigates to the assistant thread when metadata arrives off-thread", () => {
+    it("uses the existing store thread id when only stream metadata arrives", () => {
         const navigate = vi.fn()
         useNavigateMock.mockReturnValue(navigate)
-
-        Object.defineProperty(window, "location", {
-            configurable: true,
-            value: {
-                pathname: "/library"
+        useChatStore.setState({
+            threadId: "thread-9",
+            pendingStreams: {
+                "thread-9": true
             }
         })
 
@@ -103,38 +96,60 @@ describe("useChatDataProcessor", () => {
                         id: "assistant-1",
                         role: "assistant",
                         metadata: {
-                            threadId: "thread-2"
+                            streamId: "stream-9"
                         }
                     }
                 ] as ProcessorMessages
             })
         )
 
+        expect(useChatStore.getState().attachedStreamIds).toEqual({
+            "thread-9": "stream-9"
+        })
+        expect(useChatStore.getState().pendingStreams).toEqual({
+            "thread-9": false
+        })
+        expect(navigate).not.toHaveBeenCalled()
+    })
+
+    it("navigates only when ready metadata arrives off-thread, not while streaming", () => {
+        const navigate = vi.fn()
+        useNavigateMock.mockReturnValue(navigate)
+
+        Object.defineProperty(window, "location", {
+            configurable: true,
+            value: {
+                pathname: "/library"
+            }
+        })
+
+        const { rerender } = renderHook(
+            (status: string) =>
+                useChatDataProcessor({
+                    status,
+                    messages: [
+                        {
+                            id: "assistant-1",
+                            role: "assistant",
+                            metadata: {
+                                threadId: "thread-2"
+                            }
+                        }
+                    ] as ProcessorMessages
+                }),
+            {
+                initialProps: "streaming"
+            }
+        )
+
+        expect(navigate).not.toHaveBeenCalled()
+
+        rerender("ready")
+
         expect(navigate).toHaveBeenCalledWith({
             to: "/thread/$threadId",
             params: { threadId: "thread-2" },
             replace: true
         })
-    })
-
-    it("ignores assistant messages that do not carry metadata", () => {
-        const navigate = vi.fn()
-        useNavigateMock.mockReturnValue(navigate)
-
-        renderHook(() =>
-            useChatDataProcessor({
-                status: "ready",
-                messages: [
-                    {
-                        id: "assistant-1",
-                        role: "assistant"
-                    }
-                ] as ProcessorMessages
-            })
-        )
-
-        expect(setThreadIdMock).not.toHaveBeenCalled()
-        expect(setShouldUpdateQueryMock).not.toHaveBeenCalled()
-        expect(navigate).not.toHaveBeenCalled()
     })
 })

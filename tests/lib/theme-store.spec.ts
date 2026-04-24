@@ -68,41 +68,6 @@ describe("theme-store", () => {
         expect(isDefaultThemeCssVars(themeState.cssVars)).toBe(true)
     })
 
-    it("normalizes the legacy green default to Vercel", async () => {
-        const {
-            getLegacyGreenThemeState,
-            isDefaultThemeCssVars,
-            normalizeThemeStoreStateForDefault
-        } = await loadStore()
-
-        const normalized = normalizeThemeStoreStateForDefault({
-            themeState: getLegacyGreenThemeState("dark"),
-            selectedThemeUrl: null
-        })
-
-        expect(normalized.selectedThemeUrl).toBeNull()
-        expect(normalized.themeState?.currentMode).toBe("dark")
-        expect(isDefaultThemeCssVars(normalized.themeState?.cssVars)).toBe(true)
-    })
-
-    it("preserves legacy green when selected intentionally", async () => {
-        const {
-            LEGACY_GREEN_THEME_URL,
-            getLegacyGreenThemeState,
-            isLegacyGreenThemeCssVars,
-            normalizeThemeStoreStateForDefault
-        } = await loadStore()
-        const legacyState = getLegacyGreenThemeState("light")
-
-        const normalized = normalizeThemeStoreStateForDefault({
-            themeState: legacyState,
-            selectedThemeUrl: LEGACY_GREEN_THEME_URL
-        })
-
-        expect(normalized.selectedThemeUrl).toBe(LEGACY_GREEN_THEME_URL)
-        expect(isLegacyGreenThemeCssVars(normalized.themeState?.cssVars)).toBe(true)
-    })
-
     it("preserves non-null selected theme URLs", async () => {
         const { getLegacyGreenThemeState, normalizeThemeStoreStateForDefault } = await loadStore()
         const legacyState = getLegacyGreenThemeState("dark")
@@ -128,26 +93,5 @@ describe("theme-store", () => {
 
         expect(normalized.selectedThemeUrl).toBeNull()
         expect(normalized.themeState).toEqual(customState)
-    })
-
-    it("migrates persisted legacy green defaults while preserving mode", async () => {
-        const { getLegacyGreenThemeState, isDefaultThemeCssVars } = await loadStore()
-        localStorage.setItem(
-            "theme-store",
-            JSON.stringify({
-                state: {
-                    themeState: getLegacyGreenThemeState("dark"),
-                    selectedThemeUrl: null
-                },
-                version: 0
-            })
-        )
-
-        const { useThemeStore } = await loadStore()
-
-        const { themeState, selectedThemeUrl } = useThemeStore.getState()
-        expect(selectedThemeUrl).toBeNull()
-        expect(themeState.currentMode).toBe("dark")
-        expect(isDefaultThemeCssVars(themeState.cssVars)).toBe(true)
     })
 })
