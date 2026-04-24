@@ -50,6 +50,17 @@ export function useChatActions<TMessage extends UIMessage>({
     const { status, sendMessage, stop, messages, setMessages, regenerate } = chat
     const deleteFileMutation = useMutation(api.attachments.deleteFile)
 
+    const primeImmediateMessageUpdates = useCallback(() => {
+        if (!threadId) {
+            return
+        }
+
+        flushSync(() => {
+            setPendingStream(threadId, true)
+            setManuallyStoppedThread(threadId, false)
+        })
+    }, [setManuallyStoppedThread, setPendingStream, threadId])
+
     const handleInputSubmit = useCallback(
         (inputValue?: string, fileValues?: UploadedFile[]) => {
             if (status === "streaming") {
@@ -72,10 +83,7 @@ export function useChatActions<TMessage extends UIMessage>({
                 return
             }
 
-            if (threadId) {
-                setPendingStream(threadId, true)
-                setManuallyStoppedThread(threadId, false)
-            }
+            primeImmediateMessageUpdates()
 
             void sendMessage({
                 id: nanoid(),
@@ -103,7 +111,8 @@ export function useChatActions<TMessage extends UIMessage>({
             status,
             threadId,
             uploadedFiles,
-            setUploadedFiles
+            setUploadedFiles,
+            primeImmediateMessageUpdates
         ]
     )
 
@@ -113,14 +122,13 @@ export function useChatActions<TMessage extends UIMessage>({
             if (messageIndex === -1) return
 
             const messagesUpToRetry = messages.slice(0, messageIndex + 1)
+            primeImmediateMessageUpdates()
             flushSync(() => {
-                if (threadId) {
-                    setPendingStream(threadId, true)
-                    setManuallyStoppedThread(threadId, false)
-                }
-                setMessages(messagesUpToRetry)
                 setTargetFromMessageId(undefined)
                 setTargetMode("normal")
+            })
+            flushSync(() => {
+                setMessages(messagesUpToRetry)
             })
             void regenerate({
                 messageId: message.id,
@@ -170,14 +178,13 @@ export function useChatActions<TMessage extends UIMessage>({
                 parts: [...(remainingFileParts || []), { type: "text" as const, text: newContent }]
             }
 
+            primeImmediateMessageUpdates()
             flushSync(() => {
-                if (threadId) {
-                    setPendingStream(threadId, true)
-                    setManuallyStoppedThread(threadId, false)
-                }
-                setMessages([...messagesUpToEdit, updatedEditedMessage])
                 setTargetFromMessageId(undefined)
                 setTargetMode("normal")
+            })
+            flushSync(() => {
+                setMessages([...messagesUpToEdit, updatedEditedMessage])
             })
             void regenerate({
                 messageId,
@@ -194,9 +201,7 @@ export function useChatActions<TMessage extends UIMessage>({
             setTargetMode,
             regenerate,
             deleteFileMutation,
-            setPendingStream,
-            setManuallyStoppedThread,
-            threadId
+            primeImmediateMessageUpdates
         ]
     )
 
