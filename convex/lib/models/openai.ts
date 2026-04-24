@@ -134,8 +134,8 @@ export const OPENAI_MODELS: SharedModel[] = [
     },
     {
         id: "gpt-5.4-image-2",
-        name: "GPT 5.4 Image 2",
-        shortName: "5.4 Image 2",
+        name: "GPT Image 2",
+        shortName: "GPT Image 2",
         releaseOrder: 20261023,
         // Re-check @ai-sdk/openai before changing this back: 3.0.53 and 4.0.0-beta.38
         // still treat gpt-image-2 as an unknown image model and add invalid response_format.
@@ -152,8 +152,8 @@ export const OPENAI_MODELS: SharedModel[] = [
     },
     {
         id: "gpt-5-image-mini",
-        name: "GPT 5 Image Mini",
-        shortName: "5 Image Mini",
+        name: "GPT Image Mini",
+        shortName: "GPT Image Mini",
         releaseOrder: 20261016,
         adapters: openAiImageAdapters("gpt-5-image-mini", "openai/gpt-5-image-mini"),
         abilities: [],
@@ -168,8 +168,8 @@ export const OPENAI_MODELS: SharedModel[] = [
     },
     {
         id: "gpt-5-image",
-        name: "GPT 5 Image",
-        shortName: "5 Image",
+        name: "GPT Image",
+        shortName: "GPT Image",
         releaseOrder: 20261015,
         adapters: openAiImageAdapters("gpt-5-image", "openai/gpt-5-image"),
         abilities: [],
