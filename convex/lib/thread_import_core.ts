@@ -14,6 +14,7 @@ export interface ParsedThreadImportMessage {
     role: ImportedMessageRole
     text: string
     attachments: ParsedAttachmentReference[]
+    createdAt?: number
     metadata?: {
         modelName?: string
     }
@@ -38,17 +39,21 @@ const SECTION_HEADER_REGEX = /^##\s*(Prompt|Response|System):\s*$/gm
 const EXPORTER_FOOTER_BLOCK_REGEX =
     /\n(?:[-*_]\s*){3,}\s*\n+\s*Powered by(?:\s+\[?[^\]]+\]?\([^)]*\)|[^\n]*)?\s*$/i
 const EXPORTER_FOOTER_LINE_REGEX = /\n+\s*Powered by\s+\[?[^\]]+\]?\([^)]*\)\s*$/i
+const CHATGPT_EXPORTER_MESSAGE_TIMESTAMP_REGEX =
+    /^(\d{1,2}\/\d{1,2}\/\d{4},\s+\d{1,2}:\d{2}:\d{2}\s+(?:AM|PM))\s*(?:\n+|$)/i
 const T3_MARKDOWN_HEADER_REGEX = /^###\s+(User|Assistant(?:\s*\(([^)]+)\))?|System)\s*$/gm
 const DETAILS_BLOCK_REGEX = /<details[\s\S]*?<\/details>/gi
 const markdownExtensionRegex = /\.(md|markdown|txt)$/i
 const jsonExtensionRegex = /\.json$/i
+const MAX_ACCEPTABLE_FUTURE_MESSAGE_TIMESTAMP_MS = 5 * 60 * 1000
 
 const ChatGPTExporterMessageSchema = z
     .object({
         role: z.string().min(1),
-        say: z.string()
+        say: z.string(),
+        time: z.unknown().optional()
     })
-    .strict()
+    .passthrough()
 
 const ChatGPTExporterMetadataSchema = z
     .object({
@@ -58,6 +63,7 @@ const ChatGPTExporterMetadataSchema = z
                 name: z.string().optional(),
                 email: z.string().optional()
             })
+            .passthrough()
             .optional(),
         dates: z
             .object({
@@ -65,18 +71,19 @@ const ChatGPTExporterMetadataSchema = z
                 updated: z.string().optional(),
                 exported: z.string().optional()
             })
+            .passthrough()
             .optional(),
         link: z.string().optional(),
         powered_by: z.string().optional()
     })
-    .strict()
+    .passthrough()
 
 const ChatGPTExporterRootSchema = z
     .object({
         metadata: ChatGPTExporterMetadataSchema.optional(),
         messages: z.array(ChatGPTExporterMessageSchema).min(1)
     })
-    .strict()
+    .passthrough()
 
 const T3ThreadSchema = z
     .object({
@@ -189,6 +196,32 @@ const extractChatGPTConversationIdFromUrl = (value?: string) => {
         return match?.[1]
     } catch {
         return undefined
+    }
+}
+
+const parseChatGPTExporterMessageTimestamp = (value: unknown, now = Date.now()) => {
+    const parsed = parseImportTimestamp(value)
+    if (typeof parsed !== "number") return undefined
+    if (parsed > now + MAX_ACCEPTABLE_FUTURE_MESSAGE_TIMESTAMP_MS) {
+        return undefined
+    }
+    return parsed
+}
+
+const extractChatGPTExporterSectionTimestamp = (value: string, now = Date.now()) => {
+    const normalized = value.replace(/\r\n/g, "\n")
+    const timestampMatch = normalized.match(CHATGPT_EXPORTER_MESSAGE_TIMESTAMP_REGEX)
+
+    if (!timestampMatch) {
+        return {
+            body: normalized,
+            createdAt: undefined
+        }
+    }
+
+    return {
+        body: normalized.slice(timestampMatch[0].length),
+        createdAt: parseChatGPTExporterMessageTimestamp(timestampMatch[1], now)
     }
 }
 
@@ -331,6 +364,11 @@ const extractExporterLink = (markdown: string) => {
     return undefined
 }
 
+const extractExporterMetadataTimestamp = (markdown: string, label: "Created" | "Updated") => {
+    const metadataMatch = markdown.match(new RegExp(`^\\*\\*${label}:\\*\\*\\s*(.+?)\\s*$`, "m"))
+    return parseImportTimestamp(metadataMatch?.[1])
+}
+
 const stripExporterFooter = (value: string) =>
     value.replace(EXPORTER_FOOTER_BLOCK_REGEX, "").replace(EXPORTER_FOOTER_LINE_REGEX, "").trim()
 
@@ -383,6 +421,7 @@ const tryParseChatGPTExporterJson = (content: string): ParsedThreadImportDocumen
 
     const parseWarnings: string[] = []
     const messages: ParsedThreadImportMessage[] = []
+    let droppedTimestampCount = 0
 
     for (const message of validated.data.messages) {
         const mappedRole = mapExporterRole(message.role)
@@ -394,10 +433,16 @@ const tryParseChatGPTExporterJson = (content: string): ParsedThreadImportDocumen
         const text = normalizeSpacing(message.say)
         if (!text) continue
 
+        const createdAt = parseChatGPTExporterMessageTimestamp(message.time)
+        if (message.time !== undefined && createdAt === undefined) {
+            droppedTimestampCount += 1
+        }
+
         messages.push({
             role: mappedRole,
             text,
-            attachments: []
+            attachments: [],
+            createdAt
         })
     }
 
@@ -413,6 +458,12 @@ const tryParseChatGPTExporterJson = (content: string): ParsedThreadImportDocumen
                 format: "json"
             }
         }
+    }
+
+    if (droppedTimestampCount > 0) {
+        parseWarnings.push(
+            `Dropped ${droppedTimestampCount} invalid message timestamp(s) from JSON export`
+        )
     }
 
     if (validated.data.metadata?.user?.email || validated.data.metadata?.user?.name) {
@@ -594,7 +645,8 @@ const tryParseChatGPTExporterMarkdown = (markdown: string): ParsedThreadImportDo
         const start = (match.index || 0) + match[0].length
         const end = nextMatch?.index ?? normalized.length
         const sectionContent = stripExporterFooter(normalized.slice(start, end))
-        const text = normalizeSpacing(sectionContent)
+        const extracted = extractChatGPTExporterSectionTimestamp(sectionContent)
+        const text = normalizeSpacing(extracted.body)
         if (!text) continue
 
         messages.push({
@@ -605,7 +657,8 @@ const tryParseChatGPTExporterMarkdown = (markdown: string): ParsedThreadImportDo
                       ? "assistant"
                       : "system",
             text,
-            attachments: []
+            attachments: [],
+            createdAt: extracted.createdAt
         })
     }
 
@@ -628,7 +681,9 @@ const tryParseChatGPTExporterMarkdown = (markdown: string): ParsedThreadImportDo
         source: {
             service: "chatgptexporter",
             format: "markdown",
-            conversationId: extractChatGPTConversationIdFromUrl(link)
+            conversationId: extractChatGPTConversationIdFromUrl(link),
+            createdAt: extractExporterMetadataTimestamp(normalized, "Created"),
+            updatedAt: extractExporterMetadataTimestamp(normalized, "Updated")
         }
     }
 }
@@ -808,7 +863,9 @@ export const mergeChatGPTExporterCompanionMarkdown = ({
                 if (markdownIndex === undefined) return jsonMessage
                 return {
                     ...jsonMessage,
-                    text: markdownDocument.messages[markdownIndex].text
+                    text: markdownDocument.messages[markdownIndex].text,
+                    createdAt:
+                        jsonMessage.createdAt ?? markdownDocument.messages[markdownIndex].createdAt
                 }
             }),
             parseWarnings: [

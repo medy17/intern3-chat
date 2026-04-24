@@ -14,6 +14,7 @@ export interface ParsedThreadImportMessage {
     role: ImportedMessageRole
     text: string
     attachments: ParsedAttachmentReference[]
+    createdAt?: number
     metadata?: {
         modelName?: string
     }

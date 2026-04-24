@@ -101,6 +101,7 @@ const MessageMetadata = v.object({
 
 const ImportedMessage = v.object({
     role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system")),
+    createdAt: v.optional(v.number()),
     parts: v.array(MessagePart),
     metadata: v.optional(MessageMetadata)
 })
@@ -130,29 +131,46 @@ const ThreadPersonaSnapshotInput = v.object({
 const normalizeImportedThreadTimestamps = ({
     sourceCreatedAt,
     sourceUpdatedAt,
+    messageCreatedAts,
     fallback
 }: {
     sourceCreatedAt?: number
     sourceUpdatedAt?: number
+    messageCreatedAts: number[]
     fallback: number
 }) => {
-    const createdAt =
+    const validSourceCreatedAt =
         typeof sourceCreatedAt === "number" &&
         Number.isFinite(sourceCreatedAt) &&
         sourceCreatedAt > 0
             ? Math.trunc(sourceCreatedAt)
-            : typeof sourceUpdatedAt === "number" &&
-                Number.isFinite(sourceUpdatedAt) &&
-                sourceUpdatedAt > 0
-              ? Math.trunc(sourceUpdatedAt)
-              : fallback
-
-    const updatedAtCandidate =
+            : undefined
+    const validSourceUpdatedAt =
         typeof sourceUpdatedAt === "number" &&
         Number.isFinite(sourceUpdatedAt) &&
         sourceUpdatedAt > 0
             ? Math.trunc(sourceUpdatedAt)
-            : createdAt
+            : undefined
+
+    const createdAtCandidates = [
+        validSourceCreatedAt,
+        ...messageCreatedAts,
+        validSourceUpdatedAt
+    ].filter(
+        (value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0
+    )
+
+    const updatedAtCandidates = [
+        validSourceUpdatedAt,
+        ...messageCreatedAts,
+        validSourceCreatedAt
+    ].filter(
+        (value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0
+    )
+
+    const createdAt = createdAtCandidates.length > 0 ? Math.min(...createdAtCandidates) : fallback
+    const updatedAtCandidate =
+        updatedAtCandidates.length > 0 ? Math.max(...updatedAtCandidates) : createdAt
 
     return {
         createdAt,
@@ -191,9 +209,19 @@ const performThreadImport = async (
     }
 
     const now = Date.now()
+    const messageCreatedAts = sanitizedMessages
+        .map((message) =>
+            typeof message.createdAt === "number" &&
+            Number.isFinite(message.createdAt) &&
+            message.createdAt > 0
+                ? Math.trunc(message.createdAt)
+                : undefined
+        )
+        .filter((value): value is number => typeof value === "number")
     const threadTimestamps = normalizeImportedThreadTimestamps({
         sourceCreatedAt,
         sourceUpdatedAt,
+        messageCreatedAts,
         fallback: now
     })
     const normalizedTitle = normalizeThreadTitle(title)
@@ -212,7 +240,16 @@ const performThreadImport = async (
 
     let timestamp = threadTimestamps.createdAt
     for (const message of sanitizedMessages) {
-        timestamp += 1
+        const requestedCreatedAt =
+            typeof message.createdAt === "number" &&
+            Number.isFinite(message.createdAt) &&
+            message.createdAt > 0
+                ? Math.trunc(message.createdAt)
+                : undefined
+        timestamp =
+            requestedCreatedAt !== undefined
+                ? Math.max(timestamp + 1, requestedCreatedAt)
+                : timestamp + 1
         await ctx.db.insert("messages", {
             threadId,
             messageId: nanoid(),

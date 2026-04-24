@@ -227,6 +227,7 @@ export const prepareImportJob = internalAction({
                             url: attachment.url,
                             filename: attachment.filename
                         })),
+                        createdAt: message.createdAt,
                         metadata: message.metadata
                     })),
                     parseWarnings: entry.parsed.parseWarnings,
@@ -371,6 +372,7 @@ export const processImportJobThread = internalAction({
                 if (parts.length > 0) {
                     preparedMessages.push({
                         role: message.role,
+                        createdAt: message.createdAt,
                         parts,
                         metadata: message.metadata
                     })

@@ -70,11 +70,14 @@ vi.mock("../../convex/schema/parts", () => ({
 }))
 
 import { ChatError } from "@/lib/errors"
-import { createThreadOrInsertMessages } from "../../convex/threads"
+import { createThreadOrInsertMessages, importPreparedThread } from "../../convex/threads"
 
 type ThreadDoc = Record<string, unknown>
 type MessageDoc = Record<string, unknown>
 const createThreadOrInsertMessagesHandler = createThreadOrInsertMessages as unknown as {
+    handler: (ctx: any, args: any) => Promise<any>
+}
+const importPreparedThreadHandler = importPreparedThread as unknown as {
     handler: (ctx: any, args: any) => Promise<any>
 }
 type ThreadsCtx = Parameters<typeof createThreadOrInsertMessagesHandler.handler>[0]
@@ -401,5 +404,85 @@ describe("createThreadOrInsertMessages", () => {
         })
 
         expect(result).toBeUndefined()
+    })
+})
+
+describe("importPreparedThread", () => {
+    beforeEach(() => {
+        aggregateInsertMock.mockReset().mockResolvedValue(undefined)
+        nanoidMock.mockReset().mockReturnValue("generated-import-message-id")
+    })
+
+    it("preserves sane imported message timestamps while enforcing monotonic ordering", async () => {
+        const ctx = createCtx({
+            thread: { _id: "thread-import-1", authorId: "user-1" },
+            inserts: ["thread-import-1", "msg-1", "msg-2", "msg-3"]
+        })
+
+        const result = await importPreparedThreadHandler.handler(ctx, {
+            authorId: "user-1",
+            title: "Imported Chat",
+            messages: [
+                {
+                    role: "user",
+                    createdAt: 3000,
+                    parts: [{ type: "text", text: "First" }]
+                },
+                {
+                    role: "assistant",
+                    createdAt: 2000,
+                    parts: [{ type: "text", text: "Second" }]
+                },
+                {
+                    role: "user",
+                    parts: [{ type: "text", text: "Third" }]
+                }
+            ],
+            sourceCreatedAt: 1000
+        })
+
+        expect(ctx.db.insert).toHaveBeenNthCalledWith(
+            1,
+            "threads",
+            expect.objectContaining({
+                title: "Imported Chat",
+                createdAt: 1000,
+                updatedAt: 3000
+            })
+        )
+        expect(ctx.db.insert).toHaveBeenNthCalledWith(
+            2,
+            "messages",
+            expect.objectContaining({
+                threadId: "thread-import-1",
+                createdAt: 3000,
+                updatedAt: 3000
+            })
+        )
+        expect(ctx.db.insert).toHaveBeenNthCalledWith(
+            3,
+            "messages",
+            expect.objectContaining({
+                threadId: "thread-import-1",
+                createdAt: 3001,
+                updatedAt: 3001
+            })
+        )
+        expect(ctx.db.insert).toHaveBeenNthCalledWith(
+            4,
+            "messages",
+            expect.objectContaining({
+                threadId: "thread-import-1",
+                createdAt: 3002,
+                updatedAt: 3002
+            })
+        )
+        expect(ctx.db.patch).toHaveBeenCalledWith("thread-import-1", {
+            updatedAt: 3002
+        })
+        expect(result).toEqual({
+            threadId: "thread-import-1",
+            importedMessages: 3
+        })
     })
 })

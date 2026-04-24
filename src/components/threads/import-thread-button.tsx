@@ -70,6 +70,7 @@ import type { Project } from "./types"
 
 type ImportMutationMessage = {
     role: "user" | "assistant" | "system"
+    createdAt?: number
     parts: Array<
         | {
               type: "text"
@@ -892,6 +893,7 @@ export function ImportThreadDialog({
             if (parts.length > 0) {
                 preparedMessages.push({
                     role: parsedMessage.role,
+                    createdAt: parsedMessage.createdAt,
                     parts,
                     metadata: parsedMessage.metadata
                 })

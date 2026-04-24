@@ -1,14 +1,18 @@
 import { z } from "zod"
 import { normalizeSpacing, normalizeTitle, parseImportTimestamp } from "../shared"
 import type { ImportedMessageRole, ParsedThreadImportDocument } from "../types"
-import { extractChatGPTConversationIdFromUrl } from "./chatgptexporter-shared"
+import {
+    extractChatGPTConversationIdFromUrl,
+    parseChatGPTExporterMessageTimestamp
+} from "./chatgptexporter-shared"
 
 const ChatGPTExporterMessageSchema = z
     .object({
         role: z.string().min(1),
-        say: z.string()
+        say: z.string(),
+        time: z.unknown().optional()
     })
-    .strict()
+    .passthrough()
 
 const ChatGPTExporterMetadataSchema = z
     .object({
@@ -18,6 +22,7 @@ const ChatGPTExporterMetadataSchema = z
                 name: z.string().optional(),
                 email: z.string().optional()
             })
+            .passthrough()
             .optional(),
         dates: z
             .object({
@@ -25,18 +30,19 @@ const ChatGPTExporterMetadataSchema = z
                 updated: z.string().optional(),
                 exported: z.string().optional()
             })
+            .passthrough()
             .optional(),
         link: z.string().optional(),
         powered_by: z.string().optional()
     })
-    .strict()
+    .passthrough()
 
 const ChatGPTExporterRootSchema = z
     .object({
         metadata: ChatGPTExporterMetadataSchema.optional(),
         messages: z.array(ChatGPTExporterMessageSchema).min(1)
     })
-    .strict()
+    .passthrough()
 
 const mapExporterRole = (value: string): ImportedMessageRole | null => {
     const normalized = value.trim().toLowerCase()
@@ -61,6 +67,7 @@ export const tryParseChatGPTExporterJson = (content: string): ParsedThreadImport
 
     const parseWarnings: string[] = []
     const messages: ParsedThreadImportDocument["messages"] = []
+    let droppedTimestampCount = 0
 
     for (const message of validated.data.messages) {
         const mappedRole = mapExporterRole(message.role)
@@ -74,10 +81,16 @@ export const tryParseChatGPTExporterJson = (content: string): ParsedThreadImport
             continue
         }
 
+        const createdAt = parseChatGPTExporterMessageTimestamp(message.time)
+        if (message.time !== undefined && createdAt === undefined) {
+            droppedTimestampCount += 1
+        }
+
         messages.push({
             role: mappedRole,
             text,
-            attachments: []
+            attachments: [],
+            createdAt
         })
     }
 
@@ -93,6 +106,12 @@ export const tryParseChatGPTExporterJson = (content: string): ParsedThreadImport
                 format: "json"
             }
         }
+    }
+
+    if (droppedTimestampCount > 0) {
+        parseWarnings.push(
+            `Dropped ${droppedTimestampCount} invalid message timestamp(s) from JSON export`
+        )
     }
 
     if (validated.data.metadata?.user?.email || validated.data.metadata?.user?.name) {

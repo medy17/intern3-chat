@@ -89,17 +89,22 @@ Yes, here's the summary.
                 messages: [
                     {
                         role: "Prompt",
-                        say: "  Hello there  "
+                        say: "  Hello there  ",
+                        time: "2026-03-29T00:15:00.000Z",
+                        ignored: true
                     },
                     {
                         role: "Response",
-                        say: "General Kenobi"
+                        say: "General Kenobi",
+                        time: "3026-03-29T00:16:00.000Z"
                     },
                     {
                         role: "Narrator",
-                        say: "skip me"
+                        say: "skip me",
+                        time: "2026-03-29T00:17:00.000Z"
                     }
-                ]
+                ],
+                extra: "still supported"
             })
         })
 
@@ -108,16 +113,19 @@ Yes, here's the summary.
             {
                 role: "user",
                 text: "Hello there",
-                attachments: []
+                attachments: [],
+                createdAt: Date.parse("2026-03-29T00:15:00.000Z")
             },
             {
                 role: "assistant",
                 text: "General Kenobi",
-                attachments: []
+                attachments: [],
+                createdAt: undefined
             }
         ])
         expect(document.parseWarnings).toEqual([
             'Skipped unsupported JSON role "Narrator"',
+            "Dropped 1 invalid message timestamp(s) from JSON export",
             "Skipped personal metadata fields from JSON export",
             "Skipped source-link/provider metadata from JSON export"
         ])
@@ -127,6 +135,58 @@ Yes, here's the summary.
             conversationId: "conv-123",
             createdAt: Date.parse("2026-03-29T00:00:00.000Z"),
             updatedAt: Date.parse("2026-03-29T01:00:00.000Z")
+        })
+    })
+
+    it("parses ChatGPT Exporter markdown without importing timestamp lines into message text", () => {
+        const document = parseThreadImportContent({
+            fileName: "export.md",
+            mimeType: "text/markdown",
+            content: `# Daily Notes
+
+**User:** Ahmed
+**Created:** 3/29/2026 00:00:00
+**Updated:** 3/29/2026 01:00:00
+**Link:** [https://chatgpt.com/c/conv-123](https://chatgpt.com/c/conv-123)
+
+## Prompt:
+3/29/2026, 12:15:00 AM
+
+Hello there
+
+## Response:
+3/29/2026, 12:16:00 AM
+
+> Thought for a few seconds
+
+General Kenobi
+`
+        })
+
+        expect(document.messages).toEqual([
+            {
+                role: "user",
+                text: "Hello there",
+                attachments: [],
+                createdAt: Date.parse("3/29/2026, 12:15:00 AM")
+            },
+            {
+                role: "assistant",
+                text: "> Thought for a few seconds\n\nGeneral Kenobi",
+                attachments: [],
+                createdAt: Date.parse("3/29/2026, 12:16:00 AM")
+            }
+        ])
+        expect(document.parseWarnings).toEqual([
+            "Skipped personal metadata fields from markdown export",
+            "Using markdown as formatting companion only when JSON source is available"
+        ])
+        expect(document.source).toEqual({
+            service: "chatgptexporter",
+            format: "markdown",
+            conversationId: "conv-123",
+            createdAt: Date.parse("3/29/2026 00:00:00"),
+            updatedAt: Date.parse("3/29/2026 01:00:00")
         })
     })
 

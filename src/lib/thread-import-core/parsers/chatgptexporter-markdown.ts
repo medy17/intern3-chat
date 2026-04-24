@@ -1,7 +1,10 @@
 import { z } from "zod"
-import { normalizeSpacing, normalizeTitle } from "../shared"
+import { normalizeSpacing, normalizeTitle, parseImportTimestamp } from "../shared"
 import type { ImportedMessageRole, ParsedThreadImportDocument } from "../types"
-import { extractChatGPTConversationIdFromUrl } from "./chatgptexporter-shared"
+import {
+    extractChatGPTConversationIdFromUrl,
+    extractChatGPTExporterSectionTimestamp
+} from "./chatgptexporter-shared"
 
 const SECTION_HEADER_REGEX = /^##\s*(Prompt|Response|System):\s*$/gm
 const EXPORTER_FOOTER_BLOCK_REGEX =
@@ -34,6 +37,11 @@ const extractLink = (markdown: string) => {
     return undefined
 }
 
+const extractMetadataTimestamp = (markdown: string, label: "Created" | "Updated") => {
+    const metadataMatch = markdown.match(new RegExp(`^\\*\\*${label}:\\*\\*\\s*(.+?)\\s*$`, "m"))
+    return parseImportTimestamp(metadataMatch?.[1])
+}
+
 const stripExporterFooter = (value: string) =>
     value.replace(EXPORTER_FOOTER_BLOCK_REGEX, "").replace(EXPORTER_FOOTER_LINE_REGEX, "").trim()
 
@@ -61,13 +69,15 @@ export const tryParseChatGPTExporterMarkdown = (
         const start = (match.index || 0) + match[0].length
         const end = nextMatch?.index ?? normalized.length
         const sectionContent = stripExporterFooter(normalized.slice(start, end))
-        const text = normalizeSpacing(sectionContent)
+        const extracted = extractChatGPTExporterSectionTimestamp(sectionContent)
+        const text = normalizeSpacing(extracted.body)
         if (!text) continue
 
         messages.push({
             role: mapRole(roleParsed.data),
             text,
-            attachments: []
+            attachments: [],
+            createdAt: extracted.createdAt
         })
     }
 
@@ -90,7 +100,9 @@ export const tryParseChatGPTExporterMarkdown = (
         source: {
             service: "chatgptexporter",
             format: "markdown",
-            conversationId: extractChatGPTConversationIdFromUrl(link)
+            conversationId: extractChatGPTConversationIdFromUrl(link),
+            createdAt: extractMetadataTimestamp(normalized, "Created"),
+            updatedAt: extractMetadataTimestamp(normalized, "Updated")
         }
     }
 }

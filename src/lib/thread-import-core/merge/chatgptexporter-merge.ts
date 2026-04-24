@@ -149,7 +149,8 @@ export const mergeChatGPTExporterCompanionMarkdown = ({
 
         return {
             ...jsonMessage,
-            text: markdownDocument.messages[markdownIndex].text
+            text: markdownDocument.messages[markdownIndex].text,
+            createdAt: jsonMessage.createdAt ?? markdownDocument.messages[markdownIndex].createdAt
         }
     })
 

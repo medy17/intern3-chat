@@ -42,6 +42,7 @@ export const ImportJobParsedMessage = v.object({
     role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system")),
     text: v.string(),
     attachments: v.array(ImportJobAttachmentReference),
+    createdAt: v.optional(v.number()),
     metadata: v.optional(ImportJobMessageMetadata)
 })
 
