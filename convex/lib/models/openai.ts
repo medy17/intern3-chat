@@ -12,6 +12,13 @@ const openAiImageAdapters = (modelId: string, openRouterModelId = `openai/${mode
 const openAiDirectImageAdapters = (modelId: string) =>
     [`i3-openai:${modelId}`, `openai:${modelId}`] satisfies RegistryKey[]
 
+const openAiGatewayImageAdapters = (modelId: string) =>
+    [
+        `i3-gateway:openai/${modelId}`,
+        `gateway:openai/${modelId}`,
+        ...openAiDirectImageAdapters(modelId)
+    ] satisfies RegistryKey[]
+
 const GPT_IMAGE_2_SIZES = [
     "1:1",
     "16:9",
@@ -157,9 +164,7 @@ export const OPENAI_MODELS: SharedModel[] = [
         name: "GPT Image 2",
         shortName: "GPT Image 2",
         releaseOrder: 20261023,
-        // Re-check @ai-sdk/openai before changing this back: 3.0.53 and 4.0.0-beta.38
-        // still treat gpt-image-2 as an unknown image model and add invalid response_format.
-        adapters: openAiDirectImageAdapters("gpt-image-2"),
+        adapters: openAiGatewayImageAdapters("gpt-image-2"),
         abilities: [],
         mode: "image",
         maxPerMessage: 2,

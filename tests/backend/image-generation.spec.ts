@@ -60,7 +60,12 @@ vi.mock("../../convex/lib/models", async () => {
                 id: "gpt-5.4-image-2",
                 name: "GPT 5.4 Image 2",
                 mode: "image",
-                adapters: ["i3-openai:gpt-image-2", "openai:gpt-image-2"],
+                adapters: [
+                    "i3-gateway:openai/gpt-image-2",
+                    "gateway:openai/gpt-image-2",
+                    "i3-openai:gpt-image-2",
+                    "openai:gpt-image-2"
+                ],
                 abilities: [],
                 supportsReferenceImages: true,
                 supportedImageSizes: ["1:1", "16:9", "9:16", "4:3", "3:4", "21:9"],
@@ -96,24 +101,13 @@ describe("generateAndStoreImage", () => {
     })
 
     it("maps Library aspect ratio and resolution controls to OpenAI pixel sizes", async () => {
-        fetchMock.mockResolvedValueOnce({
-            ok: true,
-            json: async () => ({
-                data: [
-                    {
-                        b64_json: "AQID"
-                    }
-                ]
-            })
-        })
-
         await generateAndStoreImage({
             prompt: "A wide banner",
             imageSize: "21:9",
             imageResolution: "4K",
             imageModel: {
-                provider: "openai.image",
-                modelId: "gpt-image-2"
+                provider: "gateway",
+                modelId: "openai/gpt-image-2"
             } as never,
             modelId: "gpt-5.4-image-2",
             userId: "user-1",
@@ -122,17 +116,24 @@ describe("generateAndStoreImage", () => {
             runtimeApiKey: "openai-key"
         })
 
-        expect(generateImageMock).not.toHaveBeenCalled()
-        expect(fetchMock).toHaveBeenCalledWith(
-            "https://api.openai.com/v1/images/generations",
+        console.log(generateImageMock.mock.calls[0]?.[0])
+        expect(fetchMock).not.toHaveBeenCalled()
+        expect(generateImageMock).toHaveBeenCalledTimes(1)
+        expect(generateImageMock).toHaveBeenCalledWith(
             expect.objectContaining({
-                body: JSON.stringify({
-                    model: "gpt-image-2",
-                    prompt: "A wide banner",
-                    n: 1,
-                    size: "3808x1632",
-                    quality: "low"
-                })
+                model: expect.objectContaining({
+                    provider: "gateway",
+                    modelId: "openai/gpt-image-2"
+                }),
+                prompt: "A wide banner",
+                n: 1,
+                size: "3808x1632",
+                providerOptions: {
+                    openai: {
+                        moderation: "low",
+                        quality: "low"
+                    }
+                }
             })
         )
     })
@@ -183,7 +184,12 @@ describe("generateAndStoreImage", () => {
                 headers: expect.objectContaining({
                     Authorization: "Bearer xai-key",
                     "Content-Type": "application/json"
-                }),
+                })
+            })
+        )
+        expect(fetchMock).toHaveBeenCalledWith(
+            "https://api.x.ai/v1/images/generations",
+            expect.objectContaining({
                 body: JSON.stringify({
                     model: "grok-imagine-image",
                     prompt: "A cinematic portrait",

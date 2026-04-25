@@ -91,6 +91,7 @@ type ImageExecutionPath =
     | "openai-responses"
     | "openai-responses-image-tool"
     | "openai-direct"
+    | "ai-sdk-generate-image-gateway"
     | "ai-sdk-generate-image-openrouter"
     | "ai-sdk-generate-image-google-openai-compatible"
     | "xai-direct"
@@ -563,88 +564,6 @@ async function fetchXaiImageResponse({
     return images
 }
 
-async function fetchOpenAiDirectImageResponse({
-    apiKey,
-    prompt,
-    modelId,
-    size,
-    imageQuality,
-    maxAssets
-}: {
-    apiKey: string
-    prompt: string
-    modelId: string
-    size: `${number}x${number}`
-    imageQuality?: ImageQuality
-    maxAssets?: number
-}): Promise<ImageBinaryPayload[]> {
-    const desiredImageCount =
-        typeof maxAssets === "number" && maxAssets > 0 ? Math.min(maxAssets, 10) : 1
-
-    // Re-check @ai-sdk/openai before replacing this with generateImage(): 3.0.53 and
-    // 4.0.0-beta.38 still send response_format=b64_json for gpt-image-2, which OpenAI rejects.
-    const response = await fetch("https://api.openai.com/v1/images/generations", {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            model: modelId,
-            prompt,
-            n: desiredImageCount,
-            size,
-            ...(imageQuality ? { quality: imageQuality } : {})
-        })
-    })
-
-    if (!response.ok) {
-        throw new Error(`OpenAI image API error: ${response.status} ${await response.text()}`)
-    }
-
-    const payload = (await response.json()) as {
-        data?: Array<{
-            b64_json?: string | null
-            url?: string | null
-            mime_type?: string | null
-        }>
-    }
-
-    const images: ImageBinaryPayload[] = []
-    for (const item of payload.data ?? []) {
-        if (item.b64_json) {
-            const uint8Array = base64ToUint8Array(item.b64_json)
-            images.push({
-                mediaType: item.mime_type || detectImageMimeType(uint8Array),
-                uint8Array
-            })
-            continue
-        }
-
-        if (item.url) {
-            const imageResponse = await fetch(item.url)
-            if (!imageResponse.ok) {
-                throw new Error(`Failed to download OpenAI image asset (${imageResponse.status})`)
-            }
-
-            const uint8Array = new Uint8Array(await imageResponse.arrayBuffer())
-            images.push({
-                mediaType:
-                    imageResponse.headers.get("content-type") ||
-                    item.mime_type ||
-                    detectImageMimeType(uint8Array),
-                uint8Array
-            })
-        }
-    }
-
-    if (images.length === 0) {
-        throw new Error("No images returned from OpenAI image API")
-    }
-
-    return images
-}
-
 async function fetchOpenAiResponsesImageToolResponse({
     apiKey,
     prompt,
@@ -874,11 +793,16 @@ export async function generateAndStoreImage({
         const authMode = getGoogleAuthMode("internal")
         const isVertex = authMode === "vertex" && imageModel.provider?.includes("google")
         const isOpenAiImageModel = imageModel.provider?.includes("openai") === true
+        const isGatewayImageModel = imageModel.provider === "gateway"
         const isOpenRouterImageModel = imageModel.provider === "openrouter"
         const isGoogleOpenAIImageModel = imageModel.provider === "google.image"
         const isXaiImageModel = imageModel.provider?.startsWith("xai") === true
         const isOpenAiResponsesImageModel = isOpenAiImageModel && modelId.startsWith("gpt-5-image")
         const isOpenAiResponsesImageToolModel = isOpenAiImageModel && hasReferenceImages
+        const gatewayOpenAiDirectSize =
+            isGatewayImageModel && imageModel.modelId === "openai/gpt-image-2"
+                ? toOpenAIDirectImageSize(imageSize, requestedImageResolution)
+                : undefined
         const executionPath: ImageExecutionPath = isVertex
             ? "vertex-direct"
             : isOpenAiResponsesImageToolModel
@@ -887,13 +811,15 @@ export async function generateAndStoreImage({
                 ? "openai-responses"
                 : isOpenAiImageModel
                   ? "openai-direct"
-                  : isOpenRouterImageModel
-                    ? "ai-sdk-generate-image-openrouter"
-                    : isGoogleOpenAIImageModel
-                      ? "ai-sdk-generate-image-google-openai-compatible"
-                      : isXaiImageModel
-                        ? "xai-direct"
-                        : "ai-sdk-generate-image-generic"
+                  : isGatewayImageModel
+                    ? "ai-sdk-generate-image-gateway"
+                    : isOpenRouterImageModel
+                      ? "ai-sdk-generate-image-openrouter"
+                      : isGoogleOpenAIImageModel
+                        ? "ai-sdk-generate-image-google-openai-compatible"
+                        : isXaiImageModel
+                          ? "xai-direct"
+                          : "ai-sdk-generate-image-generic"
 
         if (hasReferenceImages && !sharedModel.supportsReferenceImages) {
             throw new Error(`Reference images are not supported for ${sharedModel.name}`)
@@ -1087,16 +1013,28 @@ export async function generateAndStoreImage({
                 throw new Error("OpenAI API key not found for image model")
             }
 
-            // Keep this on the raw OpenAI image API until @ai-sdk/openai recognizes gpt-image-2
-            // as a default-base64 model and stops adding the invalid response_format field.
-            imagesData = await fetchOpenAiDirectImageResponse({
-                apiKey: openAiApiKey,
+            console.log(
+                `[cvx][image_generation] Using AI SDK generateImage for OpenAI image model ${imageModel.modelId}`
+            )
+            const { images } = await generateImage({
+                model: imageModel,
                 prompt,
-                modelId: imageModel.modelId,
+                n: maxAssets,
                 size: openAiSize,
-                imageQuality: sharedModel.defaultImageQuality,
-                maxAssets
+                ...(sharedModel.defaultImageQuality
+                    ? {
+                          providerOptions: {
+                              openai: {
+                                  quality: sharedModel.defaultImageQuality
+                              }
+                          }
+                      }
+                    : {})
             })
+            imagesData = images.map((img) => ({
+                mediaType: img.mediaType,
+                uint8Array: img.uint8Array
+            }))
         } else if (isXaiImageModel) {
             if (!runtimeApiKey) {
                 throw new Error("xAI API key not found for image model")
@@ -1121,7 +1059,7 @@ export async function generateAndStoreImage({
             const { images } = await generateImage({
                 model: imageModel,
                 prompt:
-                    isOpenRouterImageModel && referenceImages.length > 0
+                    referenceImages.length > 0
                         ? {
                               text: prompt,
                               images: referenceImages.map((image) => image.dataUrl)
@@ -1145,20 +1083,50 @@ export async function generateAndStoreImage({
                               : {})
                       }
                     : {
-                          ...(size ? { size } : { aspectRatio }),
-                          ...(isOpenRouterImageModel
+                          ...(gatewayOpenAiDirectSize
+                              ? { size: gatewayOpenAiDirectSize }
+                              : size
+                                ? { size }
+                                : { aspectRatio }),
+                          ...((isOpenRouterImageModel || isGatewayImageModel) &&
+                          sharedModel.defaultImageQuality
                               ? {
                                     providerOptions: {
-                                        openrouter: buildOpenRouterImageRequestOptions(
-                                            modelId,
-                                            sharedModel.openrouterImageModalities,
-                                            aspectRatio,
-                                            requestedImageResolution,
-                                            sharedModel.defaultImageQuality
-                                        )
+                                        ...(isOpenRouterImageModel
+                                            ? {
+                                                  openrouter: buildOpenRouterImageRequestOptions(
+                                                      modelId,
+                                                      sharedModel.openrouterImageModalities,
+                                                      aspectRatio,
+                                                      requestedImageResolution,
+                                                      sharedModel.defaultImageQuality
+                                                  )
+                                              }
+                                            : {}),
+                                        ...(isGatewayImageModel &&
+                                        imageModel.modelId.startsWith("openai/")
+                                            ? {
+                                                  openai: {
+                                                      moderation: "low",
+                                                      quality: sharedModel.defaultImageQuality
+                                                  }
+                                              }
+                                            : {})
                                     }
                                 }
-                              : {})
+                              : isOpenRouterImageModel
+                                ? {
+                                      providerOptions: {
+                                          openrouter: buildOpenRouterImageRequestOptions(
+                                              modelId,
+                                              sharedModel.openrouterImageModalities,
+                                              aspectRatio,
+                                              requestedImageResolution,
+                                              sharedModel.defaultImageQuality
+                                          )
+                                      }
+                                  }
+                                : {})
                       })
             })
             imagesData = images.map((img) => ({

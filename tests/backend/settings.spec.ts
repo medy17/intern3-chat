@@ -141,6 +141,10 @@ describe("settings", () => {
                         enabled: true,
                         encryptedKey: "openai-key",
                         authMode: "ai-studio"
+                    },
+                    gateway: {
+                        enabled: true,
+                        encryptedKey: "gateway-key"
                     }
                 },
                 customAIProviders: {
@@ -172,6 +176,11 @@ describe("settings", () => {
                 key: "dec:openai-key",
                 name: "openai",
                 authMode: "ai-studio"
+            },
+            gateway: {
+                key: "dec:gateway-key",
+                name: "gateway",
+                authMode: undefined
             },
             customprov: {
                 key: "dec:custom-key",

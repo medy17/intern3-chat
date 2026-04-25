@@ -23,7 +23,7 @@ vi.mock("../../convex/_generated/api", () => ({
 }))
 
 vi.mock("../../convex/lib/models", () => ({
-    CoreProviders: ["openai", "google", "anthropic", "xai", "groq"],
+    CoreProviders: ["openai", "google", "anthropic", "xai", "groq", "gateway"],
     MODELS_SHARED: [
         {
             id: "shared-text",
@@ -47,7 +47,12 @@ vi.mock("../../convex/lib/models", () => ({
             name: "GPT 5.4 Image 2",
             mode: "image",
             abilities: [],
-            adapters: ["i3-openai:gpt-image-2", "openai:gpt-image-2"],
+            adapters: [
+                "i3-gateway:openai/gpt-image-2",
+                "gateway:openai/gpt-image-2",
+                "i3-openai:gpt-image-2",
+                "openai:gpt-image-2"
+            ],
             prototypeCreditTier: "pro"
         },
         {
@@ -257,6 +262,48 @@ describe("getModel", () => {
             model: {
                 provider: "internal-xai",
                 modelType: "text"
+            }
+        })
+    })
+
+    it("prefers gateway adapters for gpt-image-2 before direct OpenAI adapters", async () => {
+        createProviderMock.mockResolvedValueOnce({
+            imageModel: vi.fn().mockReturnValue({ provider: "gateway-image" })
+        })
+
+        const result = await getModel(
+            createCtx({
+                providers: {
+                    gateway: {
+                        key: "user-gateway-key"
+                    },
+                    openai: {
+                        key: "user-openai-key"
+                    }
+                },
+                models: {
+                    "gpt-5.4-image-2": {
+                        id: "gpt-5.4-image-2",
+                        name: "GPT 5.4 Image 2",
+                        mode: "image",
+                        abilities: [],
+                        adapters: ["gateway:openai/gpt-image-2", "openai:gpt-image-2"]
+                    }
+                }
+            }),
+            "gpt-5.4-image-2"
+        )
+
+        expect(createProviderMock).toHaveBeenCalledWith("gateway", "user-gateway-key", {
+            googleAuthMode: undefined,
+            modelId: "openai/gpt-image-2"
+        })
+        expect(result).toMatchObject({
+            providerSource: "byok",
+            runtimeProvider: "gateway",
+            model: {
+                provider: "gateway-image",
+                modelType: "image"
             }
         })
     })

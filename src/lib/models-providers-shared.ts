@@ -8,6 +8,7 @@ import {
     OpenRouterIcon,
     SerperDevIcon,
     TavilyIcon,
+    VercelIcon,
     XAIIcon
 } from "@/components/brand-icons"
 import type { CoreProvider, SharedModel } from "@/convex/lib/models"
@@ -52,6 +53,13 @@ export const CORE_PROVIDERS: CoreProviderInfo[] = [
         description: "Access a wide variety of models through OpenRouter",
         placeholder: "sk-or-...",
         icon: OpenRouterIcon
+    },
+    {
+        id: "gateway",
+        name: "AI Gateway",
+        description: "Access vendor models through Vercel AI Gateway",
+        placeholder: "vercel_ai_...",
+        icon: VercelIcon
     },
     {
         id: "openai",
@@ -129,13 +137,15 @@ export const isLegacyDirectInferenceProvider = (providerId: string) =>
     LEGACY_DIRECT_INFERENCE_PROVIDER_IDS.has(providerId as CoreProvider)
 
 export const shouldShowCoreInferenceProvider = (provider: CoreProviderInfo) =>
-    provider.id === "openrouter" || (legacyDirectInferenceProvidersEnabled && !provider.hidden)
+    provider.id === "openrouter" ||
+    provider.id === "gateway" ||
+    (legacyDirectInferenceProvidersEnabled && !provider.hidden)
 
 const HIDDEN_PROVIDER_IDS = new Set(["groq", "fal", "i3-groq", "i3-fal"])
 const enabledProviderEntries = new Set(
     (
         optionalBrowserEnv("VITE_ENABLED_INTERNAL_PROVIDERS") ||
-        ["openai", "anthropic", "google", "xai", "groq", "fal"].join(",")
+        ["openai", "anthropic", "google", "xai", "groq", "fal", "gateway"].join(",")
     )
         .split(",")
         .map((provider) => provider.trim())
@@ -144,7 +154,7 @@ const enabledProviderEntries = new Set(
 )
 const enabledInternalProviders = new Set<CoreProvider>(
     [...enabledProviderEntries].filter((provider) =>
-        ["openai", "anthropic", "google", "xai", "groq", "fal"].includes(provider)
+        ["openai", "anthropic", "google", "xai", "groq", "fal", "gateway"].includes(provider)
     ) as CoreProvider[]
 )
 

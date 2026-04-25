@@ -2,6 +2,7 @@
 
 import { createAnthropic } from "@ai-sdk/anthropic"
 import { createFal } from "@ai-sdk/fal"
+import { createGateway } from "@ai-sdk/gateway"
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import { createVertex } from "@ai-sdk/google-vertex/edge"
 import { createGroq } from "@ai-sdk/groq"
@@ -40,7 +41,7 @@ export const createGoogleOpenAICompatibleProvider = (
 }
 
 export const createProvider = (
-    providerId: CoreProvider | "openrouter" | "fal",
+    providerId: CoreProvider | "openrouter",
     apiKey: string | "internal",
     options?: {
         googleAuthMode?: GoogleAuthMode
@@ -54,9 +55,10 @@ const shouldUseGlobalVertexLocation = (modelId?: string) =>
     Boolean(modelId && /^gemini-3(\.|-)/.test(modelId))
 
 const getInternalOpenRouterApiKey = () => process.env.OPENROUTER_API_KEY?.trim()
+const getInternalGatewayApiKey = () => process.env.AI_GATEWAY_API_KEY?.trim()
 
 const createProviderInternal = async (
-    providerId: CoreProvider | "openrouter" | "fal",
+    providerId: CoreProvider | "openrouter",
     apiKey: string | "internal",
     options?: {
         googleAuthMode?: GoogleAuthMode
@@ -131,6 +133,14 @@ const createProviderInternal = async (
         case "fal":
             return createFal({
                 apiKey: apiKey === "internal" ? process.env.FAL_API_KEY : apiKey
+            })
+        case "gateway":
+            return createGateway({
+                ...(apiKey === "internal"
+                    ? getInternalGatewayApiKey()
+                        ? { apiKey: getInternalGatewayApiKey() }
+                        : {}
+                    : { apiKey })
             })
         default: {
             const exhaustiveCheck: never = providerId

@@ -1,0 +1,124 @@
+--- a/src/image/openai-image-options.ts
++++ b/src/image/openai-image-options.ts
+@@ -4,6 +4,7 @@
+   | 'gpt-image-1'
+   | 'gpt-image-1-mini'
+   | 'gpt-image-1.5'
++  | 'gpt-image-2'
+   | 'chatgpt-image-latest'
+   | (string & {});
+ 
+@@ -14,6 +15,7 @@
+   'gpt-image-1': 10,
+   'gpt-image-1-mini': 10,
+   'gpt-image-1.5': 10,
++  'gpt-image-2': 10,
+   'chatgpt-image-latest': 10,
+ };
+ 
+@@ -22,6 +24,7 @@
+   'gpt-image-1-mini',
+   'gpt-image-1.5',
+   'gpt-image-1',
++  'gpt-image-2',
+ ];
+ 
+ export function hasDefaultResponseFormat(modelId: string): boolean {
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -42,7 +42,7 @@
+ }>;
+ type OpenAIEmbeddingModelOptions = InferSchema<typeof openaiEmbeddingModelOptions>;
+ 
+-type OpenAIImageModelId = 'dall-e-3' | 'dall-e-2' | 'gpt-image-1' | 'gpt-image-1-mini' | 'gpt-image-1.5' | 'chatgpt-image-latest' | (string & {});
++type OpenAIImageModelId = 'dall-e-3' | 'dall-e-2' | 'gpt-image-1' | 'gpt-image-1-mini' | 'gpt-image-1.5' | 'gpt-image-2' | 'chatgpt-image-latest' | (string & {});
+ 
+ declare const webSearchToolFactory: _ai_sdk_provider_utils.ProviderToolFactoryWithOutputSchema<{}, {
+     /**
+--- a/dist/internal/index.d.ts
++++ b/dist/internal/index.d.ts
+@@ -117,7 +117,7 @@
+     doEmbed({ values, headers, abortSignal, providerOptions, }: Parameters<EmbeddingModelV3['doEmbed']>[0]): Promise<Awaited<ReturnType<EmbeddingModelV3['doEmbed']>>>;
+ }
+ 
+-type OpenAIImageModelId = 'dall-e-3' | 'dall-e-2' | 'gpt-image-1' | 'gpt-image-1-mini' | 'gpt-image-1.5' | 'chatgpt-image-latest' | (string & {});
++type OpenAIImageModelId = 'dall-e-3' | 'dall-e-2' | 'gpt-image-1' | 'gpt-image-1-mini' | 'gpt-image-1.5' | 'gpt-image-2' | 'chatgpt-image-latest' | (string & {});
+ declare const modelMaxImagesPerCall: Record<OpenAIImageModelId, number>;
+ declare function hasDefaultResponseFormat(modelId: string): boolean;
+ 
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1753,13 +1753,15 @@
+   "gpt-image-1": 10,
+   "gpt-image-1-mini": 10,
+   "gpt-image-1.5": 10,
++  "gpt-image-2": 10,
+   "chatgpt-image-latest": 10
+ };
+ var defaultResponseFormatPrefixes = [
+   "chatgpt-image-",
+   "gpt-image-1-mini",
+   "gpt-image-1.5",
+-  "gpt-image-1"
++  "gpt-image-1",
++  "gpt-image-2"
+ ];
+ function hasDefaultResponseFormat(modelId) {
+   return defaultResponseFormatPrefixes.some(
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1768,13 +1768,15 @@
+   "gpt-image-1": 10,
+   "gpt-image-1-mini": 10,
+   "gpt-image-1.5": 10,
++  "gpt-image-2": 10,
+   "chatgpt-image-latest": 10
+ };
+ var defaultResponseFormatPrefixes = [
+   "chatgpt-image-",
+   "gpt-image-1-mini",
+   "gpt-image-1.5",
+-  "gpt-image-1"
++  "gpt-image-1",
++  "gpt-image-2"
+ ];
+ function hasDefaultResponseFormat(modelId) {
+   return defaultResponseFormatPrefixes.some(
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -1780,13 +1780,15 @@
+   "gpt-image-1": 10,
+   "gpt-image-1-mini": 10,
+   "gpt-image-1.5": 10,
++  "gpt-image-2": 10,
+   "chatgpt-image-latest": 10
+ };
+ var defaultResponseFormatPrefixes = [
+   "chatgpt-image-",
+   "gpt-image-1-mini",
+   "gpt-image-1.5",
+-  "gpt-image-1"
++  "gpt-image-1",
++  "gpt-image-2"
+ ];
+ function hasDefaultResponseFormat(modelId) {
+   return defaultResponseFormatPrefixes.some(
+--- a/dist/internal/index.mjs
++++ b/dist/internal/index.mjs
+@@ -1760,13 +1760,15 @@
+   "gpt-image-1": 10,
+   "gpt-image-1-mini": 10,
+   "gpt-image-1.5": 10,
++  "gpt-image-2": 10,
+   "chatgpt-image-latest": 10
+ };
+ var defaultResponseFormatPrefixes = [
+   "chatgpt-image-",
+   "gpt-image-1-mini",
+   "gpt-image-1.5",
+-  "gpt-image-1"
++  "gpt-image-1",
++  "gpt-image-2"
+ ];
+ function hasDefaultResponseFormat(modelId) {
+   return defaultResponseFormatPrefixes.some(

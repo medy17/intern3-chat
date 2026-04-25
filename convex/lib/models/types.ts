@@ -1,6 +1,14 @@
 import type { ModelAbility } from "../../schema/settings"
 
-export const CoreProviders = ["openai", "anthropic", "google", "xai", "groq", "fal"] as const
+export const CoreProviders = [
+    "openai",
+    "anthropic",
+    "google",
+    "xai",
+    "groq",
+    "fal",
+    "gateway"
+] as const
 export type CoreProvider = (typeof CoreProviders)[number]
 export type ModelDefinitionProviders =
     | CoreProvider // user BYOK key

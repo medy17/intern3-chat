@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const {
     createAnthropicMock,
     createFalMock,
+    createGatewayMock,
     createGoogleGenerativeAIMock,
     createGroqMock,
     createOpenAIMock,
@@ -14,6 +15,7 @@ const {
 } = vi.hoisted(() => ({
     createAnthropicMock: vi.fn(),
     createFalMock: vi.fn(),
+    createGatewayMock: vi.fn(),
     createGoogleGenerativeAIMock: vi.fn(),
     createGroqMock: vi.fn(),
     createOpenAIMock: vi.fn(),
@@ -30,6 +32,10 @@ vi.mock("@ai-sdk/anthropic", () => ({
 
 vi.mock("@ai-sdk/fal", () => ({
     createFal: createFalMock
+}))
+
+vi.mock("@ai-sdk/gateway", () => ({
+    createGateway: createGatewayMock
 }))
 
 vi.mock("@ai-sdk/google", () => ({
@@ -64,6 +70,7 @@ describe("provider_factory", () => {
     beforeEach(() => {
         createAnthropicMock.mockReset()
         createFalMock.mockReset()
+        createGatewayMock.mockReset()
         createGoogleGenerativeAIMock.mockReset()
         createGroqMock.mockReset()
         createOpenAIMock.mockReset()
@@ -135,5 +142,16 @@ describe("provider_factory", () => {
         await expect(createProvider("openrouter", "internal")).rejects.toThrow(
             "OpenRouter API key is required"
         )
+    })
+
+    it("creates the gateway provider with a user API key", async () => {
+        createGatewayMock.mockReturnValueOnce({ provider: "gateway" })
+
+        const provider = await createProvider("gateway", "gateway-key")
+
+        expect(createGatewayMock).toHaveBeenCalledWith({
+            apiKey: "gateway-key"
+        })
+        expect(provider).toEqual({ provider: "gateway" })
     })
 })

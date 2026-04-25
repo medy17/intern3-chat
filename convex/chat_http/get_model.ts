@@ -1,6 +1,7 @@
 "use node"
 
 import { ChatError } from "@/lib/errors"
+import type { GatewayProvider } from "@ai-sdk/gateway"
 import { type OpenAIProvider, createOpenAI } from "@ai-sdk/openai"
 import type { ImageModelV3, LanguageModelV3 } from "@ai-sdk/provider"
 import type { OpenRouterProvider } from "@openrouter/ai-sdk-provider"
@@ -189,6 +190,10 @@ export const getModel = async (
             } else {
                 if (providerId === "openai") {
                     finalModel = (sdk_provider as OpenAIProvider).responses(providerSpecificModelId)
+                } else if (providerId === "gateway") {
+                    finalModel = (sdk_provider as GatewayProvider).languageModel(
+                        providerSpecificModelId
+                    )
                 } else if (providerId === "google") {
                     finalModel = sdk_provider.languageModel(providerSpecificModelId)
                 } else {
@@ -276,6 +281,10 @@ export const getModel = async (
                 )
                 if (providerIdRaw === "openai") {
                     finalModel = (sdk_provider as OpenAIProvider).responses(providerSpecificModelId)
+                } else if (providerIdRaw === "gateway") {
+                    finalModel = (sdk_provider as GatewayProvider).languageModel(
+                        providerSpecificModelId
+                    )
                 } else if (providerIdRaw === "google") {
                     finalModel = sdk_provider.languageModel(providerSpecificModelId)
                 } else if (providerIdRaw === "openrouter") {
