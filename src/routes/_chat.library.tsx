@@ -808,7 +808,7 @@ const GeneratedImageItem = memo(
                     >
                         <button
                             type="button"
-                            className="absolute inset-0 z-30 appearance-none rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            className="absolute inset-0 z-20 appearance-none rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-primary"
                             onClick={handleClick}
                         >
                             <span className="sr-only">
@@ -879,14 +879,14 @@ const GeneratedImageItem = memo(
                         {isImageHidden && (
                             <div
                                 className={cn(
-                                    "pointer-events-none absolute inset-0 z-20 bg-black/20 transition-opacity duration-300",
+                                    "pointer-events-none absolute inset-0 z-10 bg-black/20 transition-opacity duration-300",
                                     useCssBlurFallback && "backdrop-blur-[2px]"
                                 )}
                             />
                         )}
                         <div
                             className={cn(
-                                "pointer-events-none absolute inset-x-0 bottom-0 z-20 translate-y-2 bg-gradient-to-t from-black/50 to-transparent p-2 transition-all",
+                                "pointer-events-none absolute inset-x-0 bottom-0 z-10 translate-y-2 bg-gradient-to-t from-black/50 to-transparent p-2 transition-all",
                                 isImageHidden
                                     ? "translate-y-0 opacity-100"
                                     : "opacity-0 group-hover:translate-y-0 group-hover:opacity-100"
@@ -924,7 +924,7 @@ const GeneratedImageItem = memo(
                                 variant="secondary"
                                 size="icon"
                                 className={cn(
-                                    "absolute top-2 right-2 z-40 h-8 w-8 border border-white/15 bg-background/80 text-foreground shadow-lg backdrop-blur-md transition-all hover:bg-background",
+                                    "absolute top-2 right-2 z-30 h-8 w-8 border border-white/15 bg-background/80 text-foreground shadow-lg backdrop-blur-md transition-all hover:bg-background",
                                     isImageHidden
                                         ? "opacity-100"
                                         : "pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
@@ -942,7 +942,7 @@ const GeneratedImageItem = memo(
                             </Button>
                         )}
                         {isSelectionMode && (
-                            <div className="pointer-events-none absolute inset-0 z-30 transition-colors duration-200">
+                            <div className="pointer-events-none absolute inset-0 z-20 transition-colors duration-200">
                                 <div
                                     className={cn(
                                         "absolute top-2 left-2 flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all duration-200",
@@ -1610,6 +1610,11 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
         [hideImageLocally, restoreImage]
     )
 
+    const handleCloseModal = useCallback(() => setSelectedImage(null), [])
+    const handleHideImageLocally = useCallback((id: Id<"generatedImages">) => {
+        setHiddenImageIds((prev) => new Set(prev).add(id))
+    }, [])
+
     const handleSelectPreviousImage = useCallback(() => {
         if (!canNavigateSelectedImagePrevious) return
 
@@ -1704,101 +1709,114 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                className="flex h-dvh min-h-0 w-full overflow-hidden"
+                className={cn(
+                    "h-dvh w-full overflow-y-auto overflow-x-hidden transition-[filter] duration-300",
+                    selectedImage ? "lg:blur-sm" : ""
+                )}
+                ref={galleryRef}
+                layoutScroll
             >
-                <motion.div
-                    ref={galleryRef}
-                    layoutScroll
-                    className="min-h-0 flex-1 overflow-y-auto p-6 pt-16"
-                >
-                    <div className="mb-8 flex flex-col gap-4">
-                        <div className="shrink-0">
-                            <h1 className="mb-2 whitespace-nowrap font-bold text-3xl">
-                                {getLibraryViewLabel(view)}
-                            </h1>
-                            <p className="text-muted-foreground">
-                                {isArchivedView
-                                    ? "Archived images hidden from your main library."
-                                    : "Your collection of AI-generated images"}
-                            </p>
-                            <div className="mt-2 text-muted-foreground text-sm">
-                                {resolvedTotalImages === undefined
-                                    ? "Loading image count..."
-                                    : `${resolvedTotalImages} ${isArchivedView ? "archived image" : "image"}${resolvedTotalImages === 1 ? "" : "s"}${totalPages && totalPages > 1 ? ` · Page ${pageNumber} of ${totalPages}` : ""}`}
-                                {pendingGenerations.length > 0
-                                    ? !hasActiveFilters && !isArchivedView
+                {/* Header Area */}
+                <div className="relative z-40 flex shrink-0 flex-col gap-4 bg-background/95 px-4 pt-16 pb-4 backdrop-blur-xl lg:sticky lg:top-0 lg:px-6 lg:pt-20">
+                    {/* Top Row: Title & Tabs & Actions */}
+                    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                        <div className="flex items-end gap-6">
+                            <div>
+                                <h1 className="whitespace-nowrap font-bold text-3xl leading-none">
+                                    {getLibraryViewLabel(view)}
+                                </h1>
+                                <p className="mt-2 text-muted-foreground text-sm">
+                                    {resolvedTotalImages === undefined
+                                        ? "Loading..."
+                                        : `${resolvedTotalImages} ${isArchivedView ? "archived image" : "image"}${resolvedTotalImages === 1 ? "" : "s"}`}
+                                    {pendingGenerations.length > 0 &&
+                                    !hasActiveFilters &&
+                                    !isArchivedView
                                         ? ` · ${pendingGenerations.length} pending`
-                                        : ""
-                                    : ""}
+                                        : ""}
+                                </p>
                             </div>
-                        </div>
-                    </div>
-
-                    <div className="mb-6 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                        <div className="flex w-full max-w-2xl flex-1 items-stretch">
-                            <div className="relative min-w-0 flex-1">
-                                <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    type="search"
-                                    value={draftQuery}
-                                    onChange={(event) => setDraftQuery(event.target.value)}
-                                    placeholder="Search prompts, styles, subjects, or metadata"
-                                    className="rounded-r-none border-r-0 pl-9 focus-visible:z-10"
-                                    aria-label="Search library"
-                                />
-                            </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-9 shrink-0 rounded-l-none border-input border-l-0 bg-transparent px-3 text-muted-foreground shadow-xs hover:bg-transparent hover:text-foreground focus-visible:z-10 dark:bg-input/30 dark:hover:bg-input/30"
-                                onClick={() => setDraftQuery("")}
-                                disabled={draftQuery.length === 0}
-                                aria-label="Clear search"
-                            >
-                                <X className="h-4 w-4" />
-                            </Button>
-                        </div>
-
-                        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end">
                             <Tabs
-                                className="w-full sm:w-auto"
                                 value={view}
                                 onValueChange={(value) =>
                                     handleViewChange(value as LibraryViewMode)
                                 }
+                                className="hidden pb-0.5 sm:block"
                             >
-                                <TabsList className="grid w-full grid-cols-2 sm:inline-flex sm:w-fit">
-                                    <TabsTrigger value="active">
-                                        <ImageIcon className="mr-2 h-4 w-4" />
+                                <TabsList className="h-9">
+                                    <TabsTrigger value="active" className="text-xs">
+                                        <ImageIcon className="mr-2 h-3.5 w-3.5" />
                                         Library
                                     </TabsTrigger>
-                                    <TabsTrigger value="archived">
-                                        <Archive className="mr-2 h-4 w-4" />
+                                    <TabsTrigger value="archived" className="text-xs">
+                                        <Archive className="mr-2 h-3.5 w-3.5" />
                                         Archive
                                     </TabsTrigger>
                                 </TabsList>
                             </Tabs>
+                        </div>
 
+                        {/* Top Right Actions */}
+                        <div className="flex items-center gap-2">
+                            <Tabs
+                                value={view}
+                                onValueChange={(value) =>
+                                    handleViewChange(value as LibraryViewMode)
+                                }
+                                className="sm:hidden"
+                            >
+                                <TabsList className="h-9">
+                                    <TabsTrigger value="active" className="text-xs">
+                                        Library
+                                    </TabsTrigger>
+                                    <TabsTrigger value="archived" className="text-xs">
+                                        Archive
+                                    </TabsTrigger>
+                                </TabsList>
+                            </Tabs>
                             <Button
                                 type="button"
                                 variant={privateViewingEnabled ? "secondary" : "outline"}
-                                className="w-full justify-center gap-2 sm:w-44"
+                                className="h-9 gap-2"
                                 onClick={togglePrivateViewingEnabled}
                             >
-                                <span className="inline-flex h-4 w-4 items-center justify-center">
-                                    {privateViewingEnabled ? (
-                                        <EyeOff className="h-4 w-4" />
-                                    ) : (
-                                        <Eye className="h-4 w-4" />
-                                    )}
-                                </span>
-                                <span>Private Viewing</span>
-                                <span className="inline-flex w-7 justify-start">
-                                    {privateViewingEnabled ? "On" : "Off"}
-                                </span>
+                                {privateViewingEnabled ? (
+                                    <EyeOff className="h-4 w-4" />
+                                ) : (
+                                    <Eye className="h-4 w-4" />
+                                )}
+                                <span className="hidden sm:inline">Private Viewing</span>
                             </Button>
-                            {isMobile && (
+                        </div>
+                    </div>
+
+                    {/* Bottom Row: Search & Filters */}
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="relative w-full max-w-xl flex-1">
+                            <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                type="search"
+                                value={draftQuery}
+                                onChange={(event) => setDraftQuery(event.target.value)}
+                                placeholder="Search prompts, styles, subjects, or metadata"
+                                className="h-10 pr-9 pl-9"
+                                aria-label="Search library"
+                            />
+                            {draftQuery.length > 0 && (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="-translate-y-1/2 absolute top-1/2 right-1 h-7 w-7 text-muted-foreground hover:bg-transparent"
+                                    onClick={() => setDraftQuery("")}
+                                >
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                            {isMobile ? (
                                 <Button
                                     type="button"
                                     variant={
@@ -1808,235 +1826,251 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                             ? "secondary"
                                             : "outline"
                                     }
-                                    className="w-full justify-between gap-3"
+                                    className="h-10 w-full gap-2 sm:w-auto"
                                     onClick={handleOpenFiltersDrawer}
                                 >
-                                    <span className="inline-flex items-center gap-2">
-                                        <Filter className="h-4 w-4" />
-                                        Filters & Sort
-                                    </span>
-                                    <span className="text-muted-foreground text-xs">
-                                        {activeFilterCount > 0
-                                            ? `${activeFilterCount} active`
-                                            : getSortLabel(sortBy)}
-                                    </span>
+                                    <Filter className="h-4 w-4" />
+                                    <span>Filters</span>
+                                    {activeFilterCount > 0 && (
+                                        <span className="ml-1 rounded-md bg-primary/20 px-1.5 py-0.5 text-[10px] text-primary leading-none">
+                                            {activeFilterCount}
+                                        </span>
+                                    )}
                                 </Button>
-                            )}
-                        </div>
-                    </div>
-
-                    {!isMobile && (
-                        <div className="mb-6 flex flex-wrap items-center gap-2">
-                            <MultiSelectFilter
-                                label="Model"
-                                emptyLabel="All models"
-                                selectedValues={filters.modelIds}
-                                options={modelFilterOptions}
-                                onToggleValue={(value) => handleFilterChange("modelIds", value)}
-                                onClear={() => handleClearFilterGroup("modelIds")}
-                            />
-                            <MultiSelectFilter
-                                label="Resolution"
-                                emptyLabel="All resolutions"
-                                selectedValues={filters.resolutions}
-                                options={resolutionFilterOptions}
-                                onToggleValue={(value) => handleFilterChange("resolutions", value)}
-                                onClear={() => handleClearFilterGroup("resolutions")}
-                            />
-                            <MultiSelectFilter
-                                label="Aspect Ratio"
-                                emptyLabel="All aspect ratios"
-                                selectedValues={filters.aspectRatios}
-                                options={aspectRatioFilterOptions}
-                                onToggleValue={(value) => handleFilterChange("aspectRatios", value)}
-                                onClear={() => handleClearFilterGroup("aspectRatios")}
-                            />
-                            <MultiSelectFilter
-                                label="Orientation"
-                                emptyLabel="All orientations"
-                                selectedValues={filters.orientations}
-                                options={orientationFilterOptions}
-                                onToggleValue={(value) =>
-                                    handleFilterChange(
-                                        "orientations",
-                                        value as GeneratedImageOrientation
-                                    )
-                                }
-                                onClear={() => handleClearFilterGroup("orientations")}
-                            />
-                            <div className="mx-1 hidden h-4 w-[1px] shrink-0 bg-border sm:block" />
-                            <div className="flex items-center gap-2">
-                                <span className="text-muted-foreground text-xs uppercase tracking-wider">
-                                    Sort
-                                </span>
-                                <Select
-                                    value={sortBy}
-                                    onValueChange={(value) =>
-                                        handleSortChange(value as ImageSortOption)
-                                    }
-                                >
-                                    <SelectTrigger className="h-9 w-[150px] bg-background">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {sortOptions.map((option) => (
-                                            <SelectItem key={option.value} value={option.value}>
-                                                {option.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-muted-foreground text-xs uppercase tracking-wider">
-                                    Per Page
-                                </span>
-                                <Select
-                                    value={String(pageSize)}
-                                    onValueChange={(value) =>
-                                        handlePageSizeChange(Number(value) as LibraryPageSize)
-                                    }
-                                >
-                                    <SelectTrigger className="h-9 w-[70px] bg-background">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {LIBRARY_PAGE_SIZE_OPTIONS.map((option) => (
-                                            <SelectItem key={option} value={String(option)}>
-                                                {option}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            {hasActiveFilters && (
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    className="h-9 px-2 text-muted-foreground hover:text-foreground"
-                                    onClick={handleClearFilters}
-                                >
-                                    Clear filters
-                                </Button>
-                            )}
-                        </div>
-                    )}
-
-                    {isMobile && (
-                        <Drawer open={isFiltersDrawerOpen} onOpenChange={setIsFiltersDrawerOpen}>
-                            <DrawerContent
-                                className="z-[60] flex max-h-[90dvh] flex-col overflow-hidden"
-                                overlayClassName="z-[60]"
-                            >
-                                <DrawerHeader className="shrink-0 text-left">
-                                    <DrawerTitle>Filters</DrawerTitle>
-                                    <DrawerDescription>
-                                        Narrow the library and choose how results are sorted.
-                                    </DrawerDescription>
-                                </DrawerHeader>
-
-                                <div className="flex-1 space-y-6 overflow-y-auto px-4 pb-4">
-                                    <MobileSortFilter
-                                        options={sortOptions}
-                                        value={draftSortBy}
-                                        onChange={setDraftSortBy}
+                            ) : (
+                                <>
+                                    <MultiSelectFilter
+                                        label="Model"
+                                        emptyLabel="All models"
+                                        selectedValues={filters.modelIds}
+                                        options={modelFilterOptions}
+                                        onToggleValue={(value) =>
+                                            handleFilterChange("modelIds", value)
+                                        }
+                                        onClear={() => handleClearFilterGroup("modelIds")}
                                     />
-                                    <MobileFilterSection title="Results Per Page">
+                                    <MultiSelectFilter
+                                        label="Resolution"
+                                        emptyLabel="All resolutions"
+                                        selectedValues={filters.resolutions}
+                                        options={resolutionFilterOptions}
+                                        onToggleValue={(value) =>
+                                            handleFilterChange("resolutions", value)
+                                        }
+                                        onClear={() => handleClearFilterGroup("resolutions")}
+                                    />
+                                    <MultiSelectFilter
+                                        label="Aspect Ratio"
+                                        emptyLabel="All aspect ratios"
+                                        selectedValues={filters.aspectRatios}
+                                        options={aspectRatioFilterOptions}
+                                        onToggleValue={(value) =>
+                                            handleFilterChange("aspectRatios", value)
+                                        }
+                                        onClear={() => handleClearFilterGroup("aspectRatios")}
+                                    />
+                                    <MultiSelectFilter
+                                        label="Orientation"
+                                        emptyLabel="All orientations"
+                                        selectedValues={filters.orientations}
+                                        options={orientationFilterOptions}
+                                        onToggleValue={(value) =>
+                                            handleFilterChange(
+                                                "orientations",
+                                                value as GeneratedImageOrientation
+                                            )
+                                        }
+                                        onClear={() => handleClearFilterGroup("orientations")}
+                                    />
+
+                                    <div className="mx-1 hidden h-5 w-[1px] shrink-0 bg-border xl:block" />
+
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
+                                            Sort
+                                        </span>
                                         <Select
-                                            value={String(draftPageSize)}
+                                            value={sortBy}
                                             onValueChange={(value) =>
-                                                setDraftPageSize(Number(value) as LibraryPageSize)
+                                                handleSortChange(value as ImageSortOption)
                                             }
                                         >
-                                            <SelectTrigger className="w-full bg-background">
+                                            <SelectTrigger className="h-9 w-[130px] bg-background text-sm">
                                                 <SelectValue />
                                             </SelectTrigger>
-                                            <SelectContent className="z-[70]">
-                                                {LIBRARY_PAGE_SIZE_OPTIONS.map((option) => (
-                                                    <SelectItem key={option} value={String(option)}>
-                                                        {option} per page
+                                            <SelectContent>
+                                                {sortOptions.map((option) => (
+                                                    <SelectItem
+                                                        key={option.value}
+                                                        value={option.value}
+                                                        className="text-sm"
+                                                    >
+                                                        {option.label}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
-                                    </MobileFilterSection>
-                                    <MobileCheckboxFilter
-                                        title="Model"
-                                        selectedValues={draftFilters.modelIds}
-                                        options={modelFilterOptions}
-                                        onToggleValue={(value) =>
-                                            handleDraftFilterChange("modelIds", value)
-                                        }
-                                        onClear={() => handleClearDraftFilterGroup("modelIds")}
-                                    />
-                                    <MobileCheckboxFilter
-                                        title="Resolution"
-                                        selectedValues={draftFilters.resolutions}
-                                        options={resolutionFilterOptions}
-                                        onToggleValue={(value) =>
-                                            handleDraftFilterChange("resolutions", value)
-                                        }
-                                        onClear={() => handleClearDraftFilterGroup("resolutions")}
-                                    />
-                                    <MobileCheckboxFilter
-                                        title="Aspect Ratio"
-                                        selectedValues={draftFilters.aspectRatios}
-                                        options={aspectRatioFilterOptions}
-                                        onToggleValue={(value) =>
-                                            handleDraftFilterChange("aspectRatios", value)
-                                        }
-                                        onClear={() => handleClearDraftFilterGroup("aspectRatios")}
-                                    />
-                                    <MobileCheckboxFilter
-                                        title="Orientation"
-                                        selectedValues={draftFilters.orientations}
-                                        options={orientationFilterOptions}
-                                        onToggleValue={(value) =>
-                                            handleDraftFilterChange("orientations", value)
-                                        }
-                                        onClear={() => handleClearDraftFilterGroup("orientations")}
-                                    />
-                                </div>
+                                    </div>
 
-                                <DrawerFooter className="shrink-0 border-t px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-                                    <div className="flex items-center justify-between gap-3 text-muted-foreground text-sm">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
+                                            Per Page
+                                        </span>
+                                        <Select
+                                            value={String(pageSize)}
+                                            onValueChange={(value) =>
+                                                handlePageSizeChange(
+                                                    Number(value) as LibraryPageSize
+                                                )
+                                            }
+                                        >
+                                            <SelectTrigger className="h-9 w-[70px] bg-background text-sm">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {LIBRARY_PAGE_SIZE_OPTIONS.map((option) => (
+                                                    <SelectItem
+                                                        key={option}
+                                                        value={String(option)}
+                                                        className="text-sm"
+                                                    >
+                                                        {option}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {hasActiveFilters && (
                                         <Button
                                             type="button"
                                             variant="ghost"
-                                            className="px-0"
-                                            onClick={handleResetDraftFilters}
+                                            className="h-9 px-2 text-muted-foreground text-sm hover:text-foreground"
+                                            onClick={handleClearFilters}
                                         >
-                                            Reset all
+                                            Clear filters
                                         </Button>
-                                        <span className="text-muted-foreground text-sm">
-                                            {draftActiveFilterCount > 0
-                                                ? `${draftActiveFilterCount} filters selected`
-                                                : `${draftPageSize} per page · ${getSortLabel(draftSortBy)}`}
-                                        </span>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <DrawerClose asChild>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                className="flex-1"
-                                            >
-                                                Cancel
-                                            </Button>
-                                        </DrawerClose>
-                                        <Button
-                                            type="button"
-                                            className="flex-1"
-                                            onClick={handleApplyDrawerFilters}
-                                        >
-                                            Apply
-                                        </Button>
-                                    </div>
-                                </DrawerFooter>
-                            </DrawerContent>
-                        </Drawer>
-                    )}
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
 
+                {/* Mobile Filters Drawer */}
+                {isMobile && (
+                    <Drawer open={isFiltersDrawerOpen} onOpenChange={setIsFiltersDrawerOpen}>
+                        <DrawerContent
+                            className="z-[60] flex max-h-[90dvh] flex-col overflow-hidden"
+                            overlayClassName="z-[60]"
+                        >
+                            <DrawerHeader className="shrink-0 text-left">
+                                <DrawerTitle>Filters</DrawerTitle>
+                                <DrawerDescription>
+                                    Narrow the library and choose how results are sorted.
+                                </DrawerDescription>
+                            </DrawerHeader>
+
+                            <div className="flex-1 space-y-6 overflow-y-auto px-4 pb-4">
+                                <MobileSortFilter
+                                    options={sortOptions}
+                                    value={draftSortBy}
+                                    onChange={setDraftSortBy}
+                                />
+                                <MobileFilterSection title="Results Per Page">
+                                    <Select
+                                        value={String(draftPageSize)}
+                                        onValueChange={(value) =>
+                                            setDraftPageSize(Number(value) as LibraryPageSize)
+                                        }
+                                    >
+                                        <SelectTrigger className="w-full bg-background">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="z-[70]">
+                                            {LIBRARY_PAGE_SIZE_OPTIONS.map((option) => (
+                                                <SelectItem key={option} value={String(option)}>
+                                                    {option} per page
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </MobileFilterSection>
+                                <MobileCheckboxFilter
+                                    title="Model"
+                                    selectedValues={draftFilters.modelIds}
+                                    options={modelFilterOptions}
+                                    onToggleValue={(value) =>
+                                        handleDraftFilterChange("modelIds", value)
+                                    }
+                                    onClear={() => handleClearDraftFilterGroup("modelIds")}
+                                />
+                                <MobileCheckboxFilter
+                                    title="Resolution"
+                                    selectedValues={draftFilters.resolutions}
+                                    options={resolutionFilterOptions}
+                                    onToggleValue={(value) =>
+                                        handleDraftFilterChange("resolutions", value)
+                                    }
+                                    onClear={() => handleClearDraftFilterGroup("resolutions")}
+                                />
+                                <MobileCheckboxFilter
+                                    title="Aspect Ratio"
+                                    selectedValues={draftFilters.aspectRatios}
+                                    options={aspectRatioFilterOptions}
+                                    onToggleValue={(value) =>
+                                        handleDraftFilterChange("aspectRatios", value)
+                                    }
+                                    onClear={() => handleClearDraftFilterGroup("aspectRatios")}
+                                />
+                                <MobileCheckboxFilter
+                                    title="Orientation"
+                                    selectedValues={draftFilters.orientations}
+                                    options={orientationFilterOptions}
+                                    onToggleValue={(value) =>
+                                        handleDraftFilterChange("orientations", value)
+                                    }
+                                    onClear={() => handleClearDraftFilterGroup("orientations")}
+                                />
+                            </div>
+
+                            <DrawerFooter className="shrink-0 border-t px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+                                <div className="flex items-center justify-between gap-3 text-muted-foreground text-sm">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        className="px-0"
+                                        onClick={handleResetDraftFilters}
+                                    >
+                                        Reset all
+                                    </Button>
+                                    <span className="text-muted-foreground text-sm">
+                                        {draftActiveFilterCount > 0
+                                            ? `${draftActiveFilterCount} filters selected`
+                                            : `${draftPageSize} per page · ${getSortLabel(draftSortBy)}`}
+                                    </span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <DrawerClose asChild>
+                                        <Button type="button" variant="outline" className="flex-1">
+                                            Cancel
+                                        </Button>
+                                    </DrawerClose>
+                                    <Button
+                                        type="button"
+                                        className="flex-1"
+                                        onClick={handleApplyDrawerFilters}
+                                    >
+                                        Apply
+                                    </Button>
+                                </div>
+                            </DrawerFooter>
+                        </DrawerContent>
+                    </Drawer>
+                )}
+
+                {/* Scrollable Gallery Area */}
+                <div className="px-4 pt-2 pb-4 lg:px-6 lg:pb-6">
                     {!resolvedImagePage ? (
                         <div className="columns-1 gap-4 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5">
                             {Array.from({ length: 12 }).map((_, i) => (
@@ -2072,20 +2106,8 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                             </h3>
                             <p className="mx-auto max-w-sm text-muted-foreground">
                                 {isArchivedView
-                                    ? hasSearchQuery && hasActiveFilters
-                                        ? "Try a different search, or loosen the active filters."
-                                        : hasSearchQuery
-                                          ? "Try a different prompt, style, subject, or metadata term."
-                                          : hasActiveFilters
-                                            ? "Try a different model, resolution, aspect ratio, or orientation."
-                                            : "Archived images will appear here until they are restored or deleted."
-                                    : hasSearchQuery && hasActiveFilters
-                                      ? "Try a different search, or loosen the active filters."
-                                      : hasSearchQuery
-                                        ? "Try a different prompt, style, subject, or metadata term."
-                                        : hasActiveFilters
-                                          ? "Try a different model, resolution, aspect ratio, or orientation."
-                                          : "Generate images using the sidebar to see them appear here."}
+                                    ? "Archived images will appear here until they are restored or deleted."
+                                    : "Generate images using the sidebar to see them appear here."}
                             </p>
                         </div>
                     ) : (
@@ -2243,27 +2265,21 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                             )}
                         </>
                     )}
-                </motion.div>
+                </div>
 
                 <ImageDetailsModal
                     image={selectedImage}
                     isOpen={!!selectedImage}
-                    onClose={() => setSelectedImage(null)}
+                    onClose={handleCloseModal}
                     isArchivedView={isArchivedView}
                     onPrevious={handleSelectPreviousImage}
                     onNext={handleSelectNextImage}
                     canNavigatePrevious={canNavigateSelectedImagePrevious}
                     canNavigateNext={canNavigateSelectedImageNext}
                     prefetchImageUrls={selectedImagePrefetchUrls}
-                    onDeleteStart={(id) => {
-                        setHiddenImageIds((prev) => new Set(prev).add(id))
-                    }}
-                    onArchiveStart={(id) => {
-                        setHiddenImageIds((prev) => new Set(prev).add(id))
-                    }}
-                    onRestoreStart={(id) => {
-                        setHiddenImageIds((prev) => new Set(prev).add(id))
-                    }}
+                    onDeleteStart={handleHideImageLocally}
+                    onArchiveStart={handleHideImageLocally}
+                    onRestoreStart={handleHideImageLocally}
                 />
             </motion.div>
         </AnimatePresence>

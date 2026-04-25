@@ -47,7 +47,7 @@ import {
     Trash2,
     X
 } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { memo, useEffect, useMemo, useRef, useState } from "react"
 
 interface ImageDetailsModalProps {
     image: Doc<"generatedImages"> | null
@@ -90,7 +90,7 @@ function getAspectRatioValue(aspectRatio: string) {
     return 1
 }
 
-export function ImageDetailsModal({
+export const ImageDetailsModal = memo(function ImageDetailsModal({
     image,
     isOpen,
     onClose,
@@ -652,7 +652,7 @@ export function ImageDetailsModal({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="-top-14 absolute right-0 z-20 border border-border/60 bg-background/90 shadow-lg backdrop-blur-sm hover:bg-accent"
+                        className="-top-14 lg:-right-[72px] absolute right-0 z-20 h-11 w-11 rounded-lg border border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-sm hover:bg-accent lg:top-0"
                         onClick={onClose}
                     >
                         <span className="sr-only">Close</span>
@@ -803,4 +803,4 @@ export function ImageDetailsModal({
             {sharedAlertDialog}
         </Dialog>
     )
-}
+})
