@@ -1,3 +1,4 @@
+import { useDesktopLibraryChromeStore } from "@/components/library/desktop-library-chrome-store"
 import { useGenerationStore } from "@/components/library/generation-store"
 import { ImageDetailsModal } from "@/components/library/image-details-modal"
 import { ImageLoadIndicator } from "@/components/library/image-load-indicator"
@@ -223,8 +224,7 @@ const getSortLabel = (sortBy: ImageSortOption) => {
     return sortBy === "newest" ? "Newest first" : "Oldest first"
 }
 
-const getLibraryViewLabel = (view: LibraryViewMode) =>
-    view === "archived" ? "Archive" : "AI Library"
+const getLibraryViewLabel = (view: LibraryViewMode) => (view === "archived" ? "Archive" : "Library")
 
 const getSortOptions = (
     includeRelevance: boolean
@@ -241,6 +241,8 @@ const LIBRARY_RAPID_DELETE_DEBOUNCE_MS = 1000
 const LIBRARY_MIN_QUERY_LENGTH = 2
 const LIBRARY_RAPID_DELETE_WINDOW_MS = 250
 const LIBRARY_RAPID_DELETE_DELTA = 2
+const LIBRARY_DESKTOP_CHROME_COLLAPSE_SCROLL_TOP = 120
+const LIBRARY_DESKTOP_CHROME_EXPAND_SCROLL_TOP = 40
 
 const MultiSelectFilter = ({
     label,
@@ -1082,6 +1084,13 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
     const navigate = useNavigate({ from: "/library" })
     const session = useSession()
     const isMobile = useIsMobile()
+    const isDesktopLibraryChromeCollapsed = useDesktopLibraryChromeStore(
+        (state) => state.isCollapsed
+    )
+    const setIsDesktopLibraryChromeCollapsed = useDesktopLibraryChromeStore(
+        (state) => state.setIsCollapsed
+    )
+    const resetDesktopLibraryChrome = useDesktopLibraryChromeStore((state) => state.reset)
     const { models: sharedModels } = useSharedModels()
     const migrateImages = useAction(api.images_node.migrateUserImages)
     const galleryRef = useRef<HTMLDivElement>(null)
@@ -1109,6 +1118,8 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
         () => hasActiveGeneratedImageFilters(activeFilters),
         [activeFilters]
     )
+    const shouldHideDesktopStickyChrome =
+        isDesktopLibraryChromeCollapsed && !hasSearchQuery && !hasActiveFilters
     const activeFilterCount = useMemo(() => countActiveLibraryFilters(filters), [filters])
     const draftActiveFilterCount = useMemo(
         () => countActiveLibraryFilters(draftFilters),
@@ -1187,6 +1198,45 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
             setIsFiltersDrawerOpen(false)
         }
     }, [isMobile])
+
+    useEffect(() => {
+        if (isMobile) {
+            resetDesktopLibraryChrome()
+            return
+        }
+
+        const gallery = galleryRef.current
+        if (!gallery) return
+
+        let ticking = false
+
+        const updateChromeState = () => {
+            const currentScrollTop = gallery.scrollTop
+
+            if (currentScrollTop >= LIBRARY_DESKTOP_CHROME_COLLAPSE_SCROLL_TOP) {
+                setIsDesktopLibraryChromeCollapsed(true)
+            } else if (currentScrollTop <= LIBRARY_DESKTOP_CHROME_EXPAND_SCROLL_TOP) {
+                setIsDesktopLibraryChromeCollapsed(false)
+            }
+
+            ticking = false
+        }
+
+        const handleScroll = () => {
+            if (ticking) return
+
+            ticking = true
+            window.requestAnimationFrame(updateChromeState)
+        }
+
+        handleScroll()
+        gallery.addEventListener("scroll", handleScroll, { passive: true })
+
+        return () => {
+            gallery.removeEventListener("scroll", handleScroll)
+            resetDesktopLibraryChrome()
+        }
+    }, [isMobile, resetDesktopLibraryChrome, setIsDesktopLibraryChromeCollapsed])
 
     useEffect(() => {
         setDraftQuery(searchQuery)
@@ -1334,6 +1384,19 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
         resolvedTotalImages === undefined
             ? undefined
             : Math.max(1, Math.ceil(resolvedTotalImages / pageSize))
+    const libraryTitle = getLibraryViewLabel(view)
+    const librarySummaryParts =
+        resolvedTotalImages === undefined
+            ? ["Loading..."]
+            : [
+                  `${resolvedTotalImages} ${isArchivedView ? "archived image" : "image"}${resolvedTotalImages === 1 ? "" : "s"}`,
+                  ...(pendingGenerations.length > 0 && !hasActiveFilters && !isArchivedView
+                      ? [`${pendingGenerations.length} pending`]
+                      : []),
+                  ...(totalPages !== undefined && totalPages > 0
+                      ? [`Page ${pageNumber} of ${totalPages}`]
+                      : [])
+              ]
     const canGoPrevious = pageNumber > 1
     const canGoNext = resolvedImagePage ? !resolvedImagePage.isDone : false
     const showPendingGenerations =
@@ -1687,9 +1750,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
         return (
             <div className="container mx-auto max-w-6xl px-4 pt-16 pb-8">
                 <div className="mb-8 shrink-0">
-                    <h1 className="mb-2 whitespace-nowrap font-bold text-3xl">
-                        {getLibraryViewLabel(view)}
-                    </h1>
+                    <h1 className="mb-2 whitespace-nowrap font-bold text-3xl">{libraryTitle}</h1>
                     <p className="text-muted-foreground">Your collection of AI-generated images</p>
                 </div>
                 <Alert>
@@ -1716,67 +1777,73 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                 ref={galleryRef}
                 layoutScroll
             >
-                {/* Header Area */}
-                <div className="relative z-40 flex shrink-0 flex-col gap-4 bg-background/95 px-4 pt-16 pb-4 backdrop-blur-xl lg:sticky lg:top-0 lg:px-6 lg:pt-20">
-                    {/* Top Row: Title & Tabs & Actions */}
-                    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                        <div className="flex items-end gap-6">
-                            <div>
-                                <h1 className="whitespace-nowrap font-bold text-3xl leading-none">
-                                    {getLibraryViewLabel(view)}
-                                </h1>
-                                <p className="mt-2 text-muted-foreground text-sm">
-                                    {resolvedTotalImages === undefined
-                                        ? "Loading..."
-                                        : `${resolvedTotalImages} ${isArchivedView ? "archived image" : "image"}${resolvedTotalImages === 1 ? "" : "s"}`}
-                                    {pendingGenerations.length > 0 &&
-                                    !hasActiveFilters &&
-                                    !isArchivedView
-                                        ? ` · ${pendingGenerations.length} pending`
-                                        : ""}
-                                    {totalPages !== undefined && totalPages > 0
-                                        ? ` · Page ${pageNumber} of ${totalPages}`
-                                        : ""}
-                                </p>
+                <div
+                    className={cn(
+                        "relative z-40 flex shrink-0 flex-col bg-background/95 backdrop-blur-xl transition-transform duration-300 ease-out",
+                        isMobile ? "gap-4 px-4 pt-16 pb-4" : "sticky top-0 px-6 pt-4 pb-4",
+                        !isMobile &&
+                            (shouldHideDesktopStickyChrome ? "-translate-y-full" : "translate-y-0")
+                    )}
+                >
+                    {!isMobile && (
+                        <div className="mb-3 flex flex-col gap-2">
+                            <h1 className="whitespace-nowrap font-bold text-3xl leading-none">
+                                {libraryTitle}
+                            </h1>
+                            <p className="text-muted-foreground text-sm">
+                                {librarySummaryParts.join(" · ")}
+                            </p>
+                        </div>
+                    )}
+
+                    {isMobile && (
+                        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                            <div className="flex items-end gap-6">
+                                <div>
+                                    <h1 className="whitespace-nowrap font-bold text-3xl leading-none">
+                                        {libraryTitle}
+                                    </h1>
+                                    <p className="mt-2 text-muted-foreground text-sm">
+                                        {librarySummaryParts.join(" · ")}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <Tabs
+                                    value={view}
+                                    onValueChange={(value) =>
+                                        handleViewChange(value as LibraryViewMode)
+                                    }
+                                >
+                                    <TabsList className="h-9">
+                                        <TabsTrigger value="active" className="text-xs">
+                                            <ImageIcon className="mr-2 hidden h-3.5 w-3.5 sm:block" />
+                                            Library
+                                        </TabsTrigger>
+                                        <TabsTrigger value="archived" className="text-xs">
+                                            <Archive className="mr-2 hidden h-3.5 w-3.5 sm:block" />
+                                            Archive
+                                        </TabsTrigger>
+                                    </TabsList>
+                                </Tabs>
+                                <Button
+                                    type="button"
+                                    variant={privateViewingEnabled ? "secondary" : "outline"}
+                                    className="h-9 gap-2"
+                                    onClick={togglePrivateViewingEnabled}
+                                >
+                                    {privateViewingEnabled ? (
+                                        <EyeOff className="h-4 w-4" />
+                                    ) : (
+                                        <Eye className="h-4 w-4" />
+                                    )}
+                                    <span className="hidden sm:inline">Private Viewing</span>
+                                </Button>
                             </div>
                         </div>
+                    )}
 
-                        {/* Top Right Actions */}
-                        <div className="flex items-center gap-2">
-                            <Tabs
-                                value={view}
-                                onValueChange={(value) =>
-                                    handleViewChange(value as LibraryViewMode)
-                                }
-                            >
-                                <TabsList className="h-9">
-                                    <TabsTrigger value="active" className="text-xs">
-                                        <ImageIcon className="mr-2 hidden h-3.5 w-3.5 sm:block" />
-                                        Library
-                                    </TabsTrigger>
-                                    <TabsTrigger value="archived" className="text-xs">
-                                        <Archive className="mr-2 hidden h-3.5 w-3.5 sm:block" />
-                                        Archive
-                                    </TabsTrigger>
-                                </TabsList>
-                            </Tabs>
-                            <Button
-                                type="button"
-                                variant={privateViewingEnabled ? "secondary" : "outline"}
-                                className="h-9 gap-2"
-                                onClick={togglePrivateViewingEnabled}
-                            >
-                                {privateViewingEnabled ? (
-                                    <EyeOff className="h-4 w-4" />
-                                ) : (
-                                    <Eye className="h-4 w-4" />
-                                )}
-                                <span className="hidden sm:inline">Private Viewing</span>
-                            </Button>
-                        </div>
-                    </div>
-
-                    {/* Bottom Row: Search & Filters */}
                     <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                         <div className="relative w-full max-w-xl flex-1">
                             <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-4 w-4 text-muted-foreground" />
