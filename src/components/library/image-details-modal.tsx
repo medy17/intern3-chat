@@ -12,13 +12,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle
-} from "@/components/ui/dialog"
-import {
     Drawer,
     DrawerContent,
     DrawerDescription,
@@ -47,6 +40,7 @@ import {
     Trash2,
     X
 } from "lucide-react"
+import { AnimatePresence, motion } from "motion/react"
 import { memo, useEffect, useMemo, useRef, useState } from "react"
 
 interface ImageDetailsModalProps {
@@ -65,15 +59,9 @@ interface ImageDetailsModalProps {
 }
 
 const DESKTOP_BREAKPOINT = 1100
-const DESKTOP_GAP = 24
-const DESKTOP_HORIZONTAL_CHROME = 96
-const DESKTOP_VERTICAL_CHROME = 96
-const DESKTOP_INFO_PANEL_WIDTH = 360
-const DESKTOP_MAX_IMAGE_HEIGHT = 920
 const MOBILE_HORIZONTAL_CHROME = 32
 const MOBILE_VERTICAL_CHROME = 160
 const MOBILE_MAX_IMAGE_HEIGHT_RATIO = 0.52
-const DESKTOP_NAV_BUTTON_SPACE = 176
 const loadedDetailImageUrls = new Set<string>()
 
 function getAspectRatioValue(aspectRatio: string) {
@@ -255,26 +243,23 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
         const isDesktop = viewportSize.width >= DESKTOP_BREAKPOINT
 
         if (isDesktop) {
-            const maxImageHeight = Math.max(
-                320,
-                Math.min(DESKTOP_MAX_IMAGE_HEIGHT, viewportSize.height - DESKTOP_VERTICAL_CHROME)
-            )
-            const maxImageWidth = Math.max(
-                320,
-                viewportSize.width -
-                    DESKTOP_INFO_PANEL_WIDTH -
-                    DESKTOP_GAP -
-                    DESKTOP_HORIZONTAL_CHROME
-            )
-            const imageHeight = Math.min(maxImageHeight, maxImageWidth / aspectRatioValue)
-            const imageWidth = imageHeight * aspectRatioValue
+            const panelWidth = 480
+            const panelContentWidth = panelWidth - 32
+            const maxImageHeight = panelContentWidth
+            let imageHeight = panelContentWidth / aspectRatioValue
+            let imageWidth = panelContentWidth
+
+            if (imageHeight > maxImageHeight) {
+                imageHeight = maxImageHeight
+                imageWidth = imageHeight * aspectRatioValue
+            }
 
             return {
                 isDesktop: true,
                 imageWidth,
                 imageHeight,
-                infoWidth: DESKTOP_INFO_PANEL_WIDTH,
-                shellWidth: imageWidth + DESKTOP_GAP + DESKTOP_INFO_PANEL_WIDTH
+                infoWidth: panelWidth,
+                shellWidth: panelWidth
             }
         }
 
@@ -301,10 +286,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
         }
     }, [aspectRatioValue, viewportSize.height, viewportSize.width])
 
-    const showDesktopNavButtons =
-        layout.isDesktop &&
-        viewportSize.width >= layout.shellWidth + DESKTOP_NAV_BUTTON_SPACE &&
-        (canNavigatePrevious || canNavigateNext)
+    const showDesktopNavButtons = layout.isDesktop && (canNavigatePrevious || canNavigateNext)
 
     const initialImageHidden = localImage
         ? getIsImageHidden({
@@ -606,201 +588,194 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
     }
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent
-                showCloseButton={false}
-                className="w-fit max-w-none border-0 bg-transparent p-0 shadow-none sm:max-w-none"
-            >
-                <DialogHeader className="sr-only">
-                    <DialogTitle>Image Details</DialogTitle>
-                    <DialogDescription>Viewing details of a generated image.</DialogDescription>
-                </DialogHeader>
-                <div
-                    className={cn(
-                        "relative mx-auto flex items-start",
-                        layout.isDesktop ? "flex-row gap-6" : "flex-col gap-4"
-                    )}
-                    style={{ width: layout.shellWidth }}
-                >
-                    {showDesktopNavButtons && (
-                        <>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="-left-[72px] -translate-y-1/2 absolute top-1/2 z-20 h-11 w-11 rounded-lg border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-md hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-35"
-                                onClick={onPrevious}
-                                disabled={!canNavigatePrevious}
-                            >
-                                <span className="sr-only">Previous image</span>
-                                <ChevronLeft className="h-5 w-5" />
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="-right-[72px] -translate-y-1/2 absolute top-1/2 z-20 h-11 w-11 rounded-lg border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-md hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-35"
-                                onClick={onNext}
-                                disabled={!canNavigateNext}
-                            >
-                                <span className="sr-only">Next image</span>
-                                <ChevronRight className="h-5 w-5" />
-                            </Button>
-                        </>
-                    )}
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="-top-14 lg:-right-[72px] absolute right-0 z-20 h-11 w-11 rounded-lg border border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-sm hover:bg-accent lg:top-0"
-                        onClick={onClose}
+        <>
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.aside
+                        initial={{ x: "100%", opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        exit={{ x: "100%", opacity: 0 }}
+                        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                        className="z-30 grid h-full w-full max-w-[480px] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border border-border/60 bg-background shadow-2xl"
+                        onClick={(event) => event.stopPropagation()}
                     >
-                        <span className="sr-only">Close</span>
-                        <X className="h-4 w-4" />
-                    </Button>
-
-                    <div
-                        className="relative shrink-0 overflow-hidden rounded-xl border border-border/60 bg-muted/35 shadow-2xl"
-                        style={{
-                            width: layout.imageWidth,
-                            height: layout.imageHeight
-                        }}
-                    >
-                        {loadState !== "ready" && (
-                            <div className="absolute inset-0 z-10 bg-gradient-to-br from-muted/85 via-muted/65 to-accent/20" />
-                        )}
-                        {loadState !== "ready" && (
-                            <div className="absolute inset-x-0 bottom-4 z-10 mx-4 space-y-2 rounded-lg border border-border/50 bg-background/55 p-3 backdrop-blur-sm">
-                                <div className="h-3 w-32 rounded bg-background/70" />
-                                <div className="h-3 w-24 rounded bg-background/45" />
-                            </div>
-                        )}
-                        {loadState !== "ready" && (
-                            <ImageLoadIndicator complete={loadState === "revealing"} />
-                        )}
-                        <button
-                            type="button"
-                            className="flex h-full w-full items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                            onClick={handleToggleImageVisibility}
-                        >
-                            <span className="sr-only">
-                                {isImageHidden ? "Unhide image" : "Hide image"}
-                            </span>
-                            <img
-                                ref={imageRef}
-                                src={imageUrl}
-                                alt={localImage.prompt || "Generated Image"}
-                                className={cn(
-                                    "h-full w-full object-contain transition-all duration-500",
-                                    loadState === "loading" && "scale-[1.02] opacity-0 blur-xl",
-                                    loadState === "revealing" && "scale-[1.01] opacity-100 blur-md",
-                                    loadState === "ready" && "scale-100 opacity-100 blur-0",
-                                    isImageHidden && "brightness-75 saturate-50"
+                        <div className="flex shrink-0 items-center justify-between border-border/60 border-b p-4">
+                            <h2 className="font-semibold text-lg">Image Details</h2>
+                            <div className="flex items-center gap-1">
+                                {showDesktopNavButtons && (
+                                    <>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8"
+                                            onClick={onPrevious}
+                                            disabled={!canNavigatePrevious}
+                                        >
+                                            <span className="sr-only">Previous image</span>
+                                            <ChevronLeft className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8"
+                                            onClick={onNext}
+                                            disabled={!canNavigateNext}
+                                        >
+                                            <span className="sr-only">Next image</span>
+                                            <ChevronRight className="h-4 w-4" />
+                                        </Button>
+                                    </>
                                 )}
-                                style={{ aspectRatio: cssAspectRatio }}
-                                onLoad={handleImageLoad}
-                                onError={handleImageError}
-                            />
-                        </button>
-                        {isImageHidden && (
-                            <>
-                                <div className="pointer-events-none absolute inset-0 z-20 bg-black/20 backdrop-blur-xl" />
-                                <div className="pointer-events-none absolute inset-x-6 bottom-6 z-30 rounded-[var(--radius)] border border-white/15 bg-background/80 px-4 py-2 text-center text-sm shadow-lg backdrop-blur-md">
-                                    Private viewing enabled
-                                </div>
-                            </>
-                        )}
-                    </div>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:bg-accent"
+                                    onClick={onClose}
+                                >
+                                    <span className="sr-only">Close</span>
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
 
-                    <div
-                        className="flex shrink-0 flex-col overflow-hidden rounded-xl border border-border/60 bg-background/95 shadow-2xl backdrop-blur-md"
-                        style={{
-                            width: layout.infoWidth,
-                            height: layout.isDesktop ? layout.imageHeight : undefined,
-                            minHeight: layout.isDesktop ? layout.imageHeight : undefined
-                        }}
-                    >
-                        <div className="flex-1 overflow-y-auto p-6">
-                            <div className="mb-6">
-                                <h3 className="mb-3 font-semibold text-2xl">Prompt</h3>
-                                <p className="whitespace-pre-wrap text-base text-muted-foreground leading-7">
-                                    {localImage.prompt || "No prompt available."}
-                                </p>
+                        <div className="min-h-0 overflow-y-auto">
+                            <div className="relative flex shrink-0 items-center justify-center overflow-hidden bg-muted/20 p-4">
+                                {loadState !== "ready" && (
+                                    <div className="absolute inset-0 z-10 bg-gradient-to-br from-muted/85 via-muted/65 to-accent/20" />
+                                )}
+                                {loadState !== "ready" && (
+                                    <ImageLoadIndicator complete={loadState === "revealing"} />
+                                )}
+                                <button
+                                    type="button"
+                                    className="relative flex shrink-0 items-center justify-center overflow-hidden rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                                    style={{
+                                        width: layout.imageWidth,
+                                        height: layout.imageHeight,
+                                        maxWidth: "100%",
+                                        maxHeight: "100%"
+                                    }}
+                                    onClick={handleToggleImageVisibility}
+                                >
+                                    <span className="sr-only">
+                                        {isImageHidden ? "Unhide image" : "Hide image"}
+                                    </span>
+                                    <img
+                                        ref={imageRef}
+                                        src={imageUrl}
+                                        alt={localImage.prompt || "Generated Image"}
+                                        className={cn(
+                                            "h-full w-full rounded-lg object-contain transition-all duration-500",
+                                            loadState === "loading" &&
+                                                "scale-[1.02] opacity-0 blur-xl",
+                                            loadState === "revealing" &&
+                                                "scale-[1.01] opacity-100 blur-md",
+                                            loadState === "ready" && "scale-100 opacity-100 blur-0",
+                                            isImageHidden && "brightness-75 saturate-50"
+                                        )}
+                                        style={{ aspectRatio: cssAspectRatio }}
+                                        onLoad={handleImageLoad}
+                                        onError={handleImageError}
+                                    />
+                                    {isImageHidden && (
+                                        <>
+                                            <div className="pointer-events-none absolute inset-0 z-20 rounded-lg bg-black/20 backdrop-blur-xl" />
+                                            <div className="pointer-events-none absolute inset-x-6 bottom-6 z-30 rounded-[var(--radius)] border border-white/15 bg-background/80 px-4 py-2 text-center text-sm shadow-lg backdrop-blur-md">
+                                                Private viewing enabled
+                                            </div>
+                                        </>
+                                    )}
+                                </button>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-x-6 gap-y-5 border-border/60 border-t pt-6">
-                                <div>
-                                    <h4 className="mb-1 font-medium text-muted-foreground text-xs uppercase tracking-[0.18em]">
-                                        Model
-                                    </h4>
-                                    <p className="text-sm">
-                                        {model?.name || localImage.modelId || "Unknown"}
+                            <div className="flex-1 p-6">
+                                <div className="mb-6">
+                                    <h3 className="mb-3 font-semibold text-xl">Prompt</h3>
+                                    <p className="whitespace-pre-wrap text-base text-muted-foreground leading-relaxed">
+                                        {localImage.prompt || "No prompt available."}
                                     </p>
                                 </div>
-                                <div>
-                                    <h4 className="mb-1 font-medium text-muted-foreground text-xs uppercase tracking-[0.18em]">
-                                        Aspect Ratio
-                                    </h4>
-                                    <p className="text-sm">{localImage.aspectRatio || "Unknown"}</p>
-                                </div>
-                                <div>
-                                    <h4 className="mb-1 font-medium text-muted-foreground text-xs uppercase tracking-[0.18em]">
-                                        Resolution
-                                    </h4>
-                                    <p className="text-sm">{resolutionLabel}</p>
-                                </div>
-                                <div>
-                                    <h4 className="mb-1 font-medium text-muted-foreground text-xs uppercase tracking-[0.18em]">
-                                        Date
-                                    </h4>
-                                    <p className="text-sm">{formattedDate}</p>
+
+                                <div className="grid grid-cols-2 gap-x-6 gap-y-5 border-border/60 border-t pt-6">
+                                    <div>
+                                        <h4 className="mb-1 font-medium text-muted-foreground text-xs uppercase tracking-[0.18em]">
+                                            Model
+                                        </h4>
+                                        <p className="text-sm">
+                                            {model?.name || localImage.modelId || "Unknown"}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <h4 className="mb-1 font-medium text-muted-foreground text-xs uppercase tracking-[0.18em]">
+                                            Aspect Ratio
+                                        </h4>
+                                        <p className="text-sm">
+                                            {localImage.aspectRatio || "Unknown"}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <h4 className="mb-1 font-medium text-muted-foreground text-xs uppercase tracking-[0.18em]">
+                                            Resolution
+                                        </h4>
+                                        <p className="text-sm">{resolutionLabel}</p>
+                                    </div>
+                                    <div>
+                                        <h4 className="mb-1 font-medium text-muted-foreground text-xs uppercase tracking-[0.18em]">
+                                            Date
+                                        </h4>
+                                        <p className="text-sm">{formattedDate}</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                         <div className="border-border/60 border-t p-4">
-                            <div className="flex flex-wrap gap-3">
+                            <div className="flex flex-wrap gap-2">
                                 <Button
                                     variant="outline"
-                                    className="flex-1"
+                                    className="h-10 flex-1 text-xs"
                                     onClick={handleViewFullResolution}
                                 >
-                                    <ExternalLink className="mr-2 h-4 w-4" />
-                                    Full Resolution
+                                    <ExternalLink className="mr-1.5 h-4 w-4" />
+                                    Full Res
                                 </Button>
                                 <Button
                                     variant="secondary"
-                                    className="flex-1"
+                                    className="h-10 flex-1 text-xs"
                                     onClick={handleDownload}
                                 >
-                                    <Download className="mr-2 h-4 w-4" />
+                                    <Download className="mr-1.5 h-4 w-4" />
                                     Download
                                 </Button>
                                 <Button
                                     variant="outline"
-                                    className="flex-1"
+                                    className="h-10 flex-1 text-xs"
                                     onClick={handleArchiveStateChange}
                                 >
                                     {isArchivedView ? (
-                                        <RotateCcw className="mr-2 h-4 w-4" />
+                                        <RotateCcw className="mr-1.5 h-4 w-4" />
                                     ) : (
-                                        <Archive className="mr-2 h-4 w-4" />
+                                        <Archive className="mr-1.5 h-4 w-4" />
                                     )}
                                     {isArchivedView ? "Restore" : "Archive"}
                                 </Button>
                                 <Button
                                     variant="destructive"
                                     size="icon"
+                                    className="h-10 w-10 shrink-0"
                                     onClick={() => setShowDeleteDialog(true)}
                                 >
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </DialogContent>
+                    </motion.aside>
+                )}
+            </AnimatePresence>
             {sharedAlertDialog}
-        </Dialog>
+        </>
     )
 })
