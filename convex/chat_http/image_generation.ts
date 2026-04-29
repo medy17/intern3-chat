@@ -109,6 +109,7 @@ type OpenRouterImageRequestOptions = {
         allow_fallbacks?: boolean
         require_parameters?: boolean
     }
+    safetySettings?: typeof GOOGLE_MINIMUM_SAFETY_SETTINGS
 }
 
 function buildOpenRouterImageRequestOptions(
@@ -121,7 +122,8 @@ function buildOpenRouterImageRequestOptions(
     const options: OpenRouterImageRequestOptions = {
         provider: {
             require_parameters: true
-        }
+        },
+        safetySettings: GOOGLE_MINIMUM_SAFETY_SETTINGS
     }
 
     if (modalities?.length) {

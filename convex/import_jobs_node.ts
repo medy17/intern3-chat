@@ -372,7 +372,6 @@ export const processImportJobThread = internalAction({
                 if (parts.length > 0) {
                     preparedMessages.push({
                         role: message.role,
-                        createdAt: message.createdAt,
                         parts,
                         metadata: message.metadata
                     })
