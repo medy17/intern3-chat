@@ -76,7 +76,7 @@
         "convex": "1.34.1",
         "convex-helpers": "^0.1.115",
         "date-fns": "^4.1.0",
-        "dotenv": "^16.6.1",
+        "dotenv": "17.4.2",
         "drizzle-orm": "^0.42.0",
         "embla-carousel-react": "^8.6.0",
         "eslint-plugin-react-hooks": "^6.1.1",
@@ -125,7 +125,7 @@
         "vaul": "^1.1.2",
         "virtua": "^0.49.1",
         "vite": "^8.0.10",
-        "zod": "^4.4.0",
+        "zod": "^4.4.1",
         "zustand": "^5.0.12",
       },
       "devDependencies": {
@@ -1644,7 +1644,7 @@
 
     "dot-case": ["dot-case@3.0.4", "", { "dependencies": { "no-case": "^3.0.4", "tslib": "^2.0.3" } }, "sha512-Kv5nKlh6yRrdrGvxeJ2e5y2eRUpkUosIW4A2AS38zwSz27zu7ufDwQPi5Jhs3XAlGNetl3bmnGhQsMtkKJnj3w=="],
 
-    "dotenv": ["dotenv@16.6.1", "", {}, "sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow=="],
+    "dotenv": ["dotenv@17.4.2", "", {}, "sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw=="],
 
     "drizzle-kit": ["drizzle-kit@0.31.10", "", { "dependencies": { "@drizzle-team/brocli": "^0.10.2", "@esbuild-kit/esm-loader": "^2.5.5", "esbuild": "^0.25.4", "tsx": "^4.21.0" }, "bin": { "drizzle-kit": "bin.cjs" } }, "sha512-7OZcmQUrdGI+DUNNsKBn1aW8qSoKuTH7d0mYgSP8bAzdFzKoovxEFnoGQp2dVs82EOJeYycqRtciopszwUf8bw=="],
 
