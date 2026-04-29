@@ -97,6 +97,11 @@ type ImageExecutionPath =
     | "xai-direct"
     | "ai-sdk-generate-image-generic"
 
+type GoogleMinimumSafetySetting = {
+    category: (typeof GOOGLE_MINIMUM_SAFETY_SETTINGS)[number]["category"]
+    threshold: (typeof GOOGLE_MINIMUM_SAFETY_SETTINGS)[number]["threshold"]
+}
+
 type OpenRouterImageRequestOptions = {
     modalities?: Array<"image" | "text">
     image_config?: {
@@ -109,7 +114,7 @@ type OpenRouterImageRequestOptions = {
         allow_fallbacks?: boolean
         require_parameters?: boolean
     }
-    safetySettings?: typeof GOOGLE_MINIMUM_SAFETY_SETTINGS
+    safetySettings?: GoogleMinimumSafetySetting[]
 }
 
 function buildOpenRouterImageRequestOptions(
@@ -123,7 +128,7 @@ function buildOpenRouterImageRequestOptions(
         provider: {
             require_parameters: true
         },
-        safetySettings: GOOGLE_MINIMUM_SAFETY_SETTINGS
+        safetySettings: [...GOOGLE_MINIMUM_SAFETY_SETTINGS]
     }
 
     if (modalities?.length) {
