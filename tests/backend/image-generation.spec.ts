@@ -126,7 +126,6 @@ describe("generateAndStoreImage", () => {
                     modelId: "openai/gpt-image-2"
                 }),
                 prompt: "A wide banner",
-                n: 1,
                 size: "3808x1632",
                 providerOptions: {
                     openai: {
