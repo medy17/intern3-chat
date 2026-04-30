@@ -20,7 +20,7 @@ import { useAvailableModels, useDefaultModelId } from "@/lib/models-providers-sh
 import { useSharedModels } from "@/lib/shared-models"
 import { useThemeStore } from "@/lib/theme-store"
 import { AnimatePresence, motion } from "motion/react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react"
 import { FullPageDropOverlay } from "./full-page-drop-overlay"
 import { Logo } from "./logo"
 import { MultimodalInput, type MultimodalInputRef } from "./multimodal-input"
@@ -100,6 +100,7 @@ const ChatContent = ({ threadId: routeThreadId, folderId, isActiveRoute = true }
         folderId
     })
     const { status, messages, ...chatHelpers } = chat
+    const deferredMessages = useDeferredValue(messages)
     const setMessagesRef = useRef(chatHelpers.setMessages)
 
     const { handleInputSubmit, handleRetry, handleEditAndRetry } = useChatActions({
@@ -189,7 +190,7 @@ const ChatContent = ({ threadId: routeThreadId, folderId, isActiveRoute = true }
 
             <Messages
                 ref={messagesRef}
-                messages={messages}
+                messages={deferredMessages}
                 onRetry={handleRetry}
                 onEditAndRetry={handleEditAndRetry}
                 status={status}

@@ -9,11 +9,10 @@ import {
     useSandpack
 } from "@codesandbox/sandpack-react"
 import { memo, useEffect, useRef, useState } from "react"
-import ReactMarkdown from "react-markdown"
 import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch"
-import remarkGfm from "remark-gfm"
+import { Streamdown } from "streamdown"
 import type { ArtifactLanguage } from "./artifact-preview-shared"
-import { Codeblock } from "./codeblock"
+import { streamdownComponents, streamdownPlugins } from "./streamdown-config"
 
 interface ArtifactPreviewProps {
     code: string
@@ -293,21 +292,15 @@ const MarkdownRenderer = memo(({ code }: { code: string }) => {
             limitToBounds={false}
         >
             <TransformComponent wrapperClass="prose prose-sm dark:prose-invert max-w-none p-4 overflow-hidden">
-                <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                        code: ({ className, children, ...props }) => {
-                            const inline = "inline" in props ? (props.inline as boolean) : false
-                            return (
-                                <Codeblock inline={inline} className={className} {...props}>
-                                    {children}
-                                </Codeblock>
-                            )
-                        }
-                    }}
+                <Streamdown
+                    components={streamdownComponents}
+                    controls={false}
+                    linkSafety={{ enabled: false }}
+                    mode="static"
+                    plugins={streamdownPlugins}
                 >
                     {code}
-                </ReactMarkdown>
+                </Streamdown>
             </TransformComponent>
         </TransformWrapper>
     )

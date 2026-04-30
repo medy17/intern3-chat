@@ -24,7 +24,7 @@ import { Link, useLocation } from "@tanstack/react-router"
 import { format } from "date-fns"
 import { Clock, Pin } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
-import { useEffect, useRef, useState } from "react"
+import { useDeferredValue, useEffect, useRef, useState } from "react"
 
 interface FolderChatProps {
     folderId: Id<"projects">
@@ -79,6 +79,7 @@ export function FolderChat({ folderId, isActiveRoute = true }: FolderChatProps) 
         folderId
     })
     const { status, messages } = chat
+    const deferredMessages = useDeferredValue(messages)
 
     const { handleInputSubmit, handleRetry, handleEditAndRetry } = useChatActions({
         threadId,
@@ -231,7 +232,7 @@ export function FolderChat({ folderId, isActiveRoute = true }: FolderChatProps) 
         >
             <Messages
                 ref={messagesRef}
-                messages={messages}
+                messages={deferredMessages}
                 onRetry={handleRetry}
                 onEditAndRetry={handleEditAndRetry}
                 status={status}

@@ -99,6 +99,7 @@ export type ReasoningContentProps = {
     className?: string
     markdown?: boolean
     contentClassName?: string
+    isAnimating?: boolean
 } & React.HTMLAttributes<HTMLDivElement>
 
 function ReasoningContent({
@@ -106,6 +107,7 @@ function ReasoningContent({
     className,
     contentClassName,
     markdown = false,
+    isAnimating = false,
     ...props
 }: ReasoningContentProps) {
     const contentRef = useRef<HTMLDivElement>(null)
@@ -131,7 +133,7 @@ function ReasoningContent({
     }, [isOpen])
 
     const content = markdown ? (
-        <MemoizedMarkdown content={children as string} id={"reasoning-content"} />
+        <MemoizedMarkdown content={children as string} isAnimating={isAnimating} />
     ) : (
         children
     )

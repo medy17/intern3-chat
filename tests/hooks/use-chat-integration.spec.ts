@@ -882,18 +882,22 @@ describe("useChatIntegration", () => {
         expect(setMessages).not.toHaveBeenCalledWith(staleBackendMessages)
     })
 
-    it("disables message throttling until the replacement stream has started", async () => {
+    it("keeps the first streamed paint synchronous, then throttles the steady-state stream", async () => {
         let currentStatus = "ready"
+        let currentThread = {
+            _id: "thread-1",
+            isLive: true,
+            currentStreamId: "stream-1"
+        }
+        let currentMessages: Array<{
+            id: string
+            role: "assistant"
+            parts: Array<{ type: "text"; text: string }>
+        }> = []
 
         useConvexQueryMock.mockImplementation((query: string) => {
             if (query === "getThreadMessages") return []
-            if (query === "getThread") {
-                return {
-                    _id: "thread-1",
-                    isLive: true,
-                    currentStreamId: "stream-1"
-                }
-            }
+            if (query === "getThread") return currentThread
 
             return undefined
         })
@@ -901,7 +905,7 @@ describe("useChatIntegration", () => {
             latestUseChatOptions = options
             return {
                 status: currentStatus,
-                messages: [],
+                messages: currentMessages,
                 setMessages: vi.fn(),
                 resumeStream: vi.fn()
             }
@@ -913,7 +917,7 @@ describe("useChatIntegration", () => {
             })
         )
 
-        expect(latestUseChatOptions?.experimental_throttle).toBe(50)
+        expect(latestUseChatOptions?.experimental_throttle).toBeUndefined()
 
         act(() => {
             useChatStore.getState().setPendingStream("thread-1", true)
@@ -925,6 +929,7 @@ describe("useChatIntegration", () => {
         expect(latestUseChatOptions?.experimental_throttle).toBeUndefined()
 
         currentStatus = "submitted"
+        currentMessages = []
         await act(async () => {
             rerender()
         })
@@ -935,6 +940,32 @@ describe("useChatIntegration", () => {
             rerender()
         })
         expect(latestUseChatOptions?.experimental_throttle).toBeUndefined()
+
+        currentMessages = [
+            {
+                id: "assistant-1",
+                role: "assistant",
+                parts: [{ type: "text", text: "First visible token" }]
+            }
+        ]
+        await act(async () => {
+            rerender()
+        })
+        expect(latestUseChatOptions?.experimental_throttle).toBe(100)
+
+        currentStatus = "ready"
+        act(() => {
+            useChatStore.getState().setPendingStream("thread-1", false)
+        })
+        currentThread = {
+            _id: "thread-1",
+            isLive: false,
+            currentStreamId: undefined
+        }
+        await act(async () => {
+            rerender()
+        })
+        expect(latestUseChatOptions?.experimental_throttle).toBe(50)
 
         await act(async () => {
             rerender()

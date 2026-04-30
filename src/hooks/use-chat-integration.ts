@@ -14,7 +14,7 @@ import { DefaultChatTransport, type UIMessage } from "ai"
 import { useQuery as useConvexQuery } from "convex-helpers/react/cache"
 import type { Infer } from "convex/values"
 import { nanoid } from "nanoid"
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 type BackendMessagePart =
     | { type: "text"; text: string }
@@ -101,6 +101,14 @@ const getMessagesContentFingerprint = (messages: UIMessage[]) =>
 const getLatestAssistantMessage = (messages: UIMessage[]) =>
     [...messages].reverse().find((message) => message.role === "assistant")
 
+const getAssistantMessageById = (messages: UIMessage[], messageId: string | null) => {
+    if (!messageId) {
+        return undefined
+    }
+
+    return messages.find((message) => message.id === messageId && message.role === "assistant")
+}
+
 const shouldAdoptBackendMessages = ({
     currentMessages,
     backendMessages,
@@ -180,6 +188,7 @@ export function useChatIntegration<IsShared extends boolean>({
         streamId?: string
         modelIdOverride?: string
     }>
+    type StreamRenderPhase = "idle" | "pre-first-paint" | "post-first-paint"
 
     const tokenData = useToken()
     const { rerenderTrigger, shouldUpdateQuery, setShouldUpdateQuery } = useChatStore()
@@ -187,13 +196,14 @@ export function useChatIntegration<IsShared extends boolean>({
         threadId ? state.pendingStreams[threadId] === true : false
     )
     const seededNextId = useRef<string | null>(null)
+    const activeStreamingAssistantIdRef = useRef<string | null>(null)
     const hydratedThreadIdRef = useRef<string | undefined>(undefined)
-    const previousStatusRef = useRef<string>("ready")
     const latestRequestContextRef = useRef({
         folderId,
         threadId,
         token: tokenData.token
     })
+    const [streamRenderPhase, setStreamRenderPhase] = useState<StreamRenderPhase>("idle")
     const lastLocalMutationAt = useChatStore((state) => state.lastLocalMutationAt)
     latestRequestContextRef.current = {
         folderId,
@@ -235,16 +245,18 @@ export function useChatIntegration<IsShared extends boolean>({
         if (!threadMessages || "error" in threadMessages) return []
         return backendToUiMessages(threadMessages)
     }, [threadMessages, sharedThread, isShared, sharedThreadId])
-    const disableMessageThrottle =
-        hasPendingLocalStream ||
-        previousStatusRef.current === "streaming" ||
-        previousStatusRef.current === "submitted"
+    const messageThrottle =
+        streamRenderPhase === "pre-first-paint"
+            ? undefined
+            : streamRenderPhase === "post-first-paint"
+              ? 100
+              : 50
 
     const chatHelpers = useChat({
         id: isShared ? `shared_${sharedThreadId}` : rerenderTrigger,
-        // Keep local truncation and the first streamed write synchronous to avoid
-        // briefly rendering the stale assistant response during retry/edit.
-        experimental_throttle: disableMessageThrottle ? undefined : 50,
+        // Keep the first streamed write synchronous so retry/edit/truncate flows
+        // paint immediately, then re-enable throttling for the rest of the stream.
+        experimental_throttle: messageThrottle,
         transport: isShared
             ? undefined
             : new DefaultChatTransport<ChatMessage>({
@@ -276,6 +288,8 @@ export function useChatIntegration<IsShared extends boolean>({
 
                       const proposedNewAssistantId = nanoid()
                       seededNextId.current = proposedNewAssistantId
+                      activeStreamingAssistantIdRef.current = proposedNewAssistantId
+                      setStreamRenderPhase("pre-first-paint")
 
                       const message = messages[messages.length - 1]
                       const mcpOverrides = getEffectiveMcpOverrides(currentContext.threadId)
@@ -335,6 +349,8 @@ export function useChatIntegration<IsShared extends boolean>({
             if (currentThreadId) {
                 useChatStore.getState().setPendingStream(currentThreadId, false)
             }
+            activeStreamingAssistantIdRef.current = null
+            setStreamRenderPhase("idle")
             if (!isShared && shouldUpdateQuery) {
                 setShouldUpdateQuery(false)
             }
@@ -344,6 +360,8 @@ export function useChatIntegration<IsShared extends boolean>({
             if (currentThreadId) {
                 useChatStore.getState().setPendingStream(currentThreadId, false)
             }
+            activeStreamingAssistantIdRef.current = null
+            setStreamRenderPhase("idle")
         },
         generateId: () => {
             if (seededNextId.current) {
@@ -361,8 +379,36 @@ export function useChatIntegration<IsShared extends boolean>({
         (thread && "isLive" in thread && thread.isLive === true && Boolean(thread.currentStreamId))
 
     useEffect(() => {
-        previousStatusRef.current = chatHelpers.status
-    }, [chatHelpers.status])
+        activeStreamingAssistantIdRef.current = null
+        setStreamRenderPhase("idle")
+    }, [threadId])
+
+    useEffect(() => {
+        if (!hasActiveThreadStream) {
+            if (streamRenderPhase !== "idle") {
+                setStreamRenderPhase("idle")
+            }
+            activeStreamingAssistantIdRef.current = null
+            return
+        }
+
+        if (streamRenderPhase === "idle") {
+            setStreamRenderPhase("pre-first-paint")
+            return
+        }
+
+        if (streamRenderPhase === "post-first-paint") {
+            return
+        }
+
+        const streamingAssistant =
+            getAssistantMessageById(chatHelpers.messages, activeStreamingAssistantIdRef.current) ??
+            getLatestAssistantMessage(chatHelpers.messages)
+
+        if (getMessageContentScore(streamingAssistant) > 0) {
+            setStreamRenderPhase("post-first-paint")
+        }
+    }, [chatHelpers.messages, hasActiveThreadStream, streamRenderPhase])
 
     useEffect(() => {
         if (isShared) return

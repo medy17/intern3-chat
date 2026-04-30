@@ -1,10 +1,15 @@
 import type { useChatIntegration } from "@/hooks/use-chat-integration"
+import { useMessageRenderFingerprints } from "@/hooks/use-message-render-fingerprints"
 import { useChatStore } from "@/lib/chat-store"
 import { getChatWidthClass, useChatWidthStore } from "@/lib/chat-width-store"
 import { getFileTypeInfo } from "@/lib/file_constants"
 import type { AssistantMessageMetadata } from "@/lib/message-footer-stats"
 import { useMessageFooterStore } from "@/lib/message-footer-store"
 import { getMessageReasoningDetails } from "@/lib/message-reasoning"
+import {
+    getMessageFooterMetadataKey,
+    getMessageRenderFingerprint
+} from "@/lib/message-render-fingerprint"
 import { useModelStore } from "@/lib/model-store"
 import { resolvePublicFileUrl } from "@/lib/r2-public-url"
 import { useSharedModels } from "@/lib/shared-models"
@@ -223,7 +228,7 @@ const PartsRenderer = memo(
         switch (part.type) {
             case "text":
                 return markdown ? (
-                    <MemoizedMarkdown content={part.text} id={id} />
+                    <MemoizedMarkdown content={part.text} isAnimating={isStreaming} />
                 ) : (
                     <div>
                         {part.text.split("\n").map((line, index) => (
@@ -240,6 +245,7 @@ const PartsRenderer = memo(
                         <ReasoningTrigger className="mb-4">Reasoning</ReasoningTrigger>
                         <ReasoningContent
                             markdown={markdown}
+                            isAnimating={isReasoningStreaming}
                             className="rounded-lg border bg-muted/50"
                             contentClassName="prose prose-p:my-0 prose-pre:my-2 prose-ul:my-2 prose-li:mt-1 prose-li:mb-0 max-w-none prose-pre:bg-transparent p-4 prose-pre:p-0 font-claude-message prose-headings:font-semibold prose-strong:font-medium prose-pre:text-foreground leading-[1.65rem] [&>div>div>:is(p,blockquote,h1,h2,h3,h4,h5,h6)]:pl-2 [&>div>div>:is(p,blockquote,ul,ol,h1,h2,h3,h4,h5,h6)]:pr-8 [&_.ignore-pre-bg>div]:bg-transparent [&_pre>div]:border-0.5 [&_pre>div]:border-border [&_pre>div]:bg-background"
                         >
@@ -514,158 +520,150 @@ const MESSAGE_VIRTUALIZER_BUFFER = 700
 const MESSAGE_VIRTUALIZER_ITEM_SIZE = 208
 const BOTTOM_SCROLL_THRESHOLD_PX = 4
 
-const getFooterMetadataKey = (message: UIMessage) => {
-    if (message.role !== "assistant" || !("metadata" in message) || !message.metadata) {
-        return undefined
-    }
-
-    const metadata = message.metadata as Record<string, unknown>
-    return [
-        metadata.modelName,
-        metadata.displayProvider,
-        metadata.runtimeProvider,
-        metadata.reasoningEffort,
-        metadata.promptTokens,
-        metadata.completionTokens,
-        metadata.reasoningTokens,
-        metadata.totalTokens,
-        metadata.estimatedCostUsd,
-        metadata.estimatedPromptCostUsd,
-        metadata.estimatedCompletionCostUsd,
-        metadata.serverDurationMs,
-        metadata.timeToFirstVisibleMs
-    ]
-        .map((value) => value ?? "")
-        .join("|")
-}
-
 type PreviewFile = {
     url: string
     filename?: string
     mediaType?: string
 }
 
-const MessageRow = memo(
-    ({
-        message,
-        isStreamingMessage,
-        onRetry,
-        onEdit,
-        onSaveEdit,
-        onCancelEdit,
-        onFilePreview,
-        targetFromMessageId,
-        targetMode
-    }: {
-        message: UIMessage
-        isStreamingMessage: boolean
-        onRetry?: (message: UIMessage, modelIdOverride?: string) => void
-        onEdit: (message: UIMessage) => void
-        onSaveEdit: (
-            newContent: string,
-            remainingFileParts?: FileUIPart[],
-            deletedUrls?: string[]
-        ) => void
-        onCancelEdit: () => void
-        onFilePreview: (part: PreviewFile) => void
-        targetFromMessageId?: string
-        targetMode?: string
-    }) => {
-        const reasoning = getMessageReasoningDetails(message)
-        const inlineParts = message.parts.filter(
-            (part) => part.type !== "file" && part.type !== "reasoning"
-        )
-        const fileParts = message.parts.filter((part) => part.type === "file")
-        const isEditing = targetFromMessageId === message.id && targetMode === "edit"
+type MessageRowProps = {
+    message: UIMessage
+    renderFingerprint: string
+    liveRenderFingerprint?: string
+    footerMetadataKey?: string
+    isStreamingMessage: boolean
+    isEditing: boolean
+    hasActiveTarget: boolean
+    onRetry?: (message: UIMessage, modelIdOverride?: string) => void
+    onEdit: (message: UIMessage) => void
+    onSaveEdit: (
+        newContent: string,
+        remainingFileParts?: FileUIPart[],
+        deletedUrls?: string[]
+    ) => void
+    onCancelEdit: () => void
+    onFilePreview: (part: PreviewFile) => void
+}
 
-        return (
-            <div className="pb-3">
-                <div
-                    className={cn(
-                        "prose relative prose-ol:my-2 prose-p:my-0 prose-pre:my-2 prose-ul:my-2 prose-li:mt-1 prose-li:mb-0 max-w-none prose-pre:bg-transparent prose-pre:p-0 font-claude-message prose-headings:font-semibold prose-strong:font-medium prose-pre:text-foreground leading-[1.65rem] [&>div>div>:is(p,blockquote,h1,h2,h3,h4,h5,h6)]:pl-2 [&>div>div>:is(p,blockquote,ul,ol,h1,h2,h3,h4,h5,h6)]:pr-8 [&_.ignore-pre-bg>div]:bg-transparent [&_pre>div]:border-0.5 [&_pre>div]:border-border [&_pre>div]:bg-background",
-                        "group prose-img:mx-auto prose-img:my-4 prose-pre:grid prose-code:before:hidden prose-code:after:hidden",
-                        "mb-8",
-                        message.role === "user" &&
-                            targetFromMessageId !== message.id &&
-                            "my-12 ml-auto w-fit max-w-md rounded-md border border-border bg-secondary/50 px-4 py-2 text-foreground"
-                    )}
-                >
-                    {isEditing ? (
-                        <EditableMessage
-                            message={message}
-                            onSave={onSaveEdit}
-                            onCancel={onCancelEdit}
-                        />
-                    ) : (
-                        <>
-                            <div className="prose-p:not-last:mb-4 max-w-[calc(100vw-2rem)] overflow-hidden">
-                                {reasoning && (
-                                    <Reasoning
-                                        className="mb-6"
-                                        isStreaming={isStreamingMessage && reasoning.isStreaming}
+const MessageRowComponent = ({
+    message,
+    isStreamingMessage,
+    isEditing,
+    hasActiveTarget,
+    onRetry,
+    onEdit,
+    onSaveEdit,
+    onCancelEdit,
+    onFilePreview
+}: MessageRowProps) => {
+    const reasoning = getMessageReasoningDetails(message)
+    const inlineParts = message.parts.filter(
+        (part) => part.type !== "file" && part.type !== "reasoning"
+    )
+    const fileParts = message.parts.filter((part) => part.type === "file")
+
+    return (
+        <div className="pb-3">
+            <div
+                className={cn(
+                    "prose relative prose-ol:my-2 prose-p:my-0 prose-pre:my-2 prose-ul:my-2 prose-li:mt-1 prose-li:mb-0 max-w-none prose-pre:bg-transparent prose-pre:p-0 font-claude-message prose-headings:font-semibold prose-strong:font-medium prose-pre:text-foreground leading-[1.65rem] [&>div>div>:is(p,blockquote,h1,h2,h3,h4,h5,h6)]:pl-2 [&>div>div>:is(p,blockquote,ul,ol,h1,h2,h3,h4,h5,h6)]:pr-8 [&_.ignore-pre-bg>div]:bg-transparent [&_pre>div]:border-0.5 [&_pre>div]:border-border [&_pre>div]:bg-background",
+                    "group prose-img:mx-auto prose-img:my-4 prose-pre:grid prose-code:before:hidden prose-code:after:hidden",
+                    "mb-8",
+                    message.role === "user" &&
+                        !isEditing &&
+                        "my-12 ml-auto w-fit max-w-md rounded-md border border-border bg-secondary/50 px-4 py-2 text-foreground"
+                )}
+            >
+                {isEditing ? (
+                    <EditableMessage
+                        message={message}
+                        onSave={onSaveEdit}
+                        onCancel={onCancelEdit}
+                    />
+                ) : (
+                    <>
+                        <div className="prose-p:not-last:mb-4 max-w-[calc(100vw-2rem)] overflow-hidden">
+                            {reasoning && (
+                                <Reasoning
+                                    className="mb-6"
+                                    isStreaming={isStreamingMessage && reasoning.isStreaming}
+                                >
+                                    <ReasoningTrigger className="mb-4">Reasoning</ReasoningTrigger>
+                                    <ReasoningContent
+                                        markdown={message.role === "assistant"}
+                                        isAnimating={isStreamingMessage && reasoning.isStreaming}
+                                        className="rounded-lg border bg-muted/50"
+                                        contentClassName="prose prose-p:my-0 prose-pre:my-2 prose-ul:my-2 prose-li:mt-1 prose-li:mb-0 max-w-none prose-pre:bg-transparent p-4 prose-pre:p-0 font-claude-message prose-headings:font-semibold prose-strong:font-medium prose-pre:text-foreground leading-[1.65rem] [&>div>div>:is(p,blockquote,h1,h2,h3,h4,h5,h6)]:pl-2 [&>div>div>:is(p,blockquote,ul,ol,h1,h2,h3,h4,h5,h6)]:pr-8 [&_.ignore-pre-bg>div]:bg-transparent [&_pre>div]:border-0.5 [&_pre>div]:border-border [&_pre>div]:bg-background"
                                     >
-                                        <ReasoningTrigger className="mb-4">
-                                            Reasoning
-                                        </ReasoningTrigger>
-                                        <ReasoningContent
-                                            markdown={message.role === "assistant"}
-                                            className="rounded-lg border bg-muted/50"
-                                            contentClassName="prose prose-p:my-0 prose-pre:my-2 prose-ul:my-2 prose-li:mt-1 prose-li:mb-0 max-w-none prose-pre:bg-transparent p-4 prose-pre:p-0 font-claude-message prose-headings:font-semibold prose-strong:font-medium prose-pre:text-foreground leading-[1.65rem] [&>div>div>:is(p,blockquote,h1,h2,h3,h4,h5,h6)]:pl-2 [&>div>div>:is(p,blockquote,ul,ol,h1,h2,h3,h4,h5,h6)]:pr-8 [&_.ignore-pre-bg>div]:bg-transparent [&_pre>div]:border-0.5 [&_pre>div]:border-border [&_pre>div]:bg-background"
-                                        >
-                                            {reasoning.text}
-                                        </ReasoningContent>
-                                    </Reasoning>
-                                )}
+                                        {reasoning.text}
+                                    </ReasoningContent>
+                                </Reasoning>
+                            )}
 
-                                {inlineParts.map((part, index) => (
+                            {inlineParts.map((part, index) => (
+                                <PartsRenderer
+                                    key={`${message.id}-text-${index}`}
+                                    part={part}
+                                    markdown={message.role === "assistant"}
+                                    id={`${message.id}-text-${index}`}
+                                    onFilePreview={onFilePreview}
+                                    isStreaming={isStreamingMessage}
+                                />
+                            ))}
+                        </div>
+
+                        {fileParts.length > 0 && (
+                            <div className="not-prose mt-3 flex flex-col justify-start space-y-3">
+                                {fileParts.map((part, index) => (
                                     <PartsRenderer
-                                        key={`${message.id}-text-${index}`}
+                                        key={`${message.id}-file-${index}`}
                                         part={part}
                                         markdown={message.role === "assistant"}
-                                        id={`${message.id}-text-${index}`}
+                                        id={`${message.id}-file-${index}`}
                                         onFilePreview={onFilePreview}
                                         isStreaming={isStreamingMessage}
                                     />
                                 ))}
                             </div>
+                        )}
 
-                            {fileParts.length > 0 && (
-                                <div className="not-prose mt-3 flex flex-col justify-start space-y-3">
-                                    {fileParts.map((part, index) => (
-                                        <PartsRenderer
-                                            key={`${message.id}-file-${index}`}
-                                            part={part}
-                                            markdown={message.role === "assistant"}
-                                            id={`${message.id}-file-${index}`}
-                                            onFilePreview={onFilePreview}
-                                            isStreaming={isStreamingMessage}
-                                        />
-                                    ))}
-                                </div>
-                            )}
-
-                            {!targetFromMessageId && message.role === "user" ? (
-                                <ChatActions
-                                    role={message.role}
-                                    message={message}
-                                    onRetry={onRetry}
-                                    onEdit={onEdit}
-                                />
-                            ) : !targetFromMessageId && message.role === "assistant" ? (
-                                <ChatActions
-                                    role={message.role}
-                                    message={message}
-                                    onRetry={undefined}
-                                    onEdit={undefined}
-                                />
-                            ) : null}
-                        </>
-                    )}
-                </div>
+                        {!hasActiveTarget && message.role === "user" ? (
+                            <ChatActions
+                                role={message.role}
+                                message={message}
+                                onRetry={onRetry}
+                                onEdit={onEdit}
+                            />
+                        ) : !hasActiveTarget && message.role === "assistant" ? (
+                            <ChatActions
+                                role={message.role}
+                                message={message}
+                                onRetry={undefined}
+                                onEdit={undefined}
+                            />
+                        ) : null}
+                    </>
+                )}
             </div>
-        )
-    }
-)
+        </div>
+    )
+}
+
+const areMessageRowPropsEqual = (previousProps: MessageRowProps, nextProps: MessageRowProps) =>
+    previousProps.message.id === nextProps.message.id &&
+    previousProps.renderFingerprint === nextProps.renderFingerprint &&
+    previousProps.liveRenderFingerprint === nextProps.liveRenderFingerprint &&
+    previousProps.footerMetadataKey === nextProps.footerMetadataKey &&
+    previousProps.isStreamingMessage === nextProps.isStreamingMessage &&
+    previousProps.isEditing === nextProps.isEditing &&
+    previousProps.hasActiveTarget === nextProps.hasActiveTarget &&
+    previousProps.onRetry === nextProps.onRetry &&
+    previousProps.onEdit === nextProps.onEdit &&
+    previousProps.onSaveEdit === nextProps.onSaveEdit &&
+    previousProps.onCancelEdit === nextProps.onCancelEdit &&
+    previousProps.onFilePreview === nextProps.onFilePreview
+
+const MessageRow = memo(MessageRowComponent, areMessageRowPropsEqual)
 MessageRow.displayName = "MessageRow"
 
 export type MessagesHandle = {
@@ -732,6 +730,7 @@ export const Messages = forwardRef<
         setPreviewFile(part)
         setPreviewDialogOpen(true)
     }, [])
+    const renderFingerprints = useMessageRenderFingerprints(messages)
 
     const fileName = previewFile?.filename || extractFileName(previewFile?.url || "")
 
@@ -805,8 +804,9 @@ export const Messages = forwardRef<
 
     const lastMessage = messages[messages.length - 1]
     const lastMessageFooterMetadataKey =
-        lastMessage?.role === "assistant" ? getFooterMetadataKey(lastMessage) : undefined
+        lastMessage?.role === "assistant" ? getMessageFooterMetadataKey(lastMessage) : undefined
     const lastMessageReasoning = lastMessage ? getMessageReasoningDetails(lastMessage) : null
+    const hasActiveTarget = Boolean(targetFromMessageId)
     const isStreamingWithoutContent =
         status === "streaming" &&
         lastMessage?.role === "assistant" &&
@@ -882,6 +882,39 @@ export const Messages = forwardRef<
     const lastUserMessage = useMemo(
         () => [...messages].reverse().find((message) => message.role === "user"),
         [messages]
+    )
+    const messageRows = useMemo(
+        () =>
+            messages.map((message) => {
+                const isStreamingMessage = status === "streaming" && message.id === lastMessage?.id
+                const isEditing = targetFromMessageId === message.id && targetMode === "edit"
+                const shouldUseLiveFingerprint = isStreamingMessage || isEditing
+
+                return {
+                    message,
+                    renderFingerprint:
+                        renderFingerprints[message.id] ?? `${message.role}:${message.id}`,
+                    liveRenderFingerprint: shouldUseLiveFingerprint
+                        ? getMessageRenderFingerprint(message)
+                        : undefined,
+                    footerMetadataKey:
+                        message.role === "assistant"
+                            ? getMessageFooterMetadataKey(message)
+                            : undefined,
+                    isStreamingMessage,
+                    isEditing,
+                    hasActiveTarget
+                }
+            }),
+        [
+            hasActiveTarget,
+            lastMessage?.id,
+            messages,
+            renderFingerprints,
+            status,
+            targetFromMessageId,
+            targetMode
+        ]
     )
 
     const keepMountedIndexes = useMemo(() => {
@@ -1000,20 +1033,21 @@ export const Messages = forwardRef<
                             keepMounted={keepMountedIndexes}
                             onScroll={syncBottomStateFromOffset}
                         >
-                            {messages.map((message) => (
+                            {messageRows.map((row) => (
                                 <MessageRow
-                                    key={message.id}
-                                    message={message}
-                                    isStreamingMessage={
-                                        status === "streaming" && message.id === lastMessage?.id
-                                    }
+                                    key={row.message.id}
+                                    message={row.message}
+                                    renderFingerprint={row.renderFingerprint}
+                                    liveRenderFingerprint={row.liveRenderFingerprint}
+                                    footerMetadataKey={row.footerMetadataKey}
+                                    isStreamingMessage={row.isStreamingMessage}
+                                    isEditing={row.isEditing}
+                                    hasActiveTarget={row.hasActiveTarget}
                                     onRetry={onRetry}
                                     onEdit={handleEdit}
                                     onSaveEdit={handleSaveEdit}
                                     onCancelEdit={handleCancelEdit}
                                     onFilePreview={handleFilePreview}
-                                    targetFromMessageId={targetFromMessageId}
-                                    targetMode={targetMode}
                                 />
                             ))}
                         </Virtualizer>

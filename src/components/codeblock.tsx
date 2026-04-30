@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { useCodeHighlighter } from "@/hooks/use-code-highlighter"
 import { cn } from "@/lib/utils"
 import { copyToClipboard } from "@/lib/utils"
 import { AlignLeft, CheckIcon, ChevronDown, ChevronUp, CopyIcon, WrapText } from "lucide-react"
 import { Suspense, lazy, memo, useMemo, useState } from "react"
+import { CodeBlock as StreamdownCodeBlock } from "streamdown"
 import { type ArtifactLanguage, isArtifactSupported } from "./artifact-preview-shared"
 
 const ArtifactPreview = lazy(async () => {
@@ -13,17 +13,18 @@ const ArtifactPreview = lazy(async () => {
     return { default: mod.ArtifactPreview }
 })
 
+const isStringChild = (value: React.ReactNode): value is string => typeof value === "string"
+
 export const Codeblock = memo(
     ({
-        node,
         inline,
         className,
         children,
         disable,
         default: defaultProps,
+        "data-block": dataBlock,
         ...props
     }: {
-        node?: any
         inline?: boolean
         className?: string
         children?: React.ReactNode
@@ -36,6 +37,7 @@ export const Codeblock = memo(
             expand?: boolean
             wrap?: boolean
         }
+        "data-block"?: string
     }) => {
         const match = /language-(\w+)/.exec(className || "")
         const language = match ? match[1] : "plaintext"
@@ -43,7 +45,7 @@ export const Codeblock = memo(
         const [isMultiLine, lineNumber] = useMemo(() => {
             const lines =
                 [...(Array.isArray(children) ? children : [children])]
-                    .filter((x: any) => typeof x === "string")
+                    .filter(isStringChild)
                     .join("")
                     .match(/\n/g)?.length ?? 0
             return [lines > 1, lines]
@@ -56,27 +58,31 @@ export const Codeblock = memo(
 
         const codeString = useMemo(() => {
             return [...(Array.isArray(children) ? children : [children])]
-                .filter((x: any) => typeof x === "string")
+                .filter(isStringChild)
                 .join("")
         }, [children])
 
         const supportsArtifact = useMemo(() => {
             return isArtifactSupported(language)
         }, [language])
-
-        const { highlightedCode } = useCodeHighlighter({
-            codeString,
-            language,
-            expanded,
-            wrapped,
-            inline,
-            shouldHighlight: !inline && (!!match || isMultiLine)
-        })
+        const isBlockCode = dataBlock !== undefined || (!inline && (Boolean(match) || isMultiLine))
+        const codeRendererClassName = cn(
+            "[&_[data-streamdown=code-block]]:my-0 [&_[data-streamdown=code-block]]:gap-0 [&_[data-streamdown=code-block]]:rounded-none [&_[data-streamdown=code-block]]:border-0 [&_[data-streamdown=code-block]]:bg-transparent [&_[data-streamdown=code-block]]:p-0",
+            "[&_[data-streamdown=code-block-header]]:hidden",
+            "[&_[data-streamdown=code-block-body]]:rounded-none [&_[data-streamdown=code-block-body]]:border-0 [&_[data-streamdown=code-block-body]]:bg-transparent [&_[data-streamdown=code-block-body]]:p-3",
+            "[&_[data-streamdown=code-block-body]_pre]:bg-transparent",
+            "[&_[data-streamdown=code-block-body]_code>span]:block [&_[data-streamdown=code-block-body]_code>span]:before:hidden",
+            !expanded &&
+                "[&_[data-streamdown=code-block-body]]:max-h-72 [&_[data-streamdown=code-block-body]]:overflow-auto",
+            wrapped
+                ? "[&_[data-streamdown=code-block-body]_code]:whitespace-pre-wrap [&_[data-streamdown=code-block-body]_code]:break-words"
+                : "[&_[data-streamdown=code-block-body]_code]:whitespace-pre [&_[data-streamdown=code-block-body]_code]:break-keep"
+        )
 
         if (!children) return null
 
-        return !inline && (match || isMultiLine) ? (
-            <div className="relative mt-1 mb-1 flex flex-col overflow-hidden rounded-lg border border-border">
+        return isBlockCode ? (
+            <div className="relative mt-1 mb-1 flex flex-col overflow-hidden rounded-lg border border-border bg-background">
                 {supportsArtifact ? (
                     <Tabs
                         value={activeTab}
@@ -179,11 +185,13 @@ export const Codeblock = memo(
 
                         <TabsContent value="code" className="mt-0">
                             <div className="relative h-full">
-                                <div
-                                    // biome-ignore lint/security/noDangerouslySetInnerHtml: shiki!!
-                                    dangerouslySetInnerHTML={{ __html: highlightedCode }}
-                                    className="shiki-container pl-2 font-mono"
-                                />
+                                <div className={codeRendererClassName}>
+                                    <StreamdownCodeBlock
+                                        code={codeString}
+                                        language={language}
+                                        lineNumbers={true}
+                                    />
+                                </div>
 
                                 {!expanded && lineNumber > 17 && (
                                     <div className="absolute right-0 bottom-0 left-0 flex h-12 justify-center rounded-b-md bg-gradient-to-t from-sidebar via-sidebar/80 to-transparent">
@@ -305,11 +313,13 @@ export const Codeblock = memo(
                             )}
                         </div>
 
-                        <div
-                            // biome-ignore lint/security/noDangerouslySetInnerHtml: shiki!!
-                            dangerouslySetInnerHTML={{ __html: highlightedCode }}
-                            className="shiki-container pl-2 font-mono"
-                        />
+                        <div className={codeRendererClassName}>
+                            <StreamdownCodeBlock
+                                code={codeString}
+                                language={language}
+                                lineNumbers={true}
+                            />
+                        </div>
 
                         {!expanded && lineNumber > 17 && (
                             <div className="absolute right-0 bottom-0 left-0 flex h-16 justify-center rounded-b-md bg-gradient-to-t from-sidebar via-sidebar/80 to-transparent">
