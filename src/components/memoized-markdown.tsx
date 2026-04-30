@@ -1,16 +1,12 @@
 import "katex/dist/katex.min.css"
-import { Streamdown } from "streamdown"
+import { memo, useMemo } from "react"
+import { Streamdown, parseMarkdownIntoBlocks } from "streamdown"
 import { streamdownComponents, streamdownPlugins } from "./streamdown-config"
 
-export function MemoizedMarkdown({
-    content,
-    isAnimating = false
-}: {
-    content: string
-    isAnimating?: boolean
-}) {
-    return (
+const RenderedBlock = memo(
+    ({ block, isAnimating }: { block: string; isAnimating: boolean }) => (
         <Streamdown
+            className="!my-0"
             components={streamdownComponents}
             controls={false}
             isAnimating={isAnimating}
@@ -18,7 +14,40 @@ export function MemoizedMarkdown({
             mode={isAnimating ? "streaming" : "static"}
             plugins={streamdownPlugins}
         >
-            {content}
+            {block}
         </Streamdown>
-    )
-}
+    ),
+    (prevProps, nextProps) =>
+        prevProps.block === nextProps.block && prevProps.isAnimating === nextProps.isAnimating
+)
+RenderedBlock.displayName = "RenderedBlock"
+
+export const MemoizedMarkdown = memo(
+    ({
+        content,
+        isAnimating = false
+    }: {
+        content: string
+        isAnimating?: boolean
+    }) => {
+        const blocks = useMemo(() => parseMarkdownIntoBlocks(content), [content])
+
+        return (
+            <div className="space-y-4">
+                {blocks.map((block, index) => {
+                    const isLastBlock = index === blocks.length - 1
+                    const blockIsAnimating = isAnimating && isLastBlock
+
+                    return (
+                        <RenderedBlock
+                            key={`${index}`}
+                            block={block}
+                            isAnimating={blockIsAnimating}
+                        />
+                    )
+                })}
+            </div>
+        )
+    }
+)
+MemoizedMarkdown.displayName = "MemoizedMarkdown"
