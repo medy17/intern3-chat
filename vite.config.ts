@@ -8,6 +8,7 @@ import { nitro } from "nitro/vite"
 import { defineConfig, loadEnv } from "vite"
 import analyzer from "vite-bundle-analyzer"
 import svgr from "vite-plugin-svgr"
+import { LOCAL_IMAGE_OPTIMIZER_DEFAULT_PORT } from "./src/lib/local-image-optimizer"
 
 const sandpackSsrStub = path.resolve(__dirname, "./src/lib/sandpack-react-ssr-stub.tsx")
 
@@ -19,6 +20,37 @@ export default defineConfig(({ mode }) => {
         ? `${convexApiTarget.protocol}//${convexApiTarget.host}`
         : null
     const convexApiBasePath = convexApiTarget?.pathname.replace(/\/$/, "") || ""
+    const localImageOptimizerEnabled =
+        (
+            process.env.VITE_LOCAL_IMAGE_OPTIMIZER_ENABLED ?? env.VITE_LOCAL_IMAGE_OPTIMIZER_ENABLED
+        )?.trim() === "1"
+    const localImageOptimizerPort =
+        (process.env.LOCAL_IMAGE_OPTIMIZER_PORT || "").trim() ||
+        String(LOCAL_IMAGE_OPTIMIZER_DEFAULT_PORT)
+    const proxy: Record<
+        string,
+        {
+            target: string
+            changeOrigin: boolean
+            rewrite?: (requestPath: string) => string
+        }
+    > = convexApiOrigin
+        ? {
+              "/convex-http": {
+                  target: convexApiOrigin,
+                  changeOrigin: true,
+                  rewrite: (requestPath: string) =>
+                      requestPath.replace(/^\/convex-http/, convexApiBasePath)
+              }
+          }
+        : {}
+
+    if (localImageOptimizerEnabled) {
+        proxy["/cdn-cgi/image"] = {
+            target: `http://127.0.0.1:${localImageOptimizerPort}`,
+            changeOrigin: true
+        }
+    }
 
     return {
         resolve: {
@@ -34,16 +66,7 @@ export default defineConfig(({ mode }) => {
             tsconfigPaths: true
         },
         server: {
-            proxy: convexApiOrigin
-                ? {
-                      "/convex-http": {
-                          target: convexApiOrigin,
-                          changeOrigin: true,
-                          rewrite: (requestPath) =>
-                              requestPath.replace(/^\/convex-http/, convexApiBasePath)
-                      }
-                  }
-                : undefined
+            proxy: Object.keys(proxy).length > 0 ? proxy : undefined
         },
         plugins: [
             (process.env.ANALYZE && analyzer()) || null,

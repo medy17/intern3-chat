@@ -9,6 +9,7 @@
         "prebuild": "node scripts/sync-built-in-personas.mjs",
         "test": "vitest run",
         "local:setup": "node scripts/local-setup.mjs",
+        "local:image-optimizer": "tsx scripts/local-image-optimizer.ts",
         "prelocal:dev": "node scripts/sync-built-in-personas.mjs",
         "local:dev": "node scripts/local-dev.mjs",
         "local:infra:up": "docker compose up -d",

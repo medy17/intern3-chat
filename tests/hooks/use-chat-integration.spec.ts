@@ -884,7 +884,11 @@ describe("useChatIntegration", () => {
 
     it("keeps the first streamed paint synchronous, then throttles the steady-state stream", async () => {
         let currentStatus = "ready"
-        let currentThread = {
+        let currentThread: {
+            _id: string
+            isLive: boolean
+            currentStreamId: string | undefined
+        } = {
             _id: "thread-1",
             isLive: true,
             currentStreamId: "stream-1"

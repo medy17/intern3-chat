@@ -1,9 +1,17 @@
 import { spawn } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
+import dotenv from "dotenv"
+
+dotenv.config({
+    path: [path.resolve(process.cwd(), ".env.local"), path.resolve(process.cwd(), ".env")],
+    override: false,
+    quiet: true
+})
 
 const children = []
 let shuttingDown = false
+const localImageOptimizerPort = process.env.LOCAL_IMAGE_OPTIMIZER_PORT || "43177"
 
 const ensureLocalDeploymentSelected = () => {
     const envLocalPath = path.resolve(process.cwd(), ".env.local")
@@ -28,7 +36,9 @@ const start = (label, command, args) => {
         shell: process.platform === "win32",
         env: {
             ...process.env,
-            LOCAL_DISABLE_PRIVATE_BLUR: "1"
+            LOCAL_DISABLE_PRIVATE_BLUR: "1",
+            LOCAL_IMAGE_OPTIMIZER_PORT: localImageOptimizerPort,
+            VITE_LOCAL_IMAGE_OPTIMIZER_ENABLED: "1"
         }
     })
 
@@ -122,6 +132,7 @@ runConvexBootstrap()
             "--typecheck",
             "disable"
         ])
+        start("Local image optimizer", "bun", ["run", "local:image-optimizer"])
         start("Web app", "bun", ["run", "dev"])
     })
     .catch((error) => {

@@ -34,6 +34,12 @@ bun run local:setup
 bun run local:dev
 ```
 
+`bun run local:dev` now starts three processes:
+
+- Convex local
+- the Vite app
+- a local Sharp-backed image optimizer that serves mocked `/cdn-cgi/image/...` URLs and caches outputs in `/.optimised-image-cache`
+
 If you prefer separate terminals:
 
 ```bash
@@ -45,6 +51,7 @@ bun run local:app
 ```
 
 The app runs at `http://localhost:3000`.
+Plain `bun run dev` still uses the old direct local `/r2` image path without the optimizer helper.
 
 ## Push To Cloud Dev
 

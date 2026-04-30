@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const { browserEnvMock, optionalBrowserEnvMock } = vi.hoisted(() => ({
-    browserEnvMock: vi.fn((key: string) =>
+    browserEnvMock: vi.fn((key: string): string =>
         key === "VITE_CLOUDFLARE_IMAGE_HOST"
             ? "https://img.silkchat.dev"
             : "https://api.example.com/"
     ),
-    optionalBrowserEnvMock: vi.fn((key: string) =>
+    optionalBrowserEnvMock: vi.fn((key: string): string | undefined =>
         key === "VITE_CLOUDFLARE_IMAGE_HOST" ? "https://img.silkchat.dev" : undefined
     )
 }))
@@ -80,6 +80,28 @@ describe("generated-image-urls", () => {
         ).toBe("https://api.example.com/r2?key=generated%2Fkey-1")
     })
 
+    it("routes localhost image optimization through the local optimizer helper when enabled", () => {
+        vi.stubGlobal("window", {
+            location: {
+                hostname: "localhost"
+            }
+        })
+        optionalBrowserEnvMock.mockImplementation((key: string) =>
+            key === "VITE_LOCAL_IMAGE_OPTIMIZER_ENABLED" ? "1" : undefined
+        )
+
+        expect(
+            getOptimizedGeneratedImageUrl({
+                storageKey: "generated/key-1",
+                aspectRatio: "9:16",
+                longEdge: 720,
+                quality: 80
+            })
+        ).toBe(
+            "/cdn-cgi/image/fit=scale-down,width=405,quality=80,format=auto/https://api.example.com/r2?key=generated%2Fkey-1"
+        )
+    })
+
     it("builds a transformed image URL when a Cloudflare image host is configured", () => {
         expect(
             getOptimizedGeneratedImageUrl({
@@ -123,6 +145,32 @@ describe("generated-image-urls", () => {
         ).toBe(
             "https://img.silkchat.dev/cdn-cgi/image/fit=scale-down,width=810,quality=84,format=auto/https://api.example.com/r2?key=generated%2Fkey-3"
         )
+    })
+
+    it("builds responsive library metadata with local optimizer URLs when enabled", () => {
+        vi.stubGlobal("window", {
+            location: {
+                hostname: "localhost"
+            }
+        })
+        optionalBrowserEnvMock.mockImplementation((key: string) =>
+            key === "VITE_LOCAL_IMAGE_OPTIMIZER_ENABLED" ? "1" : undefined
+        )
+
+        expect(
+            getLibraryImageSources({
+                storageKey: "generated/key-3",
+                aspectRatio: "3:4"
+            })
+        ).toEqual({
+            src: "/cdn-cgi/image/fit=scale-down,width=540,quality=76,format=auto/https://api.example.com/r2?key=generated%2Fkey-3",
+            srcSet: [
+                "/cdn-cgi/image/fit=scale-down,width=432,quality=80,format=auto/https://api.example.com/r2?key=generated%2Fkey-3 432w",
+                "/cdn-cgi/image/fit=scale-down,width=540,quality=76,format=auto/https://api.example.com/r2?key=generated%2Fkey-3 540w"
+            ].join(", "),
+            sizes: "(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw",
+            useCssBlurFallback: false
+        })
     })
 
     it("falls back to css blur for hidden tiles when avif and webp are unsupported", () => {

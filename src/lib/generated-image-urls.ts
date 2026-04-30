@@ -1,4 +1,8 @@
 import { browserEnv, optionalBrowserEnv } from "@/lib/browser-env"
+import {
+    buildLocalImageOptimizerUrl,
+    isLocalImageOptimizerEnabled
+} from "@/lib/local-image-optimizer"
 import { type PrivateBlurFormat, getConstrainedWidth } from "@/lib/private-blur-variants"
 import { getPublicR2AssetUrl, getR2ProxyUrl } from "@/lib/r2-public-url"
 
@@ -12,6 +16,10 @@ export const resetPrivateBlurFormatCacheForTests = () => {
 }
 
 const shouldBypassEdgeImageOptimization = () => {
+    if (isLocalImageOptimizerEnabled()) {
+        return false
+    }
+
     if (typeof window !== "undefined" && LOCAL_IMAGE_HOSTS.has(window.location.hostname)) {
         return true
     }
@@ -108,12 +116,20 @@ export const getOptimizedGeneratedImageUrl = ({
     quality?: number
 }) => {
     const sourceUrl = getGeneratedImageProxyUrl(storageKey)
+    const width = getConstrainedWidth(aspectRatio, longEdge)
+
+    if (isLocalImageOptimizerEnabled()) {
+        return buildLocalImageOptimizerUrl({
+            sourceUrl,
+            width,
+            quality
+        })
+    }
 
     if (shouldBypassEdgeImageOptimization()) {
         return sourceUrl
     }
 
-    const width = getConstrainedWidth(aspectRatio, longEdge)
     const imageHost = browserEnv("VITE_CLOUDFLARE_IMAGE_HOST")
     return getCloudflareTransformedImageUrl({
         imageHost,
