@@ -99,10 +99,16 @@ export const WelcomeEmailTemplate = ({
         <Preview>Your SilkChat account is ready</Preview>
         <Body style={welcomeMain}>
             <Container style={welcomeOuter}>
-                <Section style={logoSection}>
-                    <Img src={logoUrl} alt="SilkChat" width="160" height="42" style={logoImage} />
-                </Section>
                 <Section style={welcomeCard}>
+                    <Section style={logoSection}>
+                        <Img
+                            src={logoUrl}
+                            alt="SilkChat"
+                            width="120"
+                            height="32"
+                            style={logoImage}
+                        />
+                    </Section>
                     <Text style={welcomeHeading}>Welcome to SilkChat{name ? `, ${name}` : ""}</Text>
                     <Text style={welcomeText}>
                         Your account is ready. SilkChat gives you one place to work across leading
@@ -113,9 +119,11 @@ export const WelcomeEmailTemplate = ({
                         To get started, open SilkChat and finish setting up your workspace and
                         preferences.
                     </Text>
-                    <Link href={appUrl} style={welcomeButton}>
-                        Open SilkChat
-                    </Link>
+                    <Section style={buttonSection}>
+                        <Link href={appUrl} style={welcomeButton}>
+                            Open SilkChat
+                        </Link>
+                    </Section>
                     <Text style={welcomeListIntro}>A few good places to start:</Text>
                     <Text style={welcomeListItem}>- Try the built-in models</Text>
                     <Text style={welcomeListItem}>
@@ -286,12 +294,19 @@ const welcomeOuter = {
 }
 
 const logoSection = {
-    paddingBottom: "16px"
+    paddingBottom: "20px",
+    textAlign: "center" as const
 }
 
 const logoImage = {
     display: "block",
-    height: "auto"
+    height: "auto",
+    margin: "0 auto"
+}
+
+const buttonSection = {
+    margin: "4px 0 24px",
+    textAlign: "center" as const
 }
 
 const welcomeCard = {
@@ -324,7 +339,6 @@ const welcomeButton = {
     fontSize: "16px",
     fontWeight: "500",
     lineHeight: "1",
-    margin: "4px 0 24px",
     padding: "14px 22px",
     textDecoration: "none"
 }
