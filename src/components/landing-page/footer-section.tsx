@@ -13,6 +13,12 @@ export function FooterSection() {
                 </p>
                 <div className="flex gap-6">
                     <Link
+                        to="/terms-of-service"
+                        className="text-muted-foreground text-sm hover:text-foreground"
+                    >
+                        Terms
+                    </Link>
+                    <Link
                         to="/privacy-policy"
                         className="text-muted-foreground text-sm hover:text-foreground"
                     >

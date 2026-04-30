@@ -31,6 +31,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ChatThreadThreadIdRouteImport } from './routes/_chat.thread.$threadId'
 import { Route as ChatFolderFolderIdThreadThreadIdRouteImport } from './routes/_chat.folder.$folderId.thread.$threadId'
 
+const TermsOfServiceLazyRouteImport = createFileRoute('/terms-of-service')()
 const PrivacyPolicyLazyRouteImport = createFileRoute('/privacy-policy')()
 const AboutLazyRouteImport = createFileRoute('/about')()
 const SettingsRouteLazyRouteImport = createFileRoute('/settings')()
@@ -42,6 +43,13 @@ const ChatFolderFolderIdLazyRouteImport = createFileRoute(
   '/_chat/folder/$folderId',
 )()
 
+const TermsOfServiceLazyRoute = TermsOfServiceLazyRouteImport.update({
+  id: '/terms-of-service',
+  path: '/terms-of-service',
+  getParentRoute: () => rootRouteImport,
+} as any).lazy(() =>
+  import('./routes/terms-of-service.lazy').then((d) => d.Route),
+)
 const PrivacyPolicyLazyRoute = PrivacyPolicyLazyRouteImport.update({
   id: '/privacy-policy',
   path: '/privacy-policy',
@@ -183,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRouteLazyRouteWithChildren
   '/about': typeof AboutLazyRoute
   '/privacy-policy': typeof PrivacyPolicyLazyRoute
+  '/terms-of-service': typeof TermsOfServiceLazyRoute
   '/library': typeof ChatLibraryRoute
   '/api/credit-summary': typeof ApiCreditSummaryRoute
   '/api/model-benchmarks': typeof ApiModelBenchmarksRoute
@@ -208,6 +217,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRouteLazyRouteWithChildren
   '/about': typeof AboutLazyRoute
   '/privacy-policy': typeof PrivacyPolicyLazyRoute
+  '/terms-of-service': typeof TermsOfServiceLazyRoute
   '/library': typeof ChatLibraryRoute
   '/api/credit-summary': typeof ApiCreditSummaryRoute
   '/api/model-benchmarks': typeof ApiModelBenchmarksRoute
@@ -236,6 +246,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRouteLazyRouteWithChildren
   '/about': typeof AboutLazyRoute
   '/privacy-policy': typeof PrivacyPolicyLazyRoute
+  '/terms-of-service': typeof TermsOfServiceLazyRoute
   '/_chat/library': typeof ChatLibraryRoute
   '/api/credit-summary': typeof ApiCreditSummaryRoute
   '/api/model-benchmarks': typeof ApiModelBenchmarksRoute
@@ -265,6 +276,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/about'
     | '/privacy-policy'
+    | '/terms-of-service'
     | '/library'
     | '/api/credit-summary'
     | '/api/model-benchmarks'
@@ -290,6 +302,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/about'
     | '/privacy-policy'
+    | '/terms-of-service'
     | '/library'
     | '/api/credit-summary'
     | '/api/model-benchmarks'
@@ -317,6 +330,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/about'
     | '/privacy-policy'
+    | '/terms-of-service'
     | '/_chat/library'
     | '/api/credit-summary'
     | '/api/model-benchmarks'
@@ -345,6 +359,7 @@ export interface RootRouteChildren {
   SettingsRouteLazyRoute: typeof SettingsRouteLazyRouteWithChildren
   AboutLazyRoute: typeof AboutLazyRoute
   PrivacyPolicyLazyRoute: typeof PrivacyPolicyLazyRoute
+  TermsOfServiceLazyRoute: typeof TermsOfServiceLazyRoute
   ApiCreditSummaryRoute: typeof ApiCreditSummaryRoute
   ApiModelBenchmarksRoute: typeof ApiModelBenchmarksRoute
   AuthPathnameLazyRoute: typeof AuthPathnameLazyRoute
@@ -355,6 +370,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms-of-service': {
+      id: '/terms-of-service'
+      path: '/terms-of-service'
+      fullPath: '/terms-of-service'
+      preLoaderRoute: typeof TermsOfServiceLazyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/privacy-policy': {
       id: '/privacy-policy'
       path: '/privacy-policy'
@@ -598,6 +620,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRouteLazyRoute: SettingsRouteLazyRouteWithChildren,
   AboutLazyRoute: AboutLazyRoute,
   PrivacyPolicyLazyRoute: PrivacyPolicyLazyRoute,
+  TermsOfServiceLazyRoute: TermsOfServiceLazyRoute,
   ApiCreditSummaryRoute: ApiCreditSummaryRoute,
   ApiModelBenchmarksRoute: ApiModelBenchmarksRoute,
   AuthPathnameLazyRoute: AuthPathnameLazyRoute,

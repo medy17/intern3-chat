@@ -45,7 +45,11 @@ function RouteComponent() {
                         <Link to="/privacy-policy" className="underline hover:text-primary">
                             privacy policy
                         </Link>{" "}
-                        page :D
+                        and{" "}
+                        <Link to="/terms-of-service" className="underline hover:text-primary">
+                            terms of service
+                        </Link>{" "}
+                        :D
                     </p>
                 </div>
             </div>

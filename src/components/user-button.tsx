@@ -126,6 +126,10 @@ export function UserButton() {
                     <UserLock className="h-4 w-4" />
                     <span>Privacy Policy</span>
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.navigate({ to: "/terms-of-service" })}>
+                    <UserLock className="h-4 w-4" />
+                    <span>Terms of Service</span>
+                </DropdownMenuItem>
 
                 <DropdownMenuItem onClick={handleSignOut}>
                     <LogOutIcon className="h-4 w-4" />

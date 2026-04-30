@@ -4,8 +4,12 @@ import { Resend } from "resend"
 import {
     EmailVerificationTemplate,
     OTPEmailTemplate,
-    PasswordResetTemplate
+    PasswordResetTemplate,
+    WelcomeEmailTemplate
 } from "./email-templates"
+import { loadServerEnv } from "./load-server-env"
+
+loadServerEnv()
 
 // Email provider types
 type EmailProvider = "resend" | "ses" | "local-only-mock"
@@ -30,48 +34,59 @@ interface SendEmailOptions {
     text?: string
 }
 
+const DEFAULT_APP_URL = "https://silkchat.dev"
+const DEFAULT_SUPPORT_EMAIL = "support@silkchat.dev"
+
+const normalizeUrl = (value?: string) => {
+    if (!value) return undefined
+    const trimmedValue = value.trim()
+    if (!trimmedValue) return undefined
+    return trimmedValue.startsWith("http://") || trimmedValue.startsWith("https://")
+        ? trimmedValue
+        : `https://${trimmedValue}`
+}
+
 class EmailService {
-    private config: EmailConfig
+    private config?: EmailConfig
     private resend?: Resend
     private sesClient?: SESClient
 
     constructor() {
-        this.config = this.getEmailConfig()
         this.initializeProvider()
     }
 
     private getEmailConfig(): EmailConfig {
         const provider = (process.env.EMAIL_PROVIDER || "resend") as EmailProvider
 
-        if (provider === "resend" && !process.env.RESEND_API_KEY) {
-            throw new Error("RESEND_API_KEY is required when using Resend provider")
-        }
-
-        if (provider === "ses" && !process.env.AWS_REGION) {
-            throw new Error("AWS_REGION is required when using SES provider")
-        }
-
         return {
             provider,
-            from: process.env.EMAIL_FROM || "noreply@intern3.chat",
+            from: process.env.EMAIL_FROM || "noreply@silkchat.dev",
             resend:
                 provider === "resend"
-                    ? {
-                          apiKey: process.env.RESEND_API_KEY!
-                      }
+                    ? process.env.RESEND_API_KEY
+                        ? {
+                              apiKey: process.env.RESEND_API_KEY!
+                          }
+                        : undefined
                     : undefined,
             ses:
                 provider === "ses"
-                    ? {
-                          region: process.env.AWS_REGION!,
-                          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-                          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-                      }
+                    ? process.env.AWS_REGION
+                        ? {
+                              region: process.env.AWS_REGION!,
+                              accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+                              secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+                          }
+                        : undefined
                     : undefined
         }
     }
 
     private initializeProvider() {
+        this.config = this.getEmailConfig()
+        this.resend = undefined
+        this.sesClient = undefined
+
         if (this.config.provider === "resend" && this.config.resend) {
             this.resend = new Resend(this.config.resend.apiKey)
         } else if (this.config.provider === "ses" && this.config.ses) {
@@ -88,13 +103,57 @@ class EmailService {
         }
     }
 
+    private ensureConfigured() {
+        this.initializeProvider()
+
+        if (!this.config) {
+            throw new Error("Email configuration is unavailable")
+        }
+
+        if (this.config.provider === "resend" && !this.config.resend?.apiKey) {
+            throw new Error("RESEND_API_KEY is required when using Resend provider")
+        }
+
+        if (this.config.provider === "ses" && !this.config.ses?.region) {
+            throw new Error("AWS_REGION is required when using SES provider")
+        }
+
+        return this.config
+    }
+
+    isConfigured() {
+        const config = this.getEmailConfig()
+
+        if (config.provider === "resend") {
+            return Boolean(config.resend?.apiKey)
+        }
+
+        if (config.provider === "ses") {
+            return Boolean(config.ses?.region)
+        }
+
+        return process.env.NODE_ENV === "development"
+    }
+
+    getAppUrl() {
+        return normalizeUrl(process.env.VITE_BETTER_AUTH_URL) || DEFAULT_APP_URL
+    }
+
+    getLogoUrl() {
+        return `${DEFAULT_APP_URL}/logo-highres.png`
+    }
+
+    getSupportEmail() {
+        return process.env.SUPPORT_EMAIL?.trim() || DEFAULT_SUPPORT_EMAIL
+    }
+
     private async sendWithResend(options: SendEmailOptions) {
         if (!this.resend) {
             throw new Error("Resend client not initialized")
         }
 
         const result = await this.resend.emails.send({
-            from: this.config.from,
+            from: this.config?.from || "noreply@silkchat.dev",
             to: options.to,
             subject: options.subject,
             html: options.html,
@@ -114,7 +173,7 @@ class EmailService {
         }
 
         const command = new SendEmailCommand({
-            Source: this.config.from,
+            Source: this.config?.from || "noreply@silkchat.dev",
             Destination: {
                 ToAddresses: [options.to]
             },
@@ -143,15 +202,17 @@ class EmailService {
 
     async sendEmail(options: SendEmailOptions) {
         try {
-            if (this.config.provider === "resend") {
+            const config = this.ensureConfigured()
+
+            if (config.provider === "resend") {
                 return await this.sendWithResend(options)
             }
 
-            if (this.config.provider === "ses") {
+            if (config.provider === "ses") {
                 return await this.sendWithSES(options)
             }
 
-            if (this.config.provider === "local-only-mock") {
+            if (config.provider === "local-only-mock") {
                 if (process.env.NODE_ENV !== "development") {
                     throw new Error(
                         "Local mock email provider is only available in development mode"
@@ -161,7 +222,7 @@ class EmailService {
                 return {}
             }
 
-            throw new Error(`Unsupported email provider: ${this.config.provider}`)
+            throw new Error(`Unsupported email provider: ${config.provider}`)
         } catch (error) {
             console.error("Failed to send email:", error)
             throw error
@@ -207,6 +268,26 @@ class EmailService {
             subject: "Reset your password - SilkChat",
             html,
             text: `Hi ${data.user.name || ""},\n\nYou can reset your password by clicking this link: ${data.url}\n\nIf you didn't request a password reset, you can safely ignore this email.`
+        })
+    }
+
+    async sendWelcomeEmail(data: { user: { email: string; name?: string }; appUrl?: string }) {
+        const appUrl = data.appUrl || this.getAppUrl()
+        const supportEmail = this.getSupportEmail()
+        const html = await render(
+            WelcomeEmailTemplate({
+                name: data.user.name,
+                appUrl,
+                logoUrl: this.getLogoUrl(),
+                supportEmail
+            })
+        )
+
+        await this.sendEmail({
+            to: data.user.email,
+            subject: "Welcome to SilkChat",
+            html,
+            text: `${data.user.name ? `Hi ${data.user.name},` : "Hi,"}\n\nWelcome to SilkChat. Your account is ready.\n\nSilkChat gives you one place to work across leading AI models, with web search, image generation, and live code previews built in.\n\nOpen SilkChat: ${appUrl}\n\nA few good places to start:\n- Try the built-in models\n- Connect your own API keys if you want more control\n- Explore onboarding, themes, and the available tools after sign-in\n\nIf you need help, contact us at ${supportEmail}.\n\nThe SilkChat Team`
         })
     }
 
@@ -273,4 +354,6 @@ export const emailService = new EmailService()
 export const sendEmail = emailService.sendEmail.bind(emailService)
 export const sendVerificationEmail = emailService.sendVerificationEmail.bind(emailService)
 export const sendPasswordResetEmail = emailService.sendPasswordResetEmail.bind(emailService)
+export const sendWelcomeEmail = emailService.sendWelcomeEmail.bind(emailService)
 export const sendOTPEmail = emailService.sendOTPEmail.bind(emailService)
+export const isEmailConfigured = emailService.isConfigured.bind(emailService)

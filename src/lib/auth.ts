@@ -4,6 +4,7 @@ import { tanstackStartCookies } from "better-auth/tanstack-start"
 
 import { db } from "@/database/db"
 import * as schema from "@/database/schema"
+import { isEmailConfigured, sendWelcomeEmail } from "@/lib/email"
 import { loadServerEnv } from "@/lib/load-server-env"
 import { getUserCreditPlan } from "@/lib/user-subscription"
 import { jwt } from "better-auth/plugins/jwt"
@@ -30,6 +31,16 @@ const betterAuthSecret = getEnv("BETTER_AUTH_SECRET")
 const googleClientId = getEnv("GOOGLE_CLIENT_ID")
 const googleClientSecret = getEnv("GOOGLE_CLIENT_SECRET")
 
+const shouldSendWelcomeEmail = (path?: string | null) => {
+    if (!path) return false
+
+    return (
+        path.startsWith("/callback/") ||
+        path.startsWith("/oauth2/callback/") ||
+        path === "/sign-up/email"
+    )
+}
+
 export const auth = betterAuth({
     secret: betterAuthSecret,
     trustedOrigins: [
@@ -45,6 +56,35 @@ export const auth = betterAuth({
         usePlural: true,
         schema
     }),
+    databaseHooks: {
+        user: {
+            create: {
+                async after(user, context) {
+                    if (!shouldSendWelcomeEmail(context?.path)) {
+                        return
+                    }
+
+                    if (!isEmailConfigured()) {
+                        console.warn(
+                            "Skipping welcome email because outbound email is not configured."
+                        )
+                        return
+                    }
+
+                    try {
+                        await sendWelcomeEmail({
+                            user: {
+                                email: user.email,
+                                name: user.name
+                            }
+                        })
+                    } catch (error) {
+                        console.error("Failed to send welcome email:", error)
+                    }
+                }
+            }
+        }
+    },
     socialProviders:
         googleClientId && googleClientSecret
             ? {

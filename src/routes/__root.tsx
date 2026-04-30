@@ -10,7 +10,7 @@ import { Providers } from "../providers"
 // Configurable site metadata
 const SITE_TITLE = "SilkChat"
 const SITE_DESCRIPTION = "Sleek, fast, and powerful AI chatbot experience."
-const SITE_URL = "https://silkchat.vercel.app" // Update this to your actual domain
+const SITE_URL = "https://silkchat.dev"
 
 export const Route = createRootRouteWithContext<{
     queryClient: QueryClient

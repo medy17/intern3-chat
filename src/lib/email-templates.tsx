@@ -1,4 +1,15 @@
-import { Body, Container, Head, Html, Link, Preview, Section, Text } from "@react-email/components"
+import {
+    Body,
+    Container,
+    Head,
+    Hr,
+    Html,
+    Img,
+    Link,
+    Preview,
+    Section,
+    Text
+} from "@react-email/components"
 
 interface EmailVerificationTemplateProps {
     name?: string
@@ -65,6 +76,68 @@ export const PasswordResetTemplate = ({ name, resetUrl }: PasswordResetTemplateP
                         This link will expire in 1 hour for security reasons.
                     </Text>
                 </Section>
+            </Container>
+        </Body>
+    </Html>
+)
+
+interface WelcomeEmailTemplateProps {
+    name?: string
+    appUrl: string
+    logoUrl: string
+    supportEmail: string
+}
+
+export const WelcomeEmailTemplate = ({
+    name,
+    appUrl,
+    logoUrl,
+    supportEmail
+}: WelcomeEmailTemplateProps) => (
+    <Html>
+        <Head />
+        <Preview>Your SilkChat account is ready</Preview>
+        <Body style={welcomeMain}>
+            <Container style={welcomeOuter}>
+                <Section style={logoSection}>
+                    <Img src={logoUrl} alt="SilkChat" width="160" height="42" style={logoImage} />
+                </Section>
+                <Section style={welcomeCard}>
+                    <Text style={welcomeHeading}>Welcome to SilkChat{name ? `, ${name}` : ""}</Text>
+                    <Text style={welcomeText}>
+                        Your account is ready. SilkChat gives you one place to work across leading
+                        AI models, with features like web search, image generation, and live code
+                        previews built in.
+                    </Text>
+                    <Text style={welcomeText}>
+                        To get started, open SilkChat and finish setting up your workspace and
+                        preferences.
+                    </Text>
+                    <Link href={appUrl} style={welcomeButton}>
+                        Open SilkChat
+                    </Link>
+                    <Text style={welcomeListIntro}>A few good places to start:</Text>
+                    <Text style={welcomeListItem}>- Try the built-in models</Text>
+                    <Text style={welcomeListItem}>
+                        - Connect your own API keys if you want more control
+                    </Text>
+                    <Text style={welcomeListItem}>
+                        - Explore onboarding, themes, and the available tools after sign-in
+                    </Text>
+                    <Hr style={divider} />
+                    <Text style={welcomeSupportText}>
+                        If you need help, contact us at{" "}
+                        <Link href={`mailto:${supportEmail}`} style={inlineLink}>
+                            {supportEmail}
+                        </Link>
+                        .
+                    </Text>
+                    <Text style={welcomeSignature}>The SilkChat Team</Text>
+                </Section>
+                <Text style={welcomeFooter}>
+                    © 2026 SilkChat. You&apos;re receiving this email because an account was created
+                    at silkchat.dev.
+                </Text>
             </Container>
         </Body>
     </Html>
@@ -196,4 +269,109 @@ const otpCode = {
     padding: "16px 24px",
     textAlign: "center" as const,
     fontFamily: "Consolas, Monaco, 'Courier New', monospace"
+}
+
+const welcomeMain = {
+    backgroundColor: "#fcfcfc",
+    color: "#000000",
+    fontFamily: '"Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    margin: "0",
+    padding: "0"
+}
+
+const welcomeOuter = {
+    margin: "0 auto",
+    maxWidth: "600px",
+    padding: "40px 20px"
+}
+
+const logoSection = {
+    paddingBottom: "16px"
+}
+
+const logoImage = {
+    display: "block",
+    height: "auto"
+}
+
+const welcomeCard = {
+    backgroundColor: "#ffffff",
+    border: "1px solid #e4e4e4",
+    borderRadius: "8px",
+    padding: "32px"
+}
+
+const welcomeHeading = {
+    color: "#000000",
+    fontSize: "28px",
+    fontWeight: "600",
+    lineHeight: "1.25",
+    margin: "0 0 16px"
+}
+
+const welcomeText = {
+    color: "#171717",
+    fontSize: "16px",
+    lineHeight: "1.6",
+    margin: "0 0 20px"
+}
+
+const welcomeButton = {
+    backgroundColor: "#000000",
+    borderRadius: "8px",
+    color: "#ffffff",
+    display: "inline-block",
+    fontSize: "16px",
+    fontWeight: "500",
+    lineHeight: "1",
+    margin: "4px 0 24px",
+    padding: "14px 22px",
+    textDecoration: "none"
+}
+
+const welcomeListIntro = {
+    color: "#171717",
+    fontSize: "16px",
+    lineHeight: "1.6",
+    margin: "0 0 10px",
+    fontWeight: "500"
+}
+
+const welcomeListItem = {
+    color: "#525252",
+    fontSize: "15px",
+    lineHeight: "1.6",
+    margin: "0 0 8px"
+}
+
+const divider = {
+    borderColor: "#e4e4e4",
+    margin: "28px 0"
+}
+
+const welcomeSupportText = {
+    color: "#525252",
+    fontSize: "15px",
+    lineHeight: "1.6",
+    margin: "0 0 20px"
+}
+
+const inlineLink = {
+    color: "#000000",
+    textDecoration: "underline"
+}
+
+const welcomeSignature = {
+    color: "#000000",
+    fontSize: "15px",
+    lineHeight: "1.6",
+    margin: "0"
+}
+
+const welcomeFooter = {
+    color: "#525252",
+    fontSize: "13px",
+    lineHeight: "1.6",
+    margin: "20px 0 0",
+    textAlign: "center" as const
 }
