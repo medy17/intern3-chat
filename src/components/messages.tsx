@@ -247,7 +247,7 @@ const PartsRenderer = memo(
                             markdown={markdown}
                             isAnimating={isReasoningStreaming}
                             className="rounded-lg border bg-muted/50"
-                            contentClassName="prose prose-p:my-0 prose-pre:my-2 prose-ul:my-2 prose-li:mt-1 prose-li:mb-0 max-w-none prose-pre:bg-transparent p-4 prose-pre:p-0 font-claude-message prose-headings:font-semibold prose-strong:font-medium prose-pre:text-foreground leading-[1.65rem] [&>div>div>:is(p,blockquote,h1,h2,h3,h4,h5,h6)]:pl-2 [&>div>div>:is(p,blockquote,ul,ol,h1,h2,h3,h4,h5,h6)]:pr-8 [&_.ignore-pre-bg>div]:bg-transparent [&_pre>div]:border-0.5 [&_pre>div]:border-border [&_pre>div]:bg-background"
+                            contentClassName={REASONING_MARKDOWN_CLASS}
                         >
                             {hasReasoningContent ? part.text : ""}
                         </ReasoningContent>
@@ -519,6 +519,10 @@ const MESSAGE_KEEP_MOUNTED_TAIL_COUNT = 40
 const MESSAGE_VIRTUALIZER_BUFFER = 700
 const MESSAGE_VIRTUALIZER_ITEM_SIZE = 208
 const BOTTOM_SCROLL_THRESHOLD_PX = 4
+const MESSAGE_MARKDOWN_CLASS =
+    "prose relative max-w-none prose-pre:bg-transparent prose-pre:p-0 font-claude-message prose-headings:font-semibold prose-strong:font-medium prose-pre:text-foreground leading-7 [&_.ignore-pre-bg>div]:bg-transparent [&_pre>div]:border-0.5 [&_pre>div]:border-border [&_pre>div]:bg-background"
+const REASONING_MARKDOWN_CLASS =
+    "prose max-w-none prose-pre:bg-transparent p-4 prose-pre:p-0 font-claude-message prose-headings:font-semibold prose-strong:font-medium prose-pre:text-foreground leading-7 [&_.ignore-pre-bg>div]:bg-transparent [&_pre>div]:border-0.5 [&_pre>div]:border-border [&_pre>div]:bg-background"
 
 type PreviewFile = {
     url: string
@@ -566,7 +570,7 @@ const MessageRowComponent = ({
         <div className="pb-3">
             <div
                 className={cn(
-                    "prose relative prose-ol:my-2 prose-p:my-0 prose-pre:my-2 prose-ul:my-2 prose-li:mt-1 prose-li:mb-0 max-w-none prose-pre:bg-transparent prose-pre:p-0 font-claude-message prose-headings:font-semibold prose-strong:font-medium prose-pre:text-foreground leading-[1.65rem] [&>div>div>:is(p,blockquote,h1,h2,h3,h4,h5,h6)]:pl-2 [&>div>div>:is(p,blockquote,ul,ol,h1,h2,h3,h4,h5,h6)]:pr-8 [&_.ignore-pre-bg>div]:bg-transparent [&_pre>div]:border-0.5 [&_pre>div]:border-border [&_pre>div]:bg-background",
+                    MESSAGE_MARKDOWN_CLASS,
                     "group prose-img:mx-auto prose-img:my-4 prose-pre:grid prose-code:before:hidden prose-code:after:hidden",
                     "mb-8",
                     message.role === "user" &&
@@ -582,7 +586,7 @@ const MessageRowComponent = ({
                     />
                 ) : (
                     <>
-                        <div className="prose-p:not-last:mb-4 max-w-[calc(100vw-2rem)] overflow-hidden">
+                        <div className="max-w-[calc(100vw-2rem)] overflow-hidden">
                             {reasoning && (
                                 <Reasoning
                                     className="mb-6"
@@ -593,7 +597,7 @@ const MessageRowComponent = ({
                                         markdown={message.role === "assistant"}
                                         isAnimating={isStreamingMessage && reasoning.isStreaming}
                                         className="rounded-lg border bg-muted/50"
-                                        contentClassName="prose prose-p:my-0 prose-pre:my-2 prose-ul:my-2 prose-li:mt-1 prose-li:mb-0 max-w-none prose-pre:bg-transparent p-4 prose-pre:p-0 font-claude-message prose-headings:font-semibold prose-strong:font-medium prose-pre:text-foreground leading-[1.65rem] [&>div>div>:is(p,blockquote,h1,h2,h3,h4,h5,h6)]:pl-2 [&>div>div>:is(p,blockquote,ul,ol,h1,h2,h3,h4,h5,h6)]:pr-8 [&_.ignore-pre-bg>div]:bg-transparent [&_pre>div]:border-0.5 [&_pre>div]:border-border [&_pre>div]:bg-background"
+                                        contentClassName={REASONING_MARKDOWN_CLASS}
                                     >
                                         {reasoning.text}
                                     </ReasoningContent>
