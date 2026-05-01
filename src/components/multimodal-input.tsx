@@ -1580,7 +1580,7 @@ export const MultimodalInput = forwardRef<
                         <motion.div
                             layout
                             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                            className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden sm:gap-2"
+                            className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden sm:gap-2 sm:overflow-visible"
                         >
                             {selectedModel && (
                                 <motion.div

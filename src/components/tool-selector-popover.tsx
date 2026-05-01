@@ -322,7 +322,7 @@ export const ToolSelectorPopover = memo(
                     >
                         <Settings2 className="size-4" />
                         {activeCount > 0 && (
-                            <span className="-top-1 -right-1 absolute flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">
+                            <span className="-top-0.5 -right-1 absolute flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">
                                 {activeCount}
                             </span>
                         )}
