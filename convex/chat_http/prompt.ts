@@ -33,7 +33,7 @@ export const buildPrompt = (
     $$
     L(t) = L_{0}e^{-kt}
     $$
-  - Never use single-dollar math delimiters like $L_{0}$.
+  - You are explicitly FORBIDDEN from using single-dollar math delimiters like $L_{0}$ or $(a,b)$.
 - Do not include comments in any mermaid diagrams you output.
 
 ## Canvas tool
