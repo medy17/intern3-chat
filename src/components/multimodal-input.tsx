@@ -91,6 +91,15 @@ interface ExtendedUploadedFile extends UploadedFile {
     file?: File
 }
 
+interface LocalUploadingFile {
+    id: string
+    file: File
+    progress: number
+    status: "uploading" | "success" | "error"
+    previewUrl?: string
+    error?: string
+}
+
 const IMAGE_COMPRESSION_CUTOFF_BYTES = 25 * 1024 * 1024
 const IMAGE_COMPRESSION_STEPS = [
     { quality: 0.86, maxDimension: 4096 },
@@ -718,6 +727,7 @@ export const MultimodalInput = forwardRef<
     const promptInputRef = useRef<PromptInputRef>(null)
 
     const [fileContents, setFileContents] = useState<Record<string, string>>({})
+    const [localUploadingFiles, setLocalUploadingFiles] = useState<LocalUploadingFile[]>([])
     const [dialogFile, setDialogFile] = useState<{
         content: string
         fileName: string
@@ -994,8 +1004,11 @@ export const MultimodalInput = forwardRef<
         }
     }, [])
 
-    const uploadFile = useCallback(
-        async (file: File): Promise<ExtendedUploadedFile> => {
+    const uploadFileWithProgress = useCallback(
+        async (
+            file: File,
+            onProgress: (progress: number) => void
+        ): Promise<ExtendedUploadedFile> => {
             const jwt = await resolveJwtToken(token)
             if (!jwt) {
                 throw new Error("Authentication token unavailable")
@@ -1005,24 +1018,45 @@ export const MultimodalInput = forwardRef<
             formData.append("file", file)
             formData.append("fileName", file.name)
 
-            const response = await fetch(`${browserEnv("VITE_CONVEX_API_URL")}/upload`, {
-                method: "POST",
-                body: formData,
-                headers: {
-                    Authorization: `Bearer ${jwt}`
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest()
+                xhr.open("POST", `${browserEnv("VITE_CONVEX_API_URL")}/upload`)
+                xhr.setRequestHeader("Authorization", `Bearer ${jwt}`)
+
+                xhr.upload.onprogress = (event) => {
+                    if (event.lengthComputable) {
+                        const progress = Math.round((event.loaded / event.total) * 100)
+                        onProgress(progress)
+                    }
                 }
+
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            const result = JSON.parse(xhr.responseText)
+                            resolve({
+                                ...result,
+                                file
+                            })
+                        } catch (error) {
+                            reject(new Error("Invalid response from server"))
+                        }
+                    } else {
+                        try {
+                            const errorData = JSON.parse(xhr.responseText)
+                            reject(new Error(errorData.error || "Upload failed"))
+                        } catch (error) {
+                            reject(new Error("Upload failed"))
+                        }
+                    }
+                }
+
+                xhr.onerror = () => {
+                    reject(new Error("Upload failed due to a network error"))
+                }
+
+                xhr.send(formData)
             })
-
-            if (!response.ok) {
-                const errorData = await response.json()
-                throw new Error(errorData.error || "Upload failed")
-            }
-
-            const result = await response.json()
-            return {
-                ...result,
-                file
-            }
         },
         [token]
     )
@@ -1096,14 +1130,52 @@ export const MultimodalInput = forwardRef<
                 if (validFiles.length === 0) return
             }
 
+            // Create local state entries for valid files
+            const newLocalFiles: LocalUploadingFile[] = await Promise.all(
+                validFiles.map(async (file) => {
+                    const id = Math.random().toString(36).substring(7)
+                    let previewUrl: string | undefined
+
+                    if (
+                        isImageMimeType(file.type) &&
+                        !isSvgMimeType(file.type) &&
+                        !isSvgExtension(file.name)
+                    ) {
+                        previewUrl = URL.createObjectURL(file)
+                    }
+
+                    return {
+                        id,
+                        file,
+                        progress: 0,
+                        status: "uploading" as const,
+                        previewUrl
+                    }
+                })
+            )
+
+            setLocalUploadingFiles((prev) => [...prev, ...newLocalFiles])
             setUploading(true)
-            try {
-                const uploadPromises = validFiles.map((file) => uploadFile(file))
-                const uploadedResults = await Promise.all(uploadPromises)
 
-                for (const result of uploadedResults) {
-                    addUploadedFile(result)
+            // Start uploads concurrently
+            validFiles.forEach(async (file, index) => {
+                const localFile = newLocalFiles[index]
 
+                try {
+                    const result = await uploadFileWithProgress(file, (progress) => {
+                        setLocalUploadingFiles((prev) =>
+                            prev.map((f) => (f.id === localFile.id ? { ...f, progress } : f))
+                        )
+                    })
+
+                    // Mark as success and show checkmark
+                    setLocalUploadingFiles((prev) =>
+                        prev.map((f) =>
+                            f.id === localFile.id ? { ...f, status: "success", progress: 100 } : f
+                        )
+                    )
+
+                    // Read content for preview if needed
                     if (result.file) {
                         const content = await readFileContent(result.file)
                         setFileContents((prev) => ({
@@ -1111,19 +1183,64 @@ export const MultimodalInput = forwardRef<
                             [result.key]: content
                         }))
                     }
-                }
 
-                if (uploadInputRef.current) {
-                    uploadInputRef.current.value = ""
+                    // Add a small delay so the user sees the checkmark state
+                    setTimeout(() => {
+                        addUploadedFile(result)
+                        // Clean up object url
+                        if (localFile.previewUrl) {
+                            URL.revokeObjectURL(localFile.previewUrl)
+                        }
+                        // Remove from local uploading state
+                        setLocalUploadingFiles((prev) => prev.filter((f) => f.id !== localFile.id))
+
+                        // If this was the last file to finish uploading, we can clear the uploading status
+                        setLocalUploadingFiles((prev) => {
+                            if (prev.length === 0) {
+                                setUploading(false)
+                            }
+                            return prev
+                        })
+                    }, 500)
+                } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "Upload failed")
+
+                    setLocalUploadingFiles((prev) =>
+                        prev.map((f) =>
+                            f.id === localFile.id
+                                ? {
+                                      ...f,
+                                      status: "error",
+                                      error:
+                                          error instanceof Error ? error.message : "Upload failed"
+                                  }
+                                : f
+                        )
+                    )
+
+                    // Remove failed uploads after a longer delay
+                    setTimeout(() => {
+                        if (localFile.previewUrl) {
+                            URL.revokeObjectURL(localFile.previewUrl)
+                        }
+                        setLocalUploadingFiles((prev) => prev.filter((f) => f.id !== localFile.id))
+
+                        setLocalUploadingFiles((prev) => {
+                            if (prev.length === 0) {
+                                setUploading(false)
+                            }
+                            return prev
+                        })
+                    }, 2000)
                 }
-            } catch (error) {
-                toast.error(error instanceof Error ? error.message : "Upload failed")
-            } finally {
-                setUploading(false)
+            })
+
+            if (uploadInputRef.current) {
+                uploadInputRef.current.value = ""
             }
         },
         [
-            uploadFile,
+            uploadFileWithProgress,
             addUploadedFile,
             setUploading,
             readFileContent,
@@ -1213,6 +1330,95 @@ export const MultimodalInput = forwardRef<
         return <FileType className="size-4 text-gray-500" />
     }
 
+    const renderLocalUploadingFile = (localFile: LocalUploadingFile) => {
+        const { isImage, isCode } = getFileTypeInfo(localFile.file.name, localFile.file.type)
+
+        return (
+            <div key={localFile.id} className="group relative">
+                <div
+                    className={cn(
+                        "relative flex h-12 items-center justify-center overflow-hidden border-2 border-border bg-secondary/50 transition-colors",
+                        isImage && "w-12"
+                    )}
+                    style={{ borderRadius: "var(--radius)" }}
+                >
+                    {isImage && localFile.previewUrl ? (
+                        <>
+                            <img
+                                src={localFile.previewUrl}
+                                alt=""
+                                className={cn(
+                                    "h-full w-full object-cover transition-all",
+                                    localFile.status === "uploading" && "opacity-40 blur-[2px]"
+                                )}
+                                style={{ borderRadius: "calc(var(--radius) - 2px)" }}
+                            />
+                            {localFile.status === "uploading" && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/20">
+                                    <span className="font-semibold text-[10px] text-white drop-shadow-md">
+                                        {localFile.progress}%
+                                    </span>
+                                    <div
+                                        className="h-1 w-8 overflow-hidden bg-white/30"
+                                        style={{ borderRadius: "var(--radius)" }}
+                                    >
+                                        <div
+                                            className="h-full bg-white transition-all duration-200"
+                                            style={{ width: `${localFile.progress}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                            {localFile.status === "success" && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/90 text-primary-foreground">
+                                        <Check className="size-3" />
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className="flex w-full items-center justify-center gap-2 px-2 font-medium text-sm">
+                            {isCode ? (
+                                <Code className="size-4 text-green-500" />
+                            ) : (
+                                <FileType className="size-4 text-gray-500" />
+                            )}
+                            <div className="flex w-full flex-col items-start overflow-hidden">
+                                <span className="w-full truncate text-ellipsis">
+                                    {localFile.file.name}
+                                </span>
+                                {localFile.status === "uploading" ? (
+                                    <div className="mt-1 flex w-full items-center gap-2">
+                                        <div
+                                            className="h-1 flex-1 overflow-hidden bg-border"
+                                            style={{ borderRadius: "var(--radius)" }}
+                                        >
+                                            <div
+                                                className="h-full bg-primary transition-all duration-200"
+                                                style={{ width: `${localFile.progress}%` }}
+                                            />
+                                        </div>
+                                        <span className="text-[10px] text-muted-foreground">
+                                            {localFile.progress}%
+                                        </span>
+                                    </div>
+                                ) : localFile.status === "success" ? (
+                                    <div className="mt-0.5 flex items-center gap-1 text-primary text-xs">
+                                        <Check className="size-3" />
+                                        <span>Uploaded</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-destructive text-xs">Error</span>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        )
+    }
+
     const renderFilePreview = (uploadedFile: ExtendedUploadedFile) => {
         const content = fileContents[uploadedFile.key]
         const { isImage, isText } = getFileType(uploadedFile)
@@ -1230,15 +1436,17 @@ export const MultimodalInput = forwardRef<
                         setDialogOpen(true)
                     }}
                     className={cn(
-                        "relative flex h-12 items-center justify-center overflow-hidden rounded-lg border-2 border-border bg-secondary/50 transition-colors hover:bg-secondary/80",
+                        "relative flex h-12 items-center justify-center overflow-hidden border-2 border-border bg-secondary/50 transition-colors hover:bg-secondary/80",
                         isImage && "w-12"
                     )}
+                    style={{ borderRadius: "var(--radius)" }}
                 >
                     {content && isImage ? (
                         <img
                             src={content}
                             alt=""
-                            className="h-full w-full rounded-md object-cover"
+                            className="h-full w-full object-cover"
+                            style={{ borderRadius: "calc(var(--radius) - 2px)" }}
                         />
                     ) : (
                         <div className="flex items-center justify-center gap-2 px-2 font-medium text-sm">
@@ -1356,9 +1564,10 @@ export const MultimodalInput = forwardRef<
                     onSubmit={handleSubmit}
                     className={cn("mx-auto w-full", getChatWidthClass(chatWidthState.chatWidth))}
                 >
-                    {extendedFiles.length > 0 && (
+                    {(extendedFiles.length > 0 || localUploadingFiles.length > 0) && (
                         <div className="flex flex-wrap gap-2 pb-3">
                             {extendedFiles.map(renderFilePreview)}
+                            {localUploadingFiles.map(renderLocalUploadingFile)}
                         </div>
                     )}
                     <PromptInputTextarea
