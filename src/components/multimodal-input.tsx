@@ -725,6 +725,7 @@ export const MultimodalInput = forwardRef<
     const isLoading = status === "streaming"
     const uploadInputRef = useRef<HTMLInputElement>(null)
     const promptInputRef = useRef<PromptInputRef>(null)
+    const composerViewportRef = useRef<HTMLDivElement>(null)
 
     const [fileContents, setFileContents] = useState<Record<string, string>>({})
     const [localUploadingFiles, setLocalUploadingFiles] = useState<LocalUploadingFile[]>([])
@@ -735,6 +736,7 @@ export const MultimodalInput = forwardRef<
     } | null>(null)
     const [dialogOpen, setDialogOpen] = useState(false)
     const [extendedFiles, setExtendedFiles] = useState<ExtendedUploadedFile[]>([])
+    const [composerLiftPx, setComposerLiftPx] = useState(0)
     const userSettings = useDiskCachedQuery(
         api.settings.getUserSettings,
         {
@@ -1534,6 +1536,53 @@ export const MultimodalInput = forwardRef<
         return () => document.removeEventListener("paste", handleGlobalPaste)
     }, [handlePaste, isActive])
 
+    useEffect(() => {
+        const composer = composerViewportRef.current
+        if (!composer) {
+            return
+        }
+
+        let frameId = 0
+
+        const updateComposerLift = () => {
+            const rect = composer.getBoundingClientRect()
+            const viewportBottom = window.visualViewport
+                ? window.visualViewport.height + window.visualViewport.offsetTop
+                : window.innerHeight
+            const overlap = rect.bottom - (viewportBottom - 8)
+            setComposerLiftPx(overlap > 0 ? Math.ceil(overlap) : 0)
+        }
+
+        const scheduleComposerLiftUpdate = () => {
+            cancelAnimationFrame(frameId)
+            frameId = requestAnimationFrame(updateComposerLift)
+        }
+
+        scheduleComposerLiftUpdate()
+
+        const resizeObserver =
+            typeof ResizeObserver === "undefined"
+                ? null
+                : new ResizeObserver(() => {
+                      scheduleComposerLiftUpdate()
+                  })
+
+        resizeObserver?.observe(composer)
+
+        const viewport = window.visualViewport
+        viewport?.addEventListener("resize", scheduleComposerLiftUpdate)
+        viewport?.addEventListener("scroll", scheduleComposerLiftUpdate)
+        composer.addEventListener("focusin", scheduleComposerLiftUpdate)
+
+        return () => {
+            cancelAnimationFrame(frameId)
+            resizeObserver?.disconnect()
+            viewport?.removeEventListener("resize", scheduleComposerLiftUpdate)
+            viewport?.removeEventListener("scroll", scheduleComposerLiftUpdate)
+            composer.removeEventListener("focusin", scheduleComposerLiftUpdate)
+        }
+    }, [])
+
     if (!isClient) return null
 
     return (
@@ -1552,14 +1601,19 @@ export const MultimodalInput = forwardRef<
             )}
 
             <div
+                ref={composerViewportRef}
                 className={cn(
                     "@container w-full px-1",
                     (voiceState.isRecording || voiceState.isTranscribing) && "hidden"
                 )}
+                style={{
+                    transform: composerLiftPx > 0 ? `translateY(-${composerLiftPx}px)` : undefined
+                }}
             >
                 <PromptInput
                     ref={promptInputRef}
                     onSubmit={handleSubmit}
+                    maxHeight={240}
                     className={cn("mx-auto w-full", getChatWidthClass(chatWidthState.chatWidth))}
                 >
                     {(extendedFiles.length > 0 || localUploadingFiles.length > 0) && (

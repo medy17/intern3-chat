@@ -12,6 +12,31 @@ import {
     useRef
 } from "react"
 
+export function applyPromptTextareaSize(
+    textarea: HTMLTextAreaElement,
+    maxHeight: number | string,
+    value?: string
+) {
+    textarea.style.height = "auto"
+
+    const nextValue = value ?? textarea.value
+    if (!nextValue.trim()) {
+        textarea.style.height = ""
+        textarea.style.overflowY = ""
+        return
+    }
+
+    if (typeof maxHeight === "number") {
+        const nextHeight = Math.min(textarea.scrollHeight, maxHeight)
+        textarea.style.height = `${nextHeight}px`
+        textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden"
+        return
+    }
+
+    textarea.style.height = `min(${textarea.scrollHeight}px, ${maxHeight})`
+    textarea.style.overflowY = "auto"
+}
+
 type PromptInputContextType = {
     isLoading: boolean
     maxHeight: number | string
@@ -60,19 +85,7 @@ const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(
             (value?: string) => {
                 const textarea = textareaRef.current
                 if (!textarea) return
-
-                textarea.style.height = "auto"
-
-                const nextValue = value ?? textarea.value
-                if (!nextValue.trim()) {
-                    textarea.style.height = ""
-                    return
-                }
-
-                textarea.style.height =
-                    typeof maxHeight === "number"
-                        ? `${Math.min(textarea.scrollHeight, maxHeight)}px`
-                        : `min(${textarea.scrollHeight}px, ${maxHeight})`
+                applyPromptTextareaSize(textarea, maxHeight, value)
             },
             [maxHeight]
         )
@@ -177,17 +190,7 @@ function PromptInputTextarea({
 
     const resizeTextarea = useCallback(
         (target: HTMLTextAreaElement) => {
-            target.style.height = "auto"
-
-            if (!target.value.trim()) {
-                target.style.height = ""
-                return
-            }
-
-            target.style.height =
-                typeof maxHeight === "number"
-                    ? `${Math.min(target.scrollHeight, maxHeight)}px`
-                    : `min(${target.scrollHeight}px, ${maxHeight})`
+            applyPromptTextareaSize(target, maxHeight)
         },
         [maxHeight]
     )
@@ -229,7 +232,7 @@ function PromptInputTextarea({
             onKeyDown={handleKeyDown}
             onInput={handleInput}
             className={cn(
-                "min-h-[44px] w-full resize-none border-none bg-transparent text-foreground shadow-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
+                "field-sizing-fixed min-h-[44px] w-full resize-none overflow-y-auto border-none bg-transparent text-foreground shadow-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
                 className
             )}
             rows={1}
