@@ -21,7 +21,11 @@ import { internal } from "../_generated/api"
 import type { Id } from "../_generated/dataModel"
 import { httpAction } from "../_generated/server"
 import { r2 } from "../attachments"
-import { resolvePrototypeCreditCharge, resolveRequiredPlanForModelAccess } from "../lib/credits"
+import {
+    resolvePrototypeCreditCharge,
+    resolvePrototypeToolCreditCharge,
+    resolveRequiredPlanForModelAccess
+} from "../lib/credits"
 import { dbMessagesToCore } from "../lib/db_to_core_messages"
 import { getGoogleAuthMode } from "../lib/google_provider"
 import { getUserIdentity } from "../lib/identity"
@@ -34,7 +38,13 @@ import {
 } from "../lib/models"
 import { type CompiledPersonaSnapshot, compilePersonaSnapshot } from "../lib/personas"
 import { getResumableStreamContext } from "../lib/resumable_stream_context"
-import { type AbilityId, getToolkit } from "../lib/toolkit"
+import {
+    type AbilityId,
+    type ToolFundingSource,
+    getToolkit,
+    resolveToolAvailability,
+    sanitizeEnabledTools
+} from "../lib/toolkit"
 import { getBuiltInPersonaDefinition } from "../personas"
 import type { HTTPAIMessage } from "../schema/message"
 import type { ErrorUIPart } from "../schema/parts"
@@ -594,7 +604,7 @@ export const chatPOST = httpAction(async (ctx, req) => {
         ).toResponse()
     }
 
-    const creditCharge = resolvePrototypeCreditCharge({
+    const modelCreditCharge = resolvePrototypeCreditCharge({
         providerSource: modelData.providerSource,
         modelMode: model.modelType,
         enabledTools: body.enabledTools,
@@ -675,25 +685,30 @@ export const chatPOST = httpAction(async (ctx, req) => {
     const settings = await ctx.runQuery(internal.settings.getUserSettingsInternal, {
         userId: user.id
     })
+    const filteredSettings = {
+        ...settings,
+        mcpServers: settings.mcpServers?.filter((server: { name: string; enabled?: boolean }) => {
+            if (server.enabled === false) return false
+            const overrideValue = body.mcpOverrides?.[server.name]
+            return overrideValue !== false
+        })
+    }
+    const requestedEnabledTools = Array.from(new Set(body.enabledTools))
+    if ((filteredSettings.mcpServers ?? []).length > 0) {
+        requestedEnabledTools.push("mcp")
+    }
+    const toolAvailability = resolveToolAvailability(filteredSettings)
+    const resolvedEnabledTools = sanitizeEnabledTools(requestedEnabledTools, toolAvailability)
+    const toolCalls = new Map<string, { toolCallId: string; toolName: string }>()
+    const getToolFundingSource = (toolName: string): ToolFundingSource => {
+        if (toolName === "web_search") return toolAvailability.web_search.fundingSource
+        return "byok"
+    }
     const persistedPersonaSnapshot =
         personaSnapshot ??
         (await ctx.runQuery(internal.personas.getThreadPersonaSnapshotInternal, {
             threadId: mutationResult.threadId
         }))
-
-    if (settings.mcpServers && settings.mcpServers.length > 0) {
-        const enabledMcpServers = settings.mcpServers.filter(
-            (server: { name: string; enabled?: boolean }) => {
-                const overrideValue = body.mcpOverrides?.[server.name]
-                if (overrideValue === undefined) return server.enabled
-                return overrideValue !== false
-            }
-        )
-
-        if (enabledMcpServers.length > 0) {
-            body.enabledTools.push("mcp")
-        }
-    }
 
     // Track token usage
     const totalTokenUsage = {
@@ -1034,7 +1049,10 @@ export const chatPOST = httpAction(async (ctx, req) => {
                             streamMetrics,
                             {
                                 allowReasoning: effectiveReasoningEffort !== "off",
-                                onPartsChanged: scheduleLiveAssistantPersist
+                                onPartsChanged: scheduleLiveAssistantPersist,
+                                onToolCall: (toolCall) => {
+                                    toolCalls.set(toolCall.toolCallId, toolCall)
+                                }
                             }
                         )
                     )
@@ -1066,17 +1084,6 @@ export const chatPOST = httpAction(async (ctx, req) => {
                         }
                     })
                 } else {
-                    // Pass the filtered settings (with MCP overrides applied) to the toolkit
-                    const filteredSettings = {
-                        ...settings,
-                        mcpServers: settings.mcpServers?.filter(
-                            (server: { name: string; enabled?: boolean }) => {
-                                if (server.enabled === false) return false
-                                const overrideValue = body.mcpOverrides?.[server.name]
-                                return overrideValue !== false
-                            }
-                        )
-                    }
                     const shouldDisableSmoothTransform = isGoogleImagePreviewModel(
                         modelData.modelId
                     )
@@ -1090,7 +1097,7 @@ export const chatPOST = httpAction(async (ctx, req) => {
                             ? undefined
                             : smoothStream(),
                         tools: modelData.abilities.includes("function_calling")
-                            ? await getToolkit(ctx, body.enabledTools, filteredSettings)
+                            ? await getToolkit(ctx, resolvedEnabledTools, filteredSettings)
                             : undefined,
                         messages: [
                             ...(modelData.modelId !== "gemini-2.0-flash-image-generation"
@@ -1098,7 +1105,7 @@ export const chatPOST = httpAction(async (ctx, req) => {
                                       {
                                           role: "system",
                                           content: buildPrompt(
-                                              body.enabledTools,
+                                              resolvedEnabledTools,
                                               settings,
                                               persistedPersonaSnapshot?.compiledPrompt
                                           )
@@ -1150,7 +1157,10 @@ export const chatPOST = httpAction(async (ctx, req) => {
                             streamMetrics,
                             {
                                 allowReasoning: effectiveReasoningEffort !== "off",
-                                onPartsChanged: scheduleLiveAssistantPersist
+                                onPartsChanged: scheduleLiveAssistantPersist,
+                                onToolCall: (toolCall) => {
+                                    toolCalls.set(toolCall.toolCallId, toolCall)
+                                }
                             }
                         )
                     )
@@ -1223,10 +1233,10 @@ export const chatPOST = httpAction(async (ctx, req) => {
                     estimatedPromptCostUsd: totalTokenUsage.estimatedPromptCostUsd,
                     estimatedCompletionCostUsd: totalTokenUsage.estimatedCompletionCostUsd,
                     creditProviderSource: modelData.providerSource,
-                    creditBucket: creditCharge.bucket,
-                    creditFeature: creditCharge.feature,
-                    creditUnits: creditCharge.units,
-                    creditCounted: creditCharge.counted,
+                    creditBucket: modelCreditCharge.bucket,
+                    creditFeature: modelCreditCharge.feature,
+                    creditUnits: modelCreditCharge.units,
+                    creditCounted: modelCreditCharge.counted,
                     serverDurationMs: Date.now() - streamStartTime,
                     timeToFirstVisibleMs: getTimeToFirstVisibleMs()
                 }
@@ -1235,14 +1245,32 @@ export const chatPOST = httpAction(async (ctx, req) => {
                 userId: user.id,
                 threadId: mutationResult.threadId,
                 messageId: mutationResult.assistantMessageId,
-                messageKey: String(mutationResult.assistantMessageConvexId),
+                messageKey: `${String(mutationResult.assistantMessageConvexId)}:model`,
                 modelId: body.model,
                 providerSource: modelData.providerSource,
-                feature: creditCharge.feature,
-                bucket: creditCharge.bucket,
-                units: creditCharge.units,
-                counted: creditCharge.counted
+                feature: modelCreditCharge.feature,
+                bucket: modelCreditCharge.bucket,
+                units: modelCreditCharge.units,
+                counted: modelCreditCharge.counted
             })
+
+            for (const toolCall of toolCalls.values()) {
+                const toolCreditCharge = resolvePrototypeToolCreditCharge({
+                    fundingSource: getToolFundingSource(toolCall.toolName)
+                })
+                await ctx.runMutation(internal.credits.recordCreditEventForMessage, {
+                    userId: user.id,
+                    threadId: mutationResult.threadId,
+                    messageId: mutationResult.assistantMessageId,
+                    messageKey: `${String(mutationResult.assistantMessageConvexId)}:tool:${toolCall.toolCallId}`,
+                    modelId: body.model,
+                    providerSource: toolCreditCharge.providerSource,
+                    feature: toolCreditCharge.feature,
+                    bucket: toolCreditCharge.bucket,
+                    units: toolCreditCharge.units,
+                    counted: toolCreditCharge.counted
+                })
+            }
 
             if (model.modelType === "image") {
                 writer.write({

@@ -2,20 +2,26 @@ import { tool } from "ai"
 import { z } from "zod"
 import { internal } from "../../_generated/api"
 import type { ToolAdapter } from "../toolkit"
-import { SearchProvider } from "./adapters"
+import { SearchProvider, type SearchProviderType } from "./adapters"
+import { getDeploymentSearchProviderApiKey } from "./availability"
 
 export const WebSearchAdapter: ToolAdapter = async (params) => {
     if (!params.enabledTools.includes("web_search")) return {}
 
     const { userSettings, ctx } = params
-    const searchProviderId = userSettings.searchProvider
+    const webSearchAvailability = params.toolAvailability.web_search
+    if (!webSearchAvailability.enabled) return {}
+    const searchProviderId =
+        webSearchAvailability.provider ?? (userSettings.searchProvider as SearchProviderType)
 
-    // Get the API key for the selected provider
-    // User-provided key takes precedence over server key
     const byokProvider = userSettings.generalProviders?.[searchProviderId]
     let apiKey: string | undefined
 
-    if (byokProvider?.enabled && byokProvider.encryptedKey) {
+    if (
+        webSearchAvailability.fundingSource === "byok" &&
+        byokProvider?.enabled &&
+        byokProvider.encryptedKey
+    ) {
         const decryptedKey = await ctx.runQuery(internal.settings.getDecryptedGeneralProviderKey, {
             providerId: searchProviderId,
             userId: userSettings.userId
@@ -24,6 +30,12 @@ export const WebSearchAdapter: ToolAdapter = async (params) => {
             apiKey = decryptedKey
         }
     }
+
+    if (!apiKey && webSearchAvailability.fundingSource === "deployment") {
+        apiKey = getDeploymentSearchProviderApiKey(searchProviderId)
+    }
+
+    if (!apiKey) return {}
 
     return {
         web_search: tool({
@@ -41,13 +53,11 @@ export const WebSearchAdapter: ToolAdapter = async (params) => {
                     scrapeContent ?? userSettings.searchIncludeSourcesByDefault
                 try {
                     const searchProvider = new SearchProvider({
-                        provider: userSettings.searchProvider,
-                        apiKey: apiKey // Pass the retrieved API key
+                        provider: searchProviderId,
+                        apiKey
                     })
 
-                    console.log(
-                        `Searching for ${query} with provider ${userSettings.searchProvider}...`
-                    )
+                    console.log(`Searching for ${query} with provider ${searchProviderId}...`)
 
                     const results = await searchProvider.search(query, {
                         limit: 5,

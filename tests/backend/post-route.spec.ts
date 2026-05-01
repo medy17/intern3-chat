@@ -112,7 +112,49 @@ vi.mock("../../convex/lib/db_to_core_messages", () => ({
 }))
 
 vi.mock("../../convex/lib/toolkit", () => ({
-    getToolkit: getToolkitMock
+    getToolkit: getToolkitMock,
+    resolveToolAvailability: (
+        settings: Record<
+            string,
+            | string
+            | Array<{ enabled?: boolean }>
+            | Record<string, { enabled?: boolean; encryptedKey?: string } | undefined>
+            | undefined
+        >
+    ) => {
+        const searchProvider =
+            typeof settings.searchProvider === "string" ? settings.searchProvider : "firecrawl"
+        const generalProviders = settings.generalProviders as
+            | Record<string, { enabled?: boolean; encryptedKey?: string } | undefined>
+            | undefined
+        const searchProviderConfig = generalProviders?.[searchProvider]
+        const hasSearchByok =
+            searchProviderConfig?.enabled === true && Boolean(searchProviderConfig.encryptedKey)
+        const hasSearchDeployment =
+            searchProvider === "firecrawl" && Boolean(process.env.FIRECRAWL_API_KEY)
+
+        return {
+            web_search: {
+                enabled: hasSearchByok || hasSearchDeployment,
+                fundingSource: hasSearchByok ? "byok" : hasSearchDeployment ? "deployment" : "none",
+                provider: searchProvider
+            },
+            supermemory: {
+                enabled:
+                    generalProviders?.supermemory?.enabled === true &&
+                    Boolean(generalProviders.supermemory.encryptedKey),
+                fundingSource: "byok"
+            },
+            mcp: {
+                enabled: Array.isArray(settings.mcpServers) && settings.mcpServers.length > 0,
+                fundingSource: "byok"
+            }
+        }
+    },
+    sanitizeEnabledTools: (
+        enabledTools: string[],
+        availability: Record<string, { enabled?: boolean }>
+    ) => Array.from(new Set(enabledTools)).filter((tool) => availability[tool]?.enabled)
 }))
 
 vi.mock("../../convex/chat_http/generate_thread_name", () => ({
@@ -318,6 +360,10 @@ describe("chatPOST", () => {
         smoothStreamMock.mockReset().mockReturnValue("smooth-transform")
         stepCountIsMock.mockReset().mockReturnValue("stop-after-100")
         streamTextMock.mockReset()
+        Reflect.deleteProperty(process.env, "FIRECRAWL_API_KEY")
+        Reflect.deleteProperty(process.env, "BRAVE_API_KEY")
+        Reflect.deleteProperty(process.env, "TAVILY_API_KEY")
+        Reflect.deleteProperty(process.env, "SERPER_API_KEY")
         vi.spyOn(console, "error").mockImplementation(() => {})
     })
 
@@ -498,6 +544,7 @@ describe("chatPOST", () => {
     })
 
     it("streams a text response, patches the assistant message, and records credits on the happy path", async () => {
+        process.env.FIRECRAWL_API_KEY = "server-firecrawl-key"
         const ctx = createCtx()
         ctx.runMutation.mockImplementation(async (name: string) => {
             switch (name) {
@@ -523,6 +570,10 @@ describe("chatPOST", () => {
                     return [{ _id: "db-message-1" }]
                 case "getUserSettingsInternal":
                     return {
+                        userId: "user-1",
+                        searchProvider: "firecrawl",
+                        searchIncludeSourcesByDefault: false,
+                        generalProviders: {},
                         mcpServers: []
                     }
                 case "getThreadPersonaSnapshotInternal":
@@ -568,8 +619,12 @@ describe("chatPOST", () => {
                 _ctx: unknown,
                 streamMetrics?: {
                     firstVisibleAtMs?: number
+                },
+                options?: {
+                    onToolCall?: (toolCall: { toolCallId: string; toolName: string }) => void
                 }
             ) => {
+                options?.onToolCall?.({ toolCallId: "call-1", toolName: "web_search" })
                 parts.push({
                     type: "text",
                     text: "Hello world"
@@ -628,14 +683,18 @@ describe("chatPOST", () => {
         expect(generateThreadNameMock).toHaveBeenCalledTimes(1)
         expect(buildPromptMock).toHaveBeenCalledWith(
             ["web_search"],
-            {
+            expect.objectContaining({
                 mcpServers: []
-            },
+            }),
             undefined
         )
-        expect(getToolkitMock).toHaveBeenCalledWith(ctx, ["web_search"], {
-            mcpServers: []
-        })
+        expect(getToolkitMock).toHaveBeenCalledWith(
+            ctx,
+            ["web_search"],
+            expect.objectContaining({
+                mcpServers: []
+            })
+        )
         expect(stepCountIsMock).toHaveBeenCalledWith(100)
         expect(smoothStreamMock).toHaveBeenCalledTimes(1)
         expect(streamTextMock).toHaveBeenCalledWith(
@@ -688,7 +747,7 @@ describe("chatPOST", () => {
                 estimatedPromptCostUsd: 0.000757,
                 estimatedCompletionCostUsd: 0.000795,
                 creditProviderSource: "internal",
-                creditFeature: "tool",
+                creditFeature: "chat",
                 creditBucket: "pro",
                 creditUnits: 1,
                 creditCounted: true,
@@ -702,11 +761,23 @@ describe("chatPOST", () => {
             userId: "user-1",
             threadId: "thread-1",
             messageId: "assistant-1",
-            messageKey: "42",
+            messageKey: "42:model",
+            modelId: "shared-text",
+            providerSource: "internal",
+            feature: "chat",
+            bucket: "pro",
+            units: 1,
+            counted: true
+        })
+        expect(ctx.runMutation).toHaveBeenCalledWith("recordCreditEventForMessage", {
+            userId: "user-1",
+            threadId: "thread-1",
+            messageId: "assistant-1",
+            messageKey: "42:tool:call-1",
             modelId: "shared-text",
             providerSource: "internal",
             feature: "tool",
-            bucket: "pro",
+            bucket: "basic",
             units: 1,
             counted: true
         })

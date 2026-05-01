@@ -27,7 +27,7 @@ describe("persistence", () => {
     it("returns SSR-safe defaults when window is unavailable", () => {
         expect(loadAIConfig()).toEqual({
             selectedModel: null,
-            enabledTools: ["web_search"],
+            enabledTools: [],
             selectedImageSize: "1:1",
             selectedImageResolution: "1K",
             reasoningEffort: "off"
@@ -45,7 +45,7 @@ describe("persistence", () => {
 
         expect(loadAIConfig()).toEqual({
             selectedModel: null,
-            enabledTools: ["web_search"],
+            enabledTools: [],
             selectedImageSize: "1:1",
             selectedImageResolution: "1K",
             reasoningEffort: "off"
@@ -69,10 +69,50 @@ describe("persistence", () => {
 
         expect(loadAIConfig()).toEqual({
             selectedModel: "gpt-5.4",
-            enabledTools: ["web_search"],
+            enabledTools: [],
             selectedImageSize: "16:9",
             selectedImageResolution: "2K",
             reasoningEffort: "medium"
+        })
+    })
+
+    it("migrates the old web-search-on default while preserving customized configs", () => {
+        const defaultStorage = createStorageMock({
+            "ai-config": JSON.stringify({
+                selectedModel: null,
+                enabledTools: ["web_search"],
+                selectedImageSize: "1:1",
+                selectedImageResolution: "1K",
+                reasoningEffort: "off"
+            })
+        })
+
+        vi.stubGlobal("window", {})
+        vi.stubGlobal("localStorage", defaultStorage)
+
+        expect(loadAIConfig()).toEqual({
+            selectedModel: null,
+            enabledTools: [],
+            selectedImageSize: "1:1",
+            selectedImageResolution: "1K",
+            reasoningEffort: "off"
+        })
+
+        const customizedStorage = createStorageMock({
+            "ai-config": JSON.stringify({
+                selectedModel: "gpt-5.4",
+                enabledTools: ["web_search"],
+                selectedImageSize: "1:1",
+                selectedImageResolution: "1K",
+                reasoningEffort: "off"
+            })
+        })
+
+        vi.stubGlobal("localStorage", customizedStorage)
+
+        expect(loadAIConfig()).toMatchObject({
+            selectedModel: "gpt-5.4",
+            enabledTools: ["web_search"]
         })
     })
 

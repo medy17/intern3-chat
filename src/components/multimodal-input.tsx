@@ -416,6 +416,7 @@ function MobileOverflowMenu({
     allowedReasoningEfforts,
     selectedSharedModel,
     creditPlan,
+    webSearchAvailable,
     hasSupermemory,
     mcpServers,
     currentMcpOverrides,
@@ -434,6 +435,7 @@ function MobileOverflowMenu({
     allowedReasoningEfforts: ReturnType<typeof getAllowedReasoningEffortsForModel>
     selectedSharedModel?: SharedModel
     creditPlan: CreditPlan | null
+    webSearchAvailable: boolean
     hasSupermemory: boolean
     mcpServers: Array<{ name: string }>
     currentMcpOverrides: Record<string, boolean>
@@ -454,6 +456,7 @@ function MobileOverflowMenu({
         getPrototypeCreditTierForModel(selectedSharedModel, reasoningEffort) === "pro"
     const webSearchEnabled = enabledTools.includes("web_search")
     const supermemoryEnabled = enabledTools.includes("supermemory")
+    const hasMcpServers = mcpServers.length > 0
 
     useEffect(() => {
         if (!open) {
@@ -584,9 +587,10 @@ function MobileOverflowMenu({
                             type="button"
                             className={cn(
                                 mobileMenuRowClassName,
-                                !modelSupportsFunctionCalling && "cursor-not-allowed opacity-50"
+                                (!modelSupportsFunctionCalling || !webSearchAvailable) &&
+                                    "cursor-not-allowed opacity-50"
                             )}
-                            disabled={!modelSupportsFunctionCalling}
+                            disabled={!modelSupportsFunctionCalling || !webSearchAvailable}
                             onClick={() => onToggleTool("web_search")}
                         >
                             <MobileMenuIcon slashed={!webSearchEnabled}>
@@ -598,10 +602,14 @@ function MobileOverflowMenu({
                         </button>
                     )}
 
-                    {!isImageModel && hasSupermemory && (
+                    {!isImageModel && (
                         <button
                             type="button"
-                            className={mobileMenuRowClassName}
+                            className={cn(
+                                mobileMenuRowClassName,
+                                !hasSupermemory && "cursor-not-allowed opacity-50"
+                            )}
+                            disabled={!hasSupermemory}
                             onClick={() => onToggleTool("supermemory")}
                         >
                             <MobileMenuIcon slashed={!supermemoryEnabled}>
@@ -627,28 +635,44 @@ function MobileOverflowMenu({
                         </button>
                     )}
 
-                    {!isImageModel && mcpServers.length > 0 && (
+                    {!isImageModel && (
                         <div className="border-border/60 border-t pt-2">
                             <p className="px-2.5 pb-1 font-medium text-[11px] text-muted-foreground uppercase tracking-[0.16em]">
                                 MCP Servers
                             </p>
                             <div className="space-y-1">
-                                {mcpServers.map((server) => {
-                                    const isEnabled = currentMcpOverrides[server.name] !== false
+                                {hasMcpServers ? (
+                                    mcpServers.map((server) => {
+                                        const isEnabled = currentMcpOverrides[server.name] !== false
 
-                                    return (
-                                        <button
-                                            key={server.name}
-                                            type="button"
-                                            className={mobileMenuRowClassName}
-                                            onClick={() => onToggleMcpServer(server.name)}
-                                        >
-                                            <span className="min-w-0 flex-1 truncate">
-                                                {server.name} {isEnabled ? "enabled" : "disabled"}
-                                            </span>
-                                        </button>
-                                    )
-                                })}
+                                        return (
+                                            <button
+                                                key={server.name}
+                                                type="button"
+                                                className={mobileMenuRowClassName}
+                                                onClick={() => onToggleMcpServer(server.name)}
+                                            >
+                                                <span className="min-w-0 flex-1 truncate">
+                                                    {server.name}{" "}
+                                                    {isEnabled ? "enabled" : "disabled"}
+                                                </span>
+                                            </button>
+                                        )
+                                    })
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className={cn(
+                                            mobileMenuRowClassName,
+                                            "cursor-not-allowed opacity-50"
+                                        )}
+                                        disabled
+                                    >
+                                        <span className="min-w-0 flex-1 truncate">
+                                            MCP Servers disabled
+                                        </span>
+                                    </button>
+                                )}
                             </div>
                         </div>
                     )}
@@ -706,6 +730,15 @@ export const MultimodalInput = forwardRef<
         {
             key: "user-settings",
             default: DefaultSettings(session.user?.id ?? "CACHE"),
+            forceCache: true
+        },
+        session.user?.id && !auth.isLoading ? {} : "skip"
+    )
+    const toolAvailability = useDiskCachedQuery(
+        api.settings.getToolAvailability,
+        {
+            key: "tool-availability",
+            default: null,
             forceCache: true
         },
         session.user?.id && !auth.isLoading ? {} : "skip"
@@ -770,19 +803,39 @@ export const MultimodalInput = forwardRef<
         setExtendedFiles(uploadedFiles.map((file) => ({ ...file })))
     }, [uploadedFiles])
 
-    useEffect(() => {
-        if (!modelSupportsFunctionCalling && enabledTools.includes("web_search")) {
-            setEnabledTools(enabledTools.filter((tool) => tool !== "web_search"))
-        }
-    }, [modelSupportsFunctionCalling, enabledTools, setEnabledTools])
-
-    const hasSupermemory = Boolean(userSettings.generalProviders?.supermemory?.enabled)
+    const webSearchAvailable = Boolean(toolAvailability?.web_search.enabled)
+    const hasSupermemory = Boolean(toolAvailability?.supermemory.enabled)
     const mcpServers = (userSettings.mcpServers || []).filter((server) => server.enabled !== false)
+    const hasMcpServers = mcpServers.length > 0
+
+    useEffect(() => {
+        const unavailableTools = new Set<AbilityId>()
+        if (!modelSupportsFunctionCalling || !webSearchAvailable) unavailableTools.add("web_search")
+        if (!hasSupermemory) unavailableTools.add("supermemory")
+        if (!hasMcpServers) unavailableTools.add("mcp")
+
+        const nextEnabledTools = enabledTools.filter((tool) => !unavailableTools.has(tool))
+        if (nextEnabledTools.length !== enabledTools.length) {
+            setEnabledTools(nextEnabledTools)
+        }
+    }, [
+        modelSupportsFunctionCalling,
+        webSearchAvailable,
+        hasSupermemory,
+        hasMcpServers,
+        enabledTools,
+        setEnabledTools
+    ])
+
     const currentMcpOverrides = threadId
         ? { ...defaultMcpOverrides, ...(mcpOverrides[threadId] || {}) }
         : { ...defaultMcpOverrides }
 
     const handleToolToggle = (tool: AbilityId) => {
+        if (tool === "web_search" && (!modelSupportsFunctionCalling || !webSearchAvailable)) return
+        if (tool === "supermemory" && !hasSupermemory) return
+        if (tool === "mcp" && !hasMcpServers) return
+
         setEnabledTools(
             enabledTools.includes(tool)
                 ? enabledTools.filter((enabledTool) => enabledTool !== tool)
@@ -1418,6 +1471,7 @@ export const MultimodalInput = forwardRef<
                                     allowedReasoningEfforts={allowedReasoningEfforts}
                                     selectedSharedModel={selectedSharedModel}
                                     creditPlan={creditPlan}
+                                    webSearchAvailable={webSearchAvailable}
                                     hasSupermemory={hasSupermemory}
                                     mcpServers={mcpServers}
                                     currentMcpOverrides={currentMcpOverrides}

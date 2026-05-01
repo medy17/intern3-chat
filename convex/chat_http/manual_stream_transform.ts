@@ -60,6 +60,7 @@ export const manualStreamTransform = (
     options?: {
         allowReasoning?: boolean
         onPartsChanged?: () => void
+        onToolCall?: (toolCall: { toolCallId: string; toolName: string }) => void
     }
 ) => {
     let reasoningStartedAt = -1
@@ -354,6 +355,10 @@ export const manualStreamTransform = (
                     })
                     break
                 case "tool-call":
+                    options?.onToolCall?.({
+                        toolCallId: chunk.toolCallId,
+                        toolName: chunk.toolName
+                    })
                     parts.push({
                         type: "tool-invocation",
                         toolInvocation: {

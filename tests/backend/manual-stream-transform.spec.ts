@@ -17,7 +17,11 @@ type ActionCtx = Parameters<typeof manualStreamTransform>[4]
 
 const collectChunks = async (
     chunks: unknown[],
-    options?: { userId?: string; allowReasoning?: boolean }
+    options?: {
+        userId?: string
+        allowReasoning?: boolean
+        onToolCall?: (toolCall: { toolCallId: string; toolName: string }) => void
+    }
 ) => {
     const parts: StoredParts = []
     const totalTokenUsage = {
@@ -41,7 +45,8 @@ const collectChunks = async (
         {} as ActionCtx,
         streamMetrics,
         {
-            allowReasoning: options?.allowReasoning
+            allowReasoning: options?.allowReasoning,
+            onToolCall: options?.onToolCall
         }
     )
 
@@ -186,23 +191,33 @@ describe("manualStreamTransform", () => {
     })
 
     it("persists tool calls/results and forwards tool and error output", async () => {
-        const result = await collectChunks([
-            {
-                type: "tool-call",
-                toolCallId: "call-1",
-                toolName: "web_search",
-                input: { query: "intern3 chat" }
-            },
-            {
-                type: "tool-result",
-                toolCallId: "call-1",
-                output: { answer: "done" }
-            },
-            {
-                type: "error",
-                error: new Error("stream broke")
-            }
-        ])
+        const onToolCall = vi.fn()
+        const result = await collectChunks(
+            [
+                {
+                    type: "tool-call",
+                    toolCallId: "call-1",
+                    toolName: "web_search",
+                    input: { query: "intern3 chat" }
+                },
+                {
+                    type: "tool-result",
+                    toolCallId: "call-1",
+                    output: { answer: "done" }
+                },
+                {
+                    type: "error",
+                    error: new Error("stream broke")
+                }
+            ],
+            { onToolCall }
+        )
+
+        expect(onToolCall).toHaveBeenCalledTimes(1)
+        expect(onToolCall).toHaveBeenCalledWith({
+            toolCallId: "call-1",
+            toolName: "web_search"
+        })
 
         expect(result.parts).toEqual([
             {

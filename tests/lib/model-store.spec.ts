@@ -6,7 +6,7 @@ describe("model-store", () => {
     beforeEach(() => {
         useModelStore.setState({
             selectedModel: null,
-            enabledTools: ["web_search"],
+            enabledTools: [],
             selectedImageSize: "1:1",
             selectedImageResolution: "1K",
             reasoningEffort: "off",

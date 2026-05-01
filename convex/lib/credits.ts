@@ -9,6 +9,7 @@ export type PrototypeCreditProviderSource =
     | "unknown"
 export type PrototypeCreditFeature = "chat" | "image" | "tool"
 export type PrototypeReasoningEffort = "off" | "low" | "medium" | "high"
+export type PrototypeToolFundingSource = "byok" | "deployment" | "none"
 export type PrototypeReasoningAccessPlanMap = Partial<
     Record<PrototypeReasoningEffort, PrototypeAccessPlan>
 >
@@ -96,8 +97,7 @@ export const resolvePrototypeCreditCharge = ({
     prototypeCreditTier?: Exclude<PrototypeCreditBucket, "none">
     prototypeCreditTierWithReasoning?: Exclude<PrototypeCreditBucket, "none">
 }) => {
-    const feature: PrototypeCreditFeature =
-        modelMode === "image" ? "image" : enabledTools.length > 0 ? "tool" : "chat"
+    const feature: PrototypeCreditFeature = modelMode === "image" ? "image" : "chat"
 
     const countsAgainstCredits = providerSource === "internal" || providerSource === "unknown"
     if (!countsAgainstCredits) {
@@ -111,15 +111,37 @@ export const resolvePrototypeCreditCharge = ({
 
     const isReasoningEnabled = reasoningEffort !== "off"
     const bucket =
-        enabledTools.length > 0
-            ? "pro"
-            : isReasoningEnabled && prototypeCreditTierWithReasoning
-              ? prototypeCreditTierWithReasoning
-              : (prototypeCreditTier ?? (modelMode === "image" ? "pro" : "basic"))
+        isReasoningEnabled && prototypeCreditTierWithReasoning
+            ? prototypeCreditTierWithReasoning
+            : (prototypeCreditTier ?? (modelMode === "image" ? "pro" : "basic"))
 
     return {
         bucket,
         feature,
+        counted: true,
+        units: 1
+    }
+}
+
+export const resolvePrototypeToolCreditCharge = ({
+    fundingSource
+}: {
+    fundingSource: PrototypeToolFundingSource
+}) => {
+    if (fundingSource !== "deployment") {
+        return {
+            providerSource: "byok" as const,
+            bucket: "none" as const,
+            feature: "tool" as const,
+            counted: false,
+            units: 0
+        }
+    }
+
+    return {
+        providerSource: "internal" as const,
+        bucket: "basic" as const,
+        feature: "tool" as const,
         counted: true,
         units: 1
     }

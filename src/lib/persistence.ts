@@ -5,7 +5,7 @@ const AIConfigSchema = z.object({
     selectedModel: z.string().nullable(),
     enabledTools: z
         .array(z.enum(ABILITIES as readonly ["web_search", "supermemory", "mcp"]))
-        .default(["web_search"]),
+        .default([]),
     selectedImageSize: z.string().optional().default("1:1"),
     selectedImageResolution: z.string().optional().default("1K"),
     reasoningEffort: z.enum(["off", "low", "medium", "high"]).default("off")
@@ -39,24 +39,28 @@ const safeRemoveItem = (key: string): void => {
     } catch {}
 }
 
+const defaultAIConfig = (): AIConfig => ({
+    selectedModel: null,
+    enabledTools: [],
+    selectedImageSize: "1:1",
+    selectedImageResolution: "1K",
+    reasoningEffort: "off"
+})
+
+const isOldDefaultWebSearchConfig = (config: Partial<AIConfig>) =>
+    config.selectedModel === null &&
+    Array.isArray(config.enabledTools) &&
+    config.enabledTools.length === 1 &&
+    config.enabledTools[0] === "web_search" &&
+    (config.selectedImageSize === undefined || config.selectedImageSize === "1:1") &&
+    (config.selectedImageResolution === undefined || config.selectedImageResolution === "1K") &&
+    (config.reasoningEffort === undefined || config.reasoningEffort === "off")
+
 export const loadAIConfig = (): AIConfig => {
-    if (typeof window === "undefined")
-        return {
-            selectedModel: null,
-            enabledTools: ["web_search"],
-            selectedImageSize: "1:1",
-            selectedImageResolution: "1K",
-            reasoningEffort: "off"
-        }
+    if (typeof window === "undefined") return defaultAIConfig()
     const stored = localStorage.getItem(AI_CONFIG_KEY)
     if (!stored) {
-        return {
-            selectedModel: null,
-            enabledTools: ["web_search"],
-            selectedImageSize: "1:1",
-            selectedImageResolution: "1K",
-            reasoningEffort: "off"
-        }
+        return defaultAIConfig()
     }
 
     try {
@@ -64,11 +68,16 @@ export const loadAIConfig = (): AIConfig => {
 
         // Validate enabled tools but let the UI handle invalid model IDs gracefully
         if (
+            Array.isArray(parsed.enabledTools) &&
             parsed.enabledTools.some(
                 (tool: string) => !ABILITIES.includes(tool as (typeof ABILITIES)[number])
             )
         ) {
-            parsed.enabledTools = ["web_search"]
+            parsed.enabledTools = []
+        }
+
+        if (isOldDefaultWebSearchConfig(parsed)) {
+            parsed.enabledTools = []
         }
 
         if (typeof parsed.selectedModel === "string") {
@@ -82,13 +91,7 @@ export const loadAIConfig = (): AIConfig => {
         return AIConfigSchema.parse(parsed)
     } catch {
         safeRemoveItem(AI_CONFIG_KEY)
-        return {
-            selectedModel: null,
-            enabledTools: ["web_search"],
-            selectedImageSize: "1:1",
-            selectedImageResolution: "1K",
-            reasoningEffort: "off"
-        }
+        return defaultAIConfig()
     }
 }
 

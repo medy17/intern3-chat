@@ -188,6 +188,8 @@ type SearchProviderCardProps = {
     onSelect: (provider: SearchProvider) => void
     title: string
     description: string
+    disabled?: boolean
+    statusText?: string
 }
 
 const providerIcons: Record<SearchProvider, React.ComponentType<{ className?: string }> | string> =
@@ -199,18 +201,29 @@ const providerIcons: Record<SearchProvider, React.ComponentType<{ className?: st
     }
 
 export const SearchProviderCard = memo(
-    ({ provider, isSelected, onSelect, title, description }: SearchProviderCardProps) => {
+    ({
+        provider,
+        isSelected,
+        onSelect,
+        title,
+        description,
+        disabled = false,
+        statusText
+    }: SearchProviderCardProps) => {
         const IconComponent = providerIcons[provider]
 
         return (
             <Card
                 className={cn(
                     "cursor-pointer border-0 bg-muted/20 p-4 transition-all duration-200 hover:bg-muted/40",
+                    disabled && "cursor-not-allowed opacity-50 hover:bg-muted/20",
                     isSelected
                         ? "bg-primary/5 ring-1 ring-primary/20"
-                        : "hover:ring-1 hover:ring-border"
+                        : !disabled && "hover:ring-1 hover:ring-border"
                 )}
-                onClick={() => onSelect(provider)}
+                onClick={() => {
+                    if (!disabled) onSelect(provider)
+                }}
             >
                 <div className="flex items-center gap-3">
                     <div className="flex size-8 items-center justify-center rounded-full">
@@ -228,6 +241,9 @@ export const SearchProviderCard = memo(
                             {isSelected && <CheckCircle className="ml-auto size-4 text-primary" />}
                         </div>
                         <p className="mt-1 text-muted-foreground text-sm">{description}</p>
+                        {statusText && (
+                            <p className="mt-1 text-muted-foreground text-xs">{statusText}</p>
+                        )}
                     </div>
                 </div>
             </Card>

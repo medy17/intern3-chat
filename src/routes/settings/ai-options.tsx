@@ -20,33 +20,24 @@ export const Route = createFileRoute("/settings/ai-options")({
 })
 
 type SearchProvider = "firecrawl" | "brave" | "tavily" | "serper"
-
-// Helper to get available search providers (BYOK > Server priority)
-const getAvailableSearchProviders = (userSettings: any): SearchProvider[] => {
-    const available: SearchProvider[] = []
-    const generalProviders = userSettings?.generalProviders || {}
-
-    // Check each search provider
-    for (const provider of SEARCH_PROVIDERS) {
-        const byokConfig = generalProviders[provider.id]
-        const hasBYOK = byokConfig?.enabled && byokConfig?.encryptedKey
-        const hasServer = true // Server always has search providers available
-
-        if (hasBYOK || hasServer) {
-            available.push(provider.id)
-        }
+type SearchProviderAvailability = Record<
+    SearchProvider,
+    {
+        available: boolean
+        byok: boolean
+        deployment: boolean
     }
+>
 
-    return available
-}
-
-// Helper to get provider display status
-const getProviderStatus = (providerId: SearchProvider, userSettings: any): "BYOK" | "Server" => {
-    const generalProviders = userSettings?.generalProviders || {}
-    const byokConfig = generalProviders[providerId]
-    const hasBYOK = byokConfig?.enabled && byokConfig?.encryptedKey
-
-    return hasBYOK ? "BYOK" : "Server"
+const getProviderStatus = (
+    providerId: SearchProvider,
+    availability: SearchProviderAvailability | null | undefined
+) => {
+    const providerAvailability = availability?.[providerId]
+    if (!providerAvailability?.available) return "Not configured"
+    if (providerAvailability.byok) return "BYOK"
+    if (providerAvailability.deployment) return "Server"
+    return "Not configured"
 }
 
 function AIOptionsSettings() {
@@ -57,16 +48,22 @@ function AIOptionsSettings() {
         api.settings.getUserSettings,
         session.user?.id ? {} : "skip"
     )
+    const searchProviderAvailability = useConvexQuery(
+        api.settings.getSearchProviderAvailability,
+        session.user?.id ? {} : "skip"
+    ) as SearchProviderAvailability | null | undefined
 
     const updateSettings = useConvexMutation(api.settings.updateUserSettingsPartial)
 
     if (!session.user?.id || !userSettings) return null
 
-    const availableSearchProviders = getAvailableSearchProviders(userSettings)
-
     const handleSearchProviderChange = async (provider: SearchProvider) => {
         if (provider === userSettings.searchProvider) return
         if (!session.user) return
+        if (!searchProviderAvailability?.[provider]?.available) {
+            toast.error("Configure this search provider before selecting it")
+            return
+        }
 
         setIsLoading(true)
         try {
@@ -171,14 +168,20 @@ function AIOptionsSettings() {
                         <h3 className="font-semibold text-foreground">Web Search Provider</h3>
                         <p className="mt-1 text-muted-foreground text-sm">
                             Choose which service to use for web searches. BYOK providers take
-                            priority over server providers.
+                            priority over server providers. Configure BYOK keys on the{" "}
+                            <a href="/settings/providers" className="text-primary underline">
+                                Providers page
+                            </a>
+                            .
                         </p>
                     </div>
 
                     <div className="grid max-w-4xl grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-2">
-                        {availableSearchProviders.map((providerId) => {
-                            const provider = SEARCH_PROVIDERS.find((p) => p.id === providerId)!
-                            const status = getProviderStatus(providerId, userSettings)
+                        {SEARCH_PROVIDERS.map((providerInfo) => {
+                            const providerId = providerInfo.id as SearchProvider
+                            const providerAvailability = searchProviderAvailability?.[providerId]
+                            const isAvailable = providerAvailability?.available === true
+                            const status = getProviderStatus(providerId, searchProviderAvailability)
 
                             return (
                                 <SearchProviderCard
@@ -186,8 +189,14 @@ function AIOptionsSettings() {
                                     provider={providerId}
                                     isSelected={userSettings.searchProvider === providerId}
                                     onSelect={handleSearchProviderChange}
-                                    title={`${provider.name} ${status === "BYOK" ? "(BYOK)" : ""}`}
-                                    description={provider.description}
+                                    title={`${providerInfo.name} ${status !== "Not configured" ? `(${status})` : ""}`}
+                                    description={providerInfo.description}
+                                    disabled={!isAvailable}
+                                    statusText={
+                                        isAvailable
+                                            ? `Available through ${status}.`
+                                            : "Configure a BYOK key before selecting this provider."
+                                    }
                                 />
                             )
                         })}

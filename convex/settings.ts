@@ -14,6 +14,8 @@ import {
     type SharedModel,
     isModelSunset
 } from "./lib/models"
+import { getDeploymentSearchProviderApiKey, resolveToolAvailability } from "./lib/toolkit"
+import type { SearchProviderType } from "./lib/tools/adapters"
 import type { UserSettings } from "./schema"
 import { NonSensitiveUserSettings } from "./schema/settings"
 
@@ -75,6 +77,45 @@ export const getUserSettings = query({
         const user = await getUserIdentity(ctx.auth, { allowAnons: false })
         if ("error" in user) return DefaultSettings("unauthorized")
         return await getSettings(ctx, user.id)
+    }
+})
+
+export const getToolAvailability = query({
+    args: {},
+    handler: async (ctx) => {
+        const user = await getUserIdentity(ctx.auth, { allowAnons: false })
+        if ("error" in user) return null
+
+        const settings = await getSettings(ctx, user.id)
+        return resolveToolAvailability(settings)
+    }
+})
+
+const SEARCH_PROVIDER_IDS: SearchProviderType[] = ["firecrawl", "brave", "tavily", "serper"]
+
+export const getSearchProviderAvailability = query({
+    args: {},
+    handler: async (ctx) => {
+        const user = await getUserIdentity(ctx.auth, { allowAnons: false })
+        if ("error" in user) return null
+
+        const settings = await getSettings(ctx, user.id)
+        return Object.fromEntries(
+            SEARCH_PROVIDER_IDS.map((providerId) => {
+                const byokConfig = settings.generalProviders?.[providerId]
+                const hasByok = byokConfig?.enabled === true && Boolean(byokConfig.encryptedKey)
+                const hasDeployment = Boolean(getDeploymentSearchProviderApiKey(providerId))
+
+                return [
+                    providerId,
+                    {
+                        available: hasByok || hasDeployment,
+                        byok: hasByok,
+                        deployment: hasDeployment
+                    }
+                ]
+            })
+        )
     }
 })
 

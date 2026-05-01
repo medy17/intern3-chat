@@ -4,6 +4,11 @@ import type { GenericActionCtx } from "convex/server"
 import type { Infer } from "convex/values"
 import type { DataModel } from "../_generated/dataModel"
 import type { UserSettings } from "../schema/settings"
+import {
+    type ResolvedToolAvailabilityMap,
+    resolveToolAvailability,
+    sanitizeEnabledTools
+} from "./tools/availability"
 import { MCPAdapter } from "./tools/mcp_adapter"
 import { SupermemoryAdapter } from "./tools/supermemory"
 import { WebSearchAdapter } from "./tools/web_search"
@@ -17,6 +22,7 @@ export type ConditionalToolParams = {
     ctx: GenericActionCtx<DataModel>
     enabledTools: AbilityId[]
     userSettings: Infer<typeof UserSettings>
+    toolAvailability: ResolvedToolAvailabilityMap
 }
 
 export const getToolkit = async (
@@ -24,8 +30,17 @@ export const getToolkit = async (
     enabledTools: AbilityId[],
     userSettings: Infer<typeof UserSettings>
 ): Promise<Record<string, Tool>> => {
+    const toolAvailability = resolveToolAvailability(userSettings)
+    const sanitizedEnabledTools = sanitizeEnabledTools(enabledTools, toolAvailability)
     const toolResults = await Promise.all(
-        TOOL_ADAPTERS.map((adapter) => adapter({ ctx, enabledTools, userSettings }))
+        TOOL_ADAPTERS.map((adapter) =>
+            adapter({
+                ctx,
+                enabledTools: sanitizedEnabledTools,
+                userSettings,
+                toolAvailability
+            })
+        )
     )
 
     const tools: Record<string, Tool> = {}
@@ -40,3 +55,7 @@ export const getToolkit = async (
     console.log("tools", Object.keys(tools))
     return tools
 }
+
+export { resolveToolAvailability, sanitizeEnabledTools }
+export { getDeploymentSearchProviderApiKey } from "./tools/availability"
+export type { ResolvedToolAvailabilityMap, ToolFundingSource } from "./tools/availability"

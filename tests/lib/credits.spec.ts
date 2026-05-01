@@ -5,6 +5,7 @@ import {
     getCreditPeriodBounds,
     getCurrentCreditPeriodKey,
     resolvePrototypeCreditCharge,
+    resolvePrototypeToolCreditCharge,
     resolveRequiredPlanForModelAccess,
     resolveRequiredPlanForPrototypeModel
 } from "../../convex/lib/credits"
@@ -29,7 +30,7 @@ describe("credits", () => {
         })
     })
 
-    it("charges tool usage and reasoning-enabled requests against the expected buckets", () => {
+    it("charges model usage independently from tool availability", () => {
         expect(
             resolvePrototypeCreditCharge({
                 providerSource: "internal",
@@ -55,10 +56,36 @@ describe("credits", () => {
                 prototypeCreditTier: "basic"
             })
         ).toEqual({
-            bucket: "pro",
+            bucket: "basic",
+            feature: "chat",
+            counted: true,
+            units: 1
+        })
+    })
+
+    it("charges deployment-funded tool calls as basic credits", () => {
+        expect(
+            resolvePrototypeToolCreditCharge({
+                fundingSource: "deployment"
+            })
+        ).toEqual({
+            providerSource: "internal",
+            bucket: "basic",
             feature: "tool",
             counted: true,
             units: 1
+        })
+
+        expect(
+            resolvePrototypeToolCreditCharge({
+                fundingSource: "byok"
+            })
+        ).toEqual({
+            providerSource: "byok",
+            bucket: "none",
+            feature: "tool",
+            counted: false,
+            units: 0
         })
     })
 
