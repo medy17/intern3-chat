@@ -1065,117 +1065,111 @@ export const MultimodalInput = forwardRef<
         async (filesToUpload: File[]) => {
             if (filesToUpload.length === 0) return
 
-            // Validate files before uploading
+            // Synchronous instant validation
+            const syncErrors: string[] = []
             const validFiles: File[] = []
-            const errors: string[] = []
 
             for (const file of filesToUpload) {
-                // Check if file type is supported
                 if (!isSupportedFile(file.name, file.type)) {
-                    errors.push(`${file.name}: Unsupported file type`)
+                    syncErrors.push(`${file.name}: Unsupported file type`)
                     continue
                 }
 
                 const fileTypeInfo = getFileTypeInfo(file.name, file.type)
-                let fileToUpload = file
 
-                // Raster images require a vision-capable model. SVGs are handled as text.
                 if (fileTypeInfo.isVisionImage && !modelSupportsVision) {
-                    errors.push(`${file.name}: Current model doesn't support image files`)
+                    syncErrors.push(`${file.name}: Current model doesn't support image files`)
                     continue
                 }
 
-                if (fileTypeInfo.isVisionImage && file.size > MAX_FILE_SIZE) {
-                    try {
-                        fileToUpload = await compressImageIfNeeded(file)
-                    } catch (error) {
-                        errors.push(
-                            error instanceof Error
-                                ? error.message
-                                : `${file.name}: Failed to compress image`
-                        )
-                        continue
-                    }
-                }
-
-                // Regular attachments keep the 5MB limit.
-                if (fileToUpload.size > MAX_FILE_SIZE) {
-                    errors.push(`${file.name}: File size exceeds 5MB limit`)
+                if (!fileTypeInfo.isVisionImage && file.size > MAX_FILE_SIZE) {
+                    syncErrors.push(`${file.name}: File size exceeds 5MB limit`)
                     continue
                 }
 
-                // For text files, check token count
-                if (fileTypeInfo.isText && (!fileTypeInfo.isImage || fileTypeInfo.isSvg)) {
-                    try {
-                        const content = await readFileContent(fileToUpload)
-                        const tokenCount = estimateTokenCount(content)
-                        if (tokenCount > MAX_TOKENS_PER_FILE) {
-                            errors.push(
-                                `${file.name}: File exceeds ${MAX_TOKENS_PER_FILE.toLocaleString()} token limit`
-                            )
-                            continue
-                        }
-                    } catch (error) {
-                        errors.push(`${file.name}: Error reading file content`)
-                        continue
-                    }
+                validFiles.push(file)
+            }
+
+            if (syncErrors.length > 0) {
+                toast.error(`File validation failed:\n${syncErrors.join("\n")}`)
+            }
+
+            if (validFiles.length === 0) return
+
+            // Create local state entries immediately to show UI at 0%
+            const newLocalFiles = validFiles.map((file) => {
+                const id = Math.random().toString(36).substring(7)
+                let previewUrl: string | undefined
+
+                if (
+                    isImageMimeType(file.type) &&
+                    !isSvgMimeType(file.type) &&
+                    !isSvgExtension(file.name)
+                ) {
+                    previewUrl = URL.createObjectURL(file)
                 }
 
-                validFiles.push(fileToUpload)
-            }
-
-            // Show validation errors
-            if (errors.length > 0) {
-                toast.error(`File validation failed:\n${errors.join("\n")}`)
-                if (validFiles.length === 0) return
-            }
-
-            // Create local state entries for valid files
-            const newLocalFiles: LocalUploadingFile[] = await Promise.all(
-                validFiles.map(async (file) => {
-                    const id = Math.random().toString(36).substring(7)
-                    let previewUrl: string | undefined
-
-                    if (
-                        isImageMimeType(file.type) &&
-                        !isSvgMimeType(file.type) &&
-                        !isSvgExtension(file.name)
-                    ) {
-                        previewUrl = URL.createObjectURL(file)
-                    }
-
-                    return {
-                        id,
-                        file,
-                        progress: 0,
-                        status: "uploading" as const,
-                        previewUrl
-                    }
-                })
-            )
+                return {
+                    id,
+                    file,
+                    progress: 0,
+                    status: "uploading" as const,
+                    previewUrl
+                }
+            })
 
             setLocalUploadingFiles((prev) => [...prev, ...newLocalFiles])
             setUploading(true)
 
-            // Start uploads concurrently
-            validFiles.forEach(async (file, index) => {
-                const localFile = newLocalFiles[index]
+            // Start uploads concurrently, doing heavy validation/compression first
+            newLocalFiles.forEach(async (localFile) => {
+                let fileToUpload = localFile.file
+                const fileTypeInfo = getFileTypeInfo(fileToUpload.name, fileToUpload.type)
 
                 try {
-                    const result = await uploadFileWithProgress(file, (progress) => {
+                    // Heavy validation and compression step
+                    if (fileTypeInfo.isVisionImage && fileToUpload.size > MAX_FILE_SIZE) {
+                        try {
+                            fileToUpload = await compressImageIfNeeded(fileToUpload)
+                        } catch (error) {
+                            throw new Error(
+                                error instanceof Error
+                                    ? error.message
+                                    : `${fileToUpload.name}: Failed to compress image`
+                            )
+                        }
+                    }
+
+                    if (fileTypeInfo.isText && (!fileTypeInfo.isImage || fileTypeInfo.isSvg)) {
+                        try {
+                            const content = await readFileContent(fileToUpload)
+                            const tokenCount = estimateTokenCount(content)
+                            if (tokenCount > MAX_TOKENS_PER_FILE) {
+                                throw new Error(
+                                    `${fileToUpload.name}: File exceeds ${MAX_TOKENS_PER_FILE.toLocaleString()} token limit`
+                                )
+                            }
+                        } catch (error) {
+                            if (error instanceof Error && error.message.includes("exceeds")) {
+                                throw error
+                            }
+                            throw new Error(`${fileToUpload.name}: Error reading file content`)
+                        }
+                    }
+
+                    // Actual upload network request
+                    const result = await uploadFileWithProgress(fileToUpload, (progress) => {
                         setLocalUploadingFiles((prev) =>
                             prev.map((f) => (f.id === localFile.id ? { ...f, progress } : f))
                         )
                     })
 
-                    // Mark as success and show checkmark
+                    // Force 100% progress state
                     setLocalUploadingFiles((prev) =>
-                        prev.map((f) =>
-                            f.id === localFile.id ? { ...f, status: "success", progress: 100 } : f
-                        )
+                        prev.map((f) => (f.id === localFile.id ? { ...f, progress: 100 } : f))
                     )
 
-                    // Read content for preview if needed
+                    // Read content for preview if needed concurrently
                     if (result.file) {
                         const content = await readFileContent(result.file)
                         setFileContents((prev) => ({
@@ -1184,36 +1178,40 @@ export const MultimodalInput = forwardRef<
                         }))
                     }
 
-                    // Add a small delay so the user sees the checkmark state
-                    setTimeout(() => {
-                        addUploadedFile(result)
-                        // Clean up object url
-                        if (localFile.previewUrl) {
-                            URL.revokeObjectURL(localFile.previewUrl)
-                        }
-                        // Remove from local uploading state
-                        setLocalUploadingFiles((prev) => prev.filter((f) => f.id !== localFile.id))
+                    // Wait 500ms at 100% state
+                    await new Promise((resolve) => setTimeout(resolve, 500))
 
-                        // If this was the last file to finish uploading, we can clear the uploading status
-                        setLocalUploadingFiles((prev) => {
-                            if (prev.length === 0) {
-                                setUploading(false)
-                            }
-                            return prev
-                        })
-                    }, 500)
+                    // Mark as success and show checkmark
+                    setLocalUploadingFiles((prev) =>
+                        prev.map((f) => (f.id === localFile.id ? { ...f, status: "success" } : f))
+                    )
+
+                    // Add a delay so the user sees the checkmark state
+                    await new Promise((resolve) => setTimeout(resolve, 500))
+
+                    addUploadedFile(result)
+
+                    // Clean up object url
+                    if (localFile.previewUrl) {
+                        URL.revokeObjectURL(localFile.previewUrl)
+                    }
+
+                    // Remove from local uploading state
+                    setLocalUploadingFiles((prev) => {
+                        const next = prev.filter((f) => f.id !== localFile.id)
+                        if (next.length === 0) {
+                            setUploading(false)
+                        }
+                        return next
+                    })
                 } catch (error) {
-                    toast.error(error instanceof Error ? error.message : "Upload failed")
+                    const errorMessage = error instanceof Error ? error.message : "Upload failed"
+                    toast.error(errorMessage)
 
                     setLocalUploadingFiles((prev) =>
                         prev.map((f) =>
                             f.id === localFile.id
-                                ? {
-                                      ...f,
-                                      status: "error",
-                                      error:
-                                          error instanceof Error ? error.message : "Upload failed"
-                                  }
+                                ? { ...f, status: "error", error: errorMessage }
                                 : f
                         )
                     )
@@ -1223,13 +1221,12 @@ export const MultimodalInput = forwardRef<
                         if (localFile.previewUrl) {
                             URL.revokeObjectURL(localFile.previewUrl)
                         }
-                        setLocalUploadingFiles((prev) => prev.filter((f) => f.id !== localFile.id))
-
                         setLocalUploadingFiles((prev) => {
-                            if (prev.length === 0) {
+                            const next = prev.filter((f) => f.id !== localFile.id)
+                            if (next.length === 0) {
                                 setUploading(false)
                             }
-                            return prev
+                            return next
                         })
                     }, 2000)
                 }
@@ -1337,8 +1334,8 @@ export const MultimodalInput = forwardRef<
             <div key={localFile.id} className="group relative">
                 <div
                     className={cn(
-                        "relative flex h-12 items-center justify-center overflow-hidden border-2 border-border bg-secondary/50 transition-colors",
-                        isImage && "w-12"
+                        "relative flex h-12 max-w-[200px] items-center justify-center overflow-hidden border-2 border-border bg-secondary/50 transition-colors",
+                        isImage ? "w-12" : "w-auto min-w-[80px]"
                     )}
                     style={{ borderRadius: "var(--radius)" }}
                 >
@@ -1378,14 +1375,16 @@ export const MultimodalInput = forwardRef<
                             )}
                         </>
                     ) : (
-                        <div className="flex w-full items-center justify-center gap-2 px-2 font-medium text-sm">
-                            {isCode ? (
-                                <Code className="size-4 text-green-500" />
-                            ) : (
-                                <FileType className="size-4 text-gray-500" />
-                            )}
-                            <div className="flex w-full flex-col items-start overflow-hidden">
-                                <span className="w-full truncate text-ellipsis">
+                        <div className="flex w-full items-center justify-start gap-2 px-2 font-medium text-sm">
+                            <div className="shrink-0">
+                                {isCode ? (
+                                    <Code className="size-4 text-green-500" />
+                                ) : (
+                                    <FileType className="size-4 text-gray-500" />
+                                )}
+                            </div>
+                            <div className="flex min-w-0 flex-col items-start overflow-hidden">
+                                <span className="w-full truncate text-ellipsis text-left">
                                     {localFile.file.name}
                                 </span>
                                 {localFile.status === "uploading" ? (
@@ -1399,9 +1398,6 @@ export const MultimodalInput = forwardRef<
                                                 style={{ width: `${localFile.progress}%` }}
                                             />
                                         </div>
-                                        <span className="text-[10px] text-muted-foreground">
-                                            {localFile.progress}%
-                                        </span>
                                     </div>
                                 ) : localFile.status === "success" ? (
                                     <div className="mt-0.5 flex items-center gap-1 text-primary text-xs">
@@ -1409,7 +1405,9 @@ export const MultimodalInput = forwardRef<
                                         <span>Uploaded</span>
                                     </div>
                                 ) : (
-                                    <span className="text-destructive text-xs">Error</span>
+                                    <span className="w-full truncate text-left text-destructive text-xs">
+                                        Error
+                                    </span>
                                 )}
                             </div>
                         </div>
@@ -1436,8 +1434,8 @@ export const MultimodalInput = forwardRef<
                         setDialogOpen(true)
                     }}
                     className={cn(
-                        "relative flex h-12 items-center justify-center overflow-hidden border-2 border-border bg-secondary/50 transition-colors hover:bg-secondary/80",
-                        isImage && "w-12"
+                        "relative flex h-12 max-w-[200px] items-center justify-center overflow-hidden border-2 border-border bg-secondary/50 transition-colors hover:bg-secondary/80",
+                        isImage ? "w-12" : "w-auto"
                     )}
                     style={{ borderRadius: "var(--radius)" }}
                 >
@@ -1449,13 +1447,13 @@ export const MultimodalInput = forwardRef<
                             style={{ borderRadius: "calc(var(--radius) - 2px)" }}
                         />
                     ) : (
-                        <div className="flex items-center justify-center gap-2 px-2 font-medium text-sm">
-                            {getFileIcon(uploadedFile)}
-                            <div className="flex flex-col items-start">
-                                <span className="truncate text-ellipsis">
+                        <div className="flex w-full items-center justify-start gap-2 px-2 font-medium text-sm">
+                            <div className="shrink-0">{getFileIcon(uploadedFile)}</div>
+                            <div className="flex min-w-0 flex-col items-start overflow-hidden">
+                                <span className="w-full truncate text-ellipsis text-left">
                                     {uploadedFile.fileName}
                                 </span>
-                                <span className="text-muted-foreground text-xs">
+                                <span className="truncate text-ellipsis text-muted-foreground text-xs">
                                     {formatFileSize(uploadedFile.fileSize)}
                                 </span>
                             </div>
