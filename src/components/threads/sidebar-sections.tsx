@@ -26,6 +26,7 @@ export type GroupedThreads = {
     yesterday: Thread[]
     lastSevenDays: Thread[]
     lastThirtyDays: Thread[]
+    older: Thread[]
 }
 
 export function groupThreadsByTime(threads: Thread[]): GroupedThreads {
@@ -38,6 +39,7 @@ export function groupThreadsByTime(threads: Thread[]): GroupedThreads {
     const yesterdayThreads: Thread[] = []
     const lastSevenDays: Thread[] = []
     const lastThirtyDays: Thread[] = []
+    const older: Thread[] = []
 
     threads.forEach((thread) => {
         const threadDate = new Date(getThreadActivityTime(thread))
@@ -54,6 +56,8 @@ export function groupThreadsByTime(threads: Thread[]): GroupedThreads {
             lastSevenDays.push(thread)
         } else if (isAfter(threadDate, lastMonth)) {
             lastThirtyDays.push(thread)
+        } else {
+            older.push(thread)
         }
     })
 
@@ -62,7 +66,8 @@ export function groupThreadsByTime(threads: Thread[]): GroupedThreads {
         today,
         yesterday: yesterdayThreads,
         lastSevenDays,
-        lastThirtyDays
+        lastThirtyDays,
+        older
     }
 }
 
@@ -286,7 +291,8 @@ export function ThreadSections({
         { title: "Today", threads: groupedThreads.today },
         { title: "Yesterday", threads: groupedThreads.yesterday },
         { title: "Last 7 Days", threads: groupedThreads.lastSevenDays },
-        { title: "Last 30 Days", threads: groupedThreads.lastThirtyDays }
+        { title: "Last 30 Days", threads: groupedThreads.lastThirtyDays },
+        { title: "Older", threads: groupedThreads.older }
     ]
 
     return sections.map((section) => (
