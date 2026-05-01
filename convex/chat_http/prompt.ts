@@ -28,8 +28,12 @@ export const buildPrompt = (
         dedent`## Formatting
 - Output in markdown format. Do not announce your formatting choices.
 - ONLY when answering mathematical queries, use LaTeX:
-  - Inline math: Use $$like this$$
-  - Block math: Use \\[ \\] or \\( \\)
+  - Inline math: Use double-dollar delimiters like $$L_{0}$$.
+  - Block math: Prefer double-dollar fences on their own lines:
+    $$
+    L(t) = L_{0}e^{-kt}
+    $$
+  - Never use single-dollar math delimiters like $L_{0}$.
 - Do not include comments in any mermaid diagrams you output.
 
 ## Canvas tool
