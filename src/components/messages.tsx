@@ -608,7 +608,7 @@ const MessageRowComponent = ({
                                 <PartsRenderer
                                     key={`${message.id}-text-${index}`}
                                     part={part}
-                                    markdown={message.role === "assistant"}
+                                    markdown={true}
                                     id={`${message.id}-text-${index}`}
                                     onFilePreview={onFilePreview}
                                     isStreaming={isStreamingMessage}
