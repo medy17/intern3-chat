@@ -15,6 +15,9 @@ import { ImportJobAttachmentMode, ImportJobParsedMessage } from "./schema/import
 
 const MAX_RECENT_JOB_MESSAGES = 5
 const MAX_RECENT_JOB_MESSAGE_LENGTH = 220
+const STALE_ACTIVE_IMPORT_JOB_MS = 2 * 60 * 60 * 1000
+const FAILED_IMPORT_JOB_THREAD_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
+const CLEANUP_BATCH_SIZE = 100
 
 const ImportJobSourceInput = v.object({
     clientSourceId: v.string(),
@@ -96,6 +99,59 @@ const patchCompletedImportJobStatus = async ({
                   completedAt: Date.now()
               }
             : {})
+    })
+}
+
+const patchImportJobFailure = async ({
+    db,
+    job,
+    error
+}: {
+    db: MutationCtx["db"]
+    job: Doc<"importJobs">
+    error: string
+}) => {
+    await db.patch(job._id, {
+        status: "failed",
+        errorCount: job.errorCount + 1,
+        recentErrors: appendRecentJobMessages(job.recentErrors, [error]),
+        updatedAt: Date.now(),
+        completedAt: Date.now()
+    })
+}
+
+const failImportJobThreadRecord = async ({
+    db,
+    importJobThread,
+    error,
+    warning
+}: {
+    db: MutationCtx["db"]
+    importJobThread: Doc<"importJobThreads">
+    error: string
+    warning?: string
+}) => {
+    const job = await db.get(importJobThread.jobId)
+    if (!job) return
+
+    await db.patch(importJobThread._id, {
+        status: "failed",
+        error: truncateJobMessage(error),
+        warning,
+        updatedAt: Date.now()
+    })
+
+    const warningMessages = warning ? [warning] : []
+    await patchCompletedImportJobStatus({
+        db,
+        job,
+        processedThreads: job.processedThreads + 1,
+        importedThreads: job.importedThreads,
+        failedThreads: job.failedThreads + 1,
+        warningCount: job.warningCount + warningMessages.length,
+        errorCount: job.errorCount + 1,
+        recentWarnings: appendRecentJobMessages(job.recentWarnings, warningMessages),
+        recentErrors: appendRecentJobMessages(job.recentErrors, [error])
     })
 }
 
@@ -203,17 +259,16 @@ export const deleteImportJob = mutation({
             return { error: "Import job not found" }
         }
 
-        const BATCH = 100
         let hasMore = true
         while (hasMore) {
             const batch = await ctx.db
                 .query("importJobThreads")
                 .withIndex("byJobId", (q) => q.eq("jobId", jobId))
-                .take(BATCH)
+                .take(CLEANUP_BATCH_SIZE)
             for (const row of batch) {
                 await ctx.db.delete(row._id)
             }
-            hasMore = batch.length === BATCH
+            hasMore = batch.length === CLEANUP_BATCH_SIZE
         }
 
         hasMore = true
@@ -221,11 +276,11 @@ export const deleteImportJob = mutation({
             const batch = await ctx.db
                 .query("importJobSources")
                 .withIndex("byJobId", (q) => q.eq("jobId", jobId))
-                .take(BATCH)
+                .take(CLEANUP_BATCH_SIZE)
             for (const row of batch) {
                 await ctx.db.delete(row._id)
             }
-            hasMore = batch.length === BATCH
+            hasMore = batch.length === CLEANUP_BATCH_SIZE
         }
 
         await ctx.db.delete(jobId)
@@ -467,14 +522,6 @@ export const completeImportJobThread = internalMutation({
         const job = await ctx.db.get(importJobThread.jobId)
         if (!job) return
 
-        await ctx.db.patch(importJobThreadId, {
-            status: "imported",
-            importedThreadId,
-            warning,
-            error: undefined,
-            updatedAt: Date.now()
-        })
-
         const warningMessages = warning ? [warning] : []
         await patchCompletedImportJobStatus({
             db: ctx.db,
@@ -487,6 +534,8 @@ export const completeImportJobThread = internalMutation({
             recentWarnings: appendRecentJobMessages(job.recentWarnings, warningMessages),
             recentErrors: job.recentErrors
         })
+
+        await ctx.db.delete(importJobThreadId)
     }
 })
 
@@ -500,27 +549,11 @@ export const failImportJobThread = internalMutation({
         const importJobThread = await ctx.db.get(importJobThreadId)
         if (!importJobThread) return
 
-        const job = await ctx.db.get(importJobThread.jobId)
-        if (!job) return
-
-        await ctx.db.patch(importJobThreadId, {
-            status: "failed",
-            error: truncateJobMessage(error),
-            warning,
-            updatedAt: Date.now()
-        })
-
-        const warningMessages = warning ? [warning] : []
-        await patchCompletedImportJobStatus({
+        await failImportJobThreadRecord({
             db: ctx.db,
-            job,
-            processedThreads: job.processedThreads + 1,
-            importedThreads: job.importedThreads,
-            failedThreads: job.failedThreads + 1,
-            warningCount: job.warningCount + warningMessages.length,
-            errorCount: job.errorCount + 1,
-            recentWarnings: appendRecentJobMessages(job.recentWarnings, warningMessages),
-            recentErrors: appendRecentJobMessages(job.recentErrors, [error])
+            importJobThread,
+            error,
+            warning
         })
     }
 })
@@ -534,13 +567,111 @@ export const failImportJob = internalMutation({
         const job = await ctx.db.get(jobId)
         if (!job) return
 
-        await ctx.db.patch(jobId, {
-            status: "failed",
-            errorCount: job.errorCount + 1,
-            recentErrors: appendRecentJobMessages(job.recentErrors, [error]),
-            updatedAt: Date.now(),
-            completedAt: Date.now()
+        await patchImportJobFailure({
+            db: ctx.db,
+            job,
+            error
         })
+    }
+})
+
+export const cleanupStaleImportData = internalMutation({
+    args: {},
+    handler: async (ctx) => {
+        const now = Date.now()
+        const staleCutoff = now - STALE_ACTIVE_IMPORT_JOB_MS
+        const failedThreadRetentionCutoff = now - FAILED_IMPORT_JOB_THREAD_RETENTION_MS
+
+        const staleQueuedJobs = await ctx.db
+            .query("importJobs")
+            .withIndex("byStatusUpdatedAt", (q) =>
+                q.eq("status", "queued").lt("updatedAt", staleCutoff)
+            )
+            .take(CLEANUP_BATCH_SIZE)
+
+        for (const job of staleQueuedJobs) {
+            await patchImportJobFailure({
+                db: ctx.db,
+                job,
+                error: "Import job became stale before preparation completed"
+            })
+        }
+
+        const stalePreparingJobs = await ctx.db
+            .query("importJobs")
+            .withIndex("byStatusUpdatedAt", (q) =>
+                q.eq("status", "preparing").lt("updatedAt", staleCutoff)
+            )
+            .take(CLEANUP_BATCH_SIZE)
+
+        for (const job of stalePreparingJobs) {
+            await patchImportJobFailure({
+                db: ctx.db,
+                job,
+                error: "Import job became stale while preparing source files"
+            })
+        }
+
+        const stalePendingThreads = await ctx.db
+            .query("importJobThreads")
+            .withIndex("byStatusUpdatedAt", (q) =>
+                q.eq("status", "pending").lt("updatedAt", staleCutoff)
+            )
+            .take(CLEANUP_BATCH_SIZE)
+
+        for (const thread of stalePendingThreads) {
+            await failImportJobThreadRecord({
+                db: ctx.db,
+                importJobThread: thread,
+                error: "Import thread became stale before processing started"
+            })
+        }
+
+        const staleImportingThreads = await ctx.db
+            .query("importJobThreads")
+            .withIndex("byStatusUpdatedAt", (q) =>
+                q.eq("status", "importing").lt("updatedAt", staleCutoff)
+            )
+            .take(CLEANUP_BATCH_SIZE)
+
+        for (const thread of staleImportingThreads) {
+            await failImportJobThreadRecord({
+                db: ctx.db,
+                importJobThread: thread,
+                error: "Import thread became stale while processing"
+            })
+        }
+
+        const staleImportingJobs = await ctx.db
+            .query("importJobs")
+            .withIndex("byStatusUpdatedAt", (q) =>
+                q.eq("status", "importing").lt("updatedAt", staleCutoff)
+            )
+            .take(CLEANUP_BATCH_SIZE)
+
+        for (const staleJob of staleImportingJobs) {
+            const refreshedJob = await ctx.db.get(staleJob._id)
+            if (!refreshedJob || refreshedJob.status !== "importing") {
+                continue
+            }
+
+            await patchImportJobFailure({
+                db: ctx.db,
+                job: refreshedJob,
+                error: "Import job became stale while processing threads"
+            })
+        }
+
+        const expiredFailedThreads = await ctx.db
+            .query("importJobThreads")
+            .withIndex("byStatusUpdatedAt", (q) =>
+                q.eq("status", "failed").lt("updatedAt", failedThreadRetentionCutoff)
+            )
+            .take(CLEANUP_BATCH_SIZE)
+
+        for (const thread of expiredFailedThreads) {
+            await ctx.db.delete(thread._id)
+        }
     }
 })
 

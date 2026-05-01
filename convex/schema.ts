@@ -69,7 +69,8 @@ export default defineSchema({
 
     importJobs: defineTable(ImportJob)
         .index("byAuthorUpdatedAt", ["authorId", "updatedAt"])
-        .index("byAuthorStatusUpdatedAt", ["authorId", "status", "updatedAt"]),
+        .index("byAuthorStatusUpdatedAt", ["authorId", "status", "updatedAt"])
+        .index("byStatusUpdatedAt", ["status", "updatedAt"]),
 
     importJobSources: defineTable(ImportJobSource)
         .index("byJobId", ["jobId"])
@@ -78,7 +79,8 @@ export default defineSchema({
     importJobThreads: defineTable(ImportJobThread)
         .index("byJobId", ["jobId"])
         .index("byJobIdAndStatus", ["jobId", "status"])
-        .index("byJobIdAndDocumentKey", ["jobId", "documentKey"]),
+        .index("byJobIdAndDocumentKey", ["jobId", "documentKey"])
+        .index("byStatusUpdatedAt", ["status", "updatedAt"]),
 
     generatedImages: defineTable(GeneratedImage)
         .index("byUserId", ["userId"])
