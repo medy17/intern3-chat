@@ -731,7 +731,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                         >
                             <DrawerContent
                                 ref={mobileDrawerRef}
-                                className="z-[80] max-h-[80dvh] overflow-hidden border-border/60 bg-background/98 backdrop-blur-xl"
+                                className="z-[80] max-h-[80dvh] min-h-0 overflow-hidden border-border/60 bg-background/98 backdrop-blur-xl"
                                 overlayClassName="z-[79] bg-transparent"
                                 style={{
                                     maxHeight: `${layout.mobileDetailsMaxHeight}px`
@@ -743,7 +743,11 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                         Prompt, metadata, and actions for this image.
                                     </DrawerDescription>
                                 </DrawerHeader>
-                                <div className="flex-1 space-y-6 overflow-y-auto px-5 pb-4">
+                                <div
+                                    data-vaul-no-drag
+                                    className="min-h-0 flex-1 touch-pan-y space-y-6 overflow-y-auto overscroll-contain px-5 pb-4"
+                                    onTouchMoveCapture={(event) => event.stopPropagation()}
+                                >
                                     <div>
                                         <h3 className="mb-2 font-semibold text-xl">Prompt</h3>
                                         <p className="whitespace-pre-wrap text-muted-foreground text-sm leading-relaxed">
