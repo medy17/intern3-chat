@@ -49,7 +49,9 @@ import {
     Trash2,
     X
 } from "lucide-react"
+import { motion } from "motion/react"
 import { memo, useEffect, useMemo, useRef, useState } from "react"
+import { toast } from "sonner"
 
 interface ImageDetailsModalProps {
     image: Doc<"generatedImages"> | null
@@ -73,10 +75,12 @@ const DESKTOP_VERTICAL_CHROME = 96
 const DESKTOP_INFO_PANEL_WIDTH = 420
 const DESKTOP_MAX_IMAGE_HEIGHT = 920
 const MOBILE_HORIZONTAL_CHROME = 32
-const MOBILE_DRAWER_HEIGHT_RATIO = 0.92
-const MOBILE_HEADER_CHROME = 72
-const MOBILE_DETAILS_SECTION_MAX_HEIGHT = 320
-const MOBILE_IMAGE_SECTION_CHROME = 32
+const MOBILE_FULLSCREEN_IMAGE_CHROME = 136
+const MOBILE_PREVIEW_TOP_OFFSET = 88
+const MOBILE_PREVIEW_GAP_ABOVE_DRAWER = 24
+const MOBILE_PREVIEW_MIN_HEIGHT = 180
+const MOBILE_BOTTOM_ACTION_SAFE_SPACE = 16
+const MOBILE_DETAILS_DRAWER_MAX_HEIGHT = 420
 const DESKTOP_NAV_BUTTON_SPACE = 176
 const loadedDetailImageUrls = new Set<string>()
 
@@ -92,6 +96,40 @@ function getAspectRatioValue(aspectRatio: string) {
     }
 
     return 1
+}
+
+function fitAspectRatioBox({
+    aspectRatioValue,
+    maxWidth,
+    maxHeight,
+    minWidth = 0,
+    minHeight = 0
+}: {
+    aspectRatioValue: number
+    maxWidth: number
+    maxHeight: number
+    minWidth?: number
+    minHeight?: number
+}) {
+    let width = maxWidth
+    let height = width / aspectRatioValue
+
+    if (height > maxHeight) {
+        height = maxHeight
+        width = height * aspectRatioValue
+    }
+
+    if (width < minWidth) {
+        width = minWidth
+        height = width / aspectRatioValue
+    }
+
+    if (height < minHeight) {
+        height = minHeight
+        width = height * aspectRatioValue
+    }
+
+    return { width, height }
 }
 
 export const ImageDetailsModal = memo(function ImageDetailsModal({
@@ -153,6 +191,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
     }, [convex, localImage])
 
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+    const [isDetailsOpen, setIsDetailsOpen] = useState(false)
     const [isPromptCopied, setIsPromptCopied] = useState(false)
     const [loadState, setLoadState] = useState<"loading" | "revealing" | "ready">("loading")
     const [viewportSize, setViewportSize] = useState({ width: 1440, height: 900 })
@@ -283,40 +322,46 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                 isDesktop: true,
                 imageWidth,
                 imageHeight,
+                mobileFullscreenImage: { width: imageWidth, height: imageHeight },
+                mobilePreviewImage: { width: imageWidth, height: imageHeight },
+                mobileDetailsMaxHeight: 0,
                 infoWidth: DESKTOP_INFO_PANEL_WIDTH,
                 shellWidth: imageWidth + DESKTOP_GAP + DESKTOP_INFO_PANEL_WIDTH
             }
         }
 
-        const maxImageWidth = Math.max(280, viewportSize.width - MOBILE_HORIZONTAL_CHROME)
-        const mobileDrawerHeight = viewportSize.height * MOBILE_DRAWER_HEIGHT_RATIO
+        const fullscreenImage = fitAspectRatioBox({
+            aspectRatioValue,
+            maxWidth: Math.max(280, viewportSize.width - MOBILE_HORIZONTAL_CHROME),
+            maxHeight: Math.max(240, viewportSize.height - MOBILE_FULLSCREEN_IMAGE_CHROME)
+        })
         const mobileDetailsMaxHeight = Math.min(
-            MOBILE_DETAILS_SECTION_MAX_HEIGHT,
-            viewportSize.height * 0.38
+            MOBILE_DETAILS_DRAWER_MAX_HEIGHT,
+            viewportSize.height * 0.54
         )
-        const maxImageHeight = Math.max(
-            200,
-            mobileDrawerHeight -
-                MOBILE_HEADER_CHROME -
+        const mobilePreviewMaxHeight = Math.max(
+            MOBILE_PREVIEW_MIN_HEIGHT,
+            viewportSize.height -
                 mobileDetailsMaxHeight -
-                MOBILE_IMAGE_SECTION_CHROME
+                MOBILE_PREVIEW_TOP_OFFSET -
+                MOBILE_PREVIEW_GAP_ABOVE_DRAWER -
+                MOBILE_BOTTOM_ACTION_SAFE_SPACE
         )
-
-        let imageWidth = maxImageWidth
-        let imageHeight = imageWidth / aspectRatioValue
-
-        if (imageHeight > maxImageHeight) {
-            imageHeight = maxImageHeight
-            imageWidth = imageHeight * aspectRatioValue
-        }
+        const previewImage = fitAspectRatioBox({
+            aspectRatioValue,
+            maxWidth: Math.max(220, viewportSize.width - MOBILE_HORIZONTAL_CHROME),
+            maxHeight: mobilePreviewMaxHeight
+        })
 
         return {
             isDesktop: false,
-            imageWidth,
-            imageHeight,
+            imageWidth: fullscreenImage.width,
+            imageHeight: fullscreenImage.height,
+            mobileFullscreenImage: fullscreenImage,
+            mobilePreviewImage: previewImage,
             mobileDetailsMaxHeight,
-            infoWidth: imageWidth,
-            shellWidth: maxImageWidth
+            infoWidth: fullscreenImage.width,
+            shellWidth: fullscreenImage.width
         }
     }, [aspectRatioValue, viewportSize.height, viewportSize.width])
 
@@ -396,6 +441,16 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
     useEffect(() => {
         setIsPromptCopied(false)
     }, [localImage?._id, isOpen])
+
+    useEffect(() => {
+        if (!isOpen) {
+            setIsDetailsOpen(false)
+        }
+    }, [isOpen])
+
+    useEffect(() => {
+        setIsDetailsOpen(false)
+    }, [localImage?._id])
 
     useEffect(() => {
         if (!isOpen || isMobile) return
@@ -500,183 +555,247 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
 
     if (isMobile) {
         return (
-            <>
-                <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
-                    <DrawerContent className="flex h-[92dvh] max-h-[92dvh] flex-col gap-0 overflow-hidden border-border/60 bg-background p-0">
-                        <DrawerHeader className="shrink-0 pb-0 text-left">
-                            <DrawerTitle>Image Details</DrawerTitle>
-                            <DrawerDescription>
-                                Viewing details of a generated image.
-                            </DrawerDescription>
-                        </DrawerHeader>
-
-                        {/* Top: Image Area */}
-                        <div className="relative flex min-h-[12rem] flex-1 items-center justify-center overflow-hidden bg-background p-4">
-                            {loadState !== "ready" && (
-                                <div className="absolute inset-0 z-10 bg-gradient-to-br from-muted/85 via-muted/65 to-accent/20" />
-                            )}
-                            {loadState !== "ready" && (
-                                <ImageLoadIndicator complete={loadState === "revealing"} />
-                            )}
-                            <button
+            <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+                <DialogContent
+                    showCloseButton={false}
+                    overlayClassName="bg-black/92 backdrop-blur-md"
+                    className="pointer-events-none inset-0 z-[70] h-[100dvh] max-h-none w-full max-w-none translate-x-0 translate-y-0 rounded-none border-0 bg-transparent p-0 shadow-none"
+                    onEscapeKeyDown={(event) => {
+                        if (isDetailsOpen) {
+                            event.preventDefault()
+                            setIsDetailsOpen(false)
+                        }
+                    }}
+                >
+                    <div className="pointer-events-none relative h-full w-full">
+                        <div className="absolute top-[calc(env(safe-area-inset-top)+1rem)] right-4 left-4 z-20 flex items-center justify-end">
+                            <Button
                                 type="button"
-                                className="relative flex max-h-full min-h-[12rem] max-w-full shrink-0 items-center justify-center overflow-hidden rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                                style={{
-                                    width: layout.imageWidth,
-                                    height: layout.imageHeight,
-                                    maxWidth: "100%",
-                                    maxHeight: "100%"
-                                }}
-                                onClick={handleToggleImageVisibility}
+                                variant="ghost"
+                                size="icon"
+                                className="pointer-events-auto h-11 w-11 rounded-full border border-white/15 bg-background/15 text-white shadow-lg backdrop-blur-md hover:bg-background/25"
+                                onClick={onClose}
                             >
-                                <span className="sr-only">
-                                    {isImageHidden ? "Unhide image" : "Hide image"}
-                                </span>
-                                <img
-                                    ref={imageRef}
-                                    src={imageUrl}
-                                    alt={localImage.prompt || "Generated Image"}
-                                    className={cn(
-                                        "h-full w-full rounded-lg object-contain shadow-sm transition-all duration-500",
-                                        loadState === "loading" && "scale-[1.02] opacity-0 blur-xl",
-                                        loadState === "revealing" &&
-                                            "scale-[1.01] opacity-100 blur-md",
-                                        loadState === "ready" && "scale-100 opacity-100 blur-0",
-                                        isImageHidden && "brightness-75 saturate-50"
-                                    )}
-                                    style={{ aspectRatio: cssAspectRatio }}
-                                    onLoad={handleImageLoad}
-                                    onError={handleImageError}
-                                />
-                                {isImageHidden && (
-                                    <>
-                                        <div className="pointer-events-none absolute inset-0 z-20 rounded-lg bg-black/20 backdrop-blur-xl" />
-                                        <div className="pointer-events-none absolute inset-x-6 bottom-6 z-30 rounded-[var(--radius)] border border-white/15 bg-background/80 px-4 py-2 text-center text-sm shadow-lg backdrop-blur-md">
-                                            Private viewing enabled
-                                        </div>
-                                    </>
-                                )}
-                            </button>
+                                <span className="sr-only">Close</span>
+                                <X className="h-4 w-4" />
+                            </Button>
                         </div>
 
-                        {/* Bottom: Details Area */}
                         <div
-                            className="flex shrink-0 flex-col border-border/60 border-t bg-background"
-                            style={{
-                                maxHeight: layout.isDesktop
-                                    ? undefined
-                                    : `${layout.mobileDetailsMaxHeight}px`
-                            }}
+                            className={cn(
+                                "absolute inset-x-0 transition-all duration-300 ease-out",
+                                isDetailsOpen
+                                    ? "top-[calc(env(safe-area-inset-top)+4.5rem)]"
+                                    : "top-[calc(env(safe-area-inset-top)+4rem)] bottom-[calc(env(safe-area-inset-bottom)+4.5rem)]"
+                            )}
                         >
-                            <div className="flex-1 space-y-6 overflow-y-auto p-5">
-                                <div>
-                                    <h3 className="mb-2 font-semibold text-xl">Prompt</h3>
-                                    <p className="whitespace-pre-wrap text-muted-foreground text-sm leading-relaxed">
-                                        {localImage.prompt || "No prompt available."}
-                                    </p>
-                                </div>
-                                <div className="grid grid-cols-2 gap-x-4 gap-y-5 border-border/60 border-t pt-2">
-                                    <div>
-                                        <h4 className="mb-1 font-medium text-[0.625rem] text-muted-foreground uppercase tracking-[0.18em]">
-                                            Model
-                                        </h4>
-                                        <p className="font-medium text-xs">
-                                            {model?.name || localImage.modelId || "Unknown"}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <h4 className="mb-1 font-medium text-[0.625rem] text-muted-foreground uppercase tracking-[0.18em]">
-                                            Aspect Ratio
-                                        </h4>
-                                        <p className="font-medium text-xs">
-                                            {localImage.aspectRatio || "Unknown"}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <h4 className="mb-1 font-medium text-[0.625rem] text-muted-foreground uppercase tracking-[0.18em]">
-                                            Resolution
-                                        </h4>
-                                        <p className="font-medium text-xs">{resolutionLabel}</p>
-                                    </div>
-                                    <div>
-                                        <h4 className="mb-1 font-medium text-[0.625rem] text-muted-foreground uppercase tracking-[0.18em]">
-                                            Date
-                                        </h4>
-                                        <p className="font-medium text-xs">{formattedDate}</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="border-border/60 border-t bg-background px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-                                <div className="flex flex-nowrap items-center gap-2">
-                                    <Button
-                                        variant="outline"
-                                        className="h-10 min-w-0 flex-1 text-xs"
-                                        onClick={handleViewFullResolution}
-                                    >
-                                        <ExternalLink className="mr-1.5 h-4 w-4" />
-                                        Full Res
-                                    </Button>
-                                    <Button
-                                        variant="secondary"
-                                        size="icon"
-                                        className="h-10 w-10 shrink-0"
-                                        onClick={handleDownload}
-                                        aria-label="Download image"
-                                    >
-                                        <Download className="h-4 w-4" />
-                                        <span className="sr-only">Download</span>
-                                    </Button>
-                                    <Button
-                                        variant={isPromptCopied ? "secondary" : "outline"}
-                                        size="icon"
-                                        className="h-10 w-10 shrink-0"
-                                        onClick={handleCopyPrompt}
-                                        aria-label={
-                                            isPromptCopied ? "Prompt copied" : "Copy prompt"
-                                        }
-                                    >
-                                        {isPromptCopied ? (
-                                            <Check className="h-4 w-4" />
-                                        ) : (
-                                            <Clipboard className="h-4 w-4" />
+                            <div
+                                className={cn(
+                                    "flex h-full w-full justify-center px-4 transition-all duration-300 ease-out",
+                                    isDetailsOpen ? "items-start" : "items-center"
+                                )}
+                            >
+                                <motion.button
+                                    layout
+                                    type="button"
+                                    className="pointer-events-auto relative flex items-center justify-center overflow-hidden rounded-[var(--radius-xl)] outline-none transition-all duration-300 ease-out focus-visible:ring-2 focus-visible:ring-primary"
+                                    transition={{
+                                        duration: 0.28,
+                                        ease: [0.16, 1, 0.3, 1]
+                                    }}
+                                    style={{
+                                        width: isDetailsOpen
+                                            ? layout.mobilePreviewImage.width
+                                            : layout.mobileFullscreenImage.width,
+                                        height: isDetailsOpen
+                                            ? layout.mobilePreviewImage.height
+                                            : layout.mobileFullscreenImage.height,
+                                        maxWidth: "100%",
+                                        maxHeight: "100%",
+                                        willChange: "transform, width, height"
+                                    }}
+                                    onClick={handleToggleImageVisibility}
+                                >
+                                    <span className="sr-only">
+                                        {isImageHidden ? "Unhide image" : "Hide image"}
+                                    </span>
+                                    {loadState !== "ready" && (
+                                        <div className="absolute inset-0 z-10 bg-gradient-to-br from-muted/85 via-muted/65 to-accent/20" />
+                                    )}
+                                    {loadState !== "ready" && (
+                                        <ImageLoadIndicator complete={loadState === "revealing"} />
+                                    )}
+                                    <img
+                                        ref={imageRef}
+                                        src={imageUrl}
+                                        alt={localImage.prompt || "Generated Image"}
+                                        className={cn(
+                                            "h-full w-full rounded-[var(--radius-xl)] object-contain shadow-2xl transition-all duration-500",
+                                            loadState === "loading" &&
+                                                "scale-[1.02] opacity-0 blur-xl",
+                                            loadState === "revealing" &&
+                                                "scale-[1.01] opacity-100 blur-md",
+                                            loadState === "ready" && "scale-100 opacity-100 blur-0",
+                                            isImageHidden && "brightness-75 saturate-50"
                                         )}
-                                        <span className="sr-only">
-                                            {isPromptCopied ? "Copied" : "Copy Prompt"}
-                                        </span>
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        className="h-10 w-10 shrink-0"
-                                        onClick={handleArchiveStateChange}
-                                        aria-label={
-                                            isArchivedView ? "Restore image" : "Archive image"
-                                        }
-                                    >
-                                        {isArchivedView ? (
-                                            <RotateCcw className="h-4 w-4" />
-                                        ) : (
-                                            <Archive className="h-4 w-4" />
-                                        )}
-                                        <span className="sr-only">
-                                            {isArchivedView ? "Restore" : "Archive"}
-                                        </span>
-                                    </Button>
-                                    <Button
-                                        variant="destructive"
-                                        size="icon"
-                                        className="h-10 w-10 shrink-0"
-                                        onClick={() => setShowDeleteDialog(true)}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
+                                        style={{ aspectRatio: cssAspectRatio }}
+                                        onLoad={handleImageLoad}
+                                        onError={handleImageError}
+                                    />
+                                    {isImageHidden && (
+                                        <>
+                                            <div className="pointer-events-none absolute inset-0 z-20 rounded-[var(--radius-xl)] bg-black/20 backdrop-blur-xl" />
+                                            <div className="pointer-events-none absolute inset-x-6 bottom-6 z-30 rounded-[var(--radius)] border border-white/15 bg-background/80 px-4 py-2 text-center text-foreground text-sm shadow-lg backdrop-blur-md">
+                                                Private viewing enabled
+                                            </div>
+                                        </>
+                                    )}
+                                </motion.button>
                             </div>
                         </div>
-                    </DrawerContent>
-                </Drawer>
-                {sharedAlertDialog}
-            </>
+
+                        {!isDetailsOpen && (
+                            <div className="pointer-events-none absolute right-4 bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-4 z-20 flex justify-center">
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    className="pointer-events-auto h-11 rounded-full px-5 text-sm shadow-lg backdrop-blur-md"
+                                    onClick={() => setIsDetailsOpen(true)}
+                                >
+                                    View Details
+                                </Button>
+                            </div>
+                        )}
+
+                        <Drawer
+                            open={isDetailsOpen}
+                            onOpenChange={setIsDetailsOpen}
+                            nested
+                            modal={false}
+                        >
+                            <DrawerContent
+                                className="z-[80] max-h-[80dvh] overflow-hidden border-border/60 bg-background/98 backdrop-blur-xl"
+                                overlayClassName="z-[79] bg-transparent"
+                                style={{
+                                    maxHeight: `${layout.mobileDetailsMaxHeight}px`
+                                }}
+                            >
+                                <DrawerHeader className="shrink-0 text-left">
+                                    <DrawerTitle>Image Details</DrawerTitle>
+                                    <DrawerDescription>
+                                        Prompt, metadata, and actions for this image.
+                                    </DrawerDescription>
+                                </DrawerHeader>
+                                <div className="flex-1 space-y-6 overflow-y-auto px-5 pb-4">
+                                    <div>
+                                        <h3 className="mb-2 font-semibold text-xl">Prompt</h3>
+                                        <p className="whitespace-pre-wrap text-muted-foreground text-sm leading-relaxed">
+                                            {localImage.prompt || "No prompt available."}
+                                        </p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-5 border-border/60 border-t pt-2">
+                                        <div>
+                                            <h4 className="mb-1 font-medium text-[0.625rem] text-muted-foreground uppercase tracking-[0.18em]">
+                                                Model
+                                            </h4>
+                                            <p className="font-medium text-xs">
+                                                {model?.name || localImage.modelId || "Unknown"}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <h4 className="mb-1 font-medium text-[0.625rem] text-muted-foreground uppercase tracking-[0.18em]">
+                                                Aspect Ratio
+                                            </h4>
+                                            <p className="font-medium text-xs">
+                                                {localImage.aspectRatio || "Unknown"}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <h4 className="mb-1 font-medium text-[0.625rem] text-muted-foreground uppercase tracking-[0.18em]">
+                                                Resolution
+                                            </h4>
+                                            <p className="font-medium text-xs">{resolutionLabel}</p>
+                                        </div>
+                                        <div>
+                                            <h4 className="mb-1 font-medium text-[0.625rem] text-muted-foreground uppercase tracking-[0.18em]">
+                                                Date
+                                            </h4>
+                                            <p className="font-medium text-xs">{formattedDate}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="border-border/60 border-t bg-background px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+                                    <div className="flex flex-nowrap items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            className="h-10 min-w-0 flex-1 text-xs"
+                                            onClick={handleViewFullResolution}
+                                        >
+                                            <ExternalLink className="mr-1.5 h-4 w-4" />
+                                            Full Res
+                                        </Button>
+                                        <Button
+                                            variant="secondary"
+                                            size="icon"
+                                            className="h-10 w-10 shrink-0"
+                                            onClick={handleDownload}
+                                            aria-label="Download image"
+                                        >
+                                            <Download className="h-4 w-4" />
+                                            <span className="sr-only">Download</span>
+                                        </Button>
+                                        <Button
+                                            variant={isPromptCopied ? "secondary" : "outline"}
+                                            size="icon"
+                                            className="h-10 w-10 shrink-0"
+                                            onClick={handleCopyPrompt}
+                                            aria-label={
+                                                isPromptCopied ? "Prompt copied" : "Copy prompt"
+                                            }
+                                        >
+                                            {isPromptCopied ? (
+                                                <Check className="h-4 w-4" />
+                                            ) : (
+                                                <Clipboard className="h-4 w-4" />
+                                            )}
+                                            <span className="sr-only">
+                                                {isPromptCopied ? "Copied" : "Copy Prompt"}
+                                            </span>
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-10 w-10 shrink-0"
+                                            onClick={handleArchiveStateChange}
+                                            aria-label={
+                                                isArchivedView ? "Restore image" : "Archive image"
+                                            }
+                                        >
+                                            {isArchivedView ? (
+                                                <RotateCcw className="h-4 w-4" />
+                                            ) : (
+                                                <Archive className="h-4 w-4" />
+                                            )}
+                                            <span className="sr-only">
+                                                {isArchivedView ? "Restore" : "Archive"}
+                                            </span>
+                                        </Button>
+                                        <Button
+                                            variant="destructive"
+                                            size="icon"
+                                            className="h-10 w-10 shrink-0"
+                                            onClick={() => setShowDeleteDialog(true)}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            </DrawerContent>
+                        </Drawer>
+                    </div>
+                    {sharedAlertDialog}
+                </DialogContent>
+            </Dialog>
         )
     }
 
