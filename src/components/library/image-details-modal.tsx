@@ -49,7 +49,14 @@ import {
     Trash2,
     X
 } from "lucide-react"
-import { memo, useEffect, useMemo, useRef, useState } from "react"
+import {
+    type TouchEvent as ReactTouchEvent,
+    memo,
+    useEffect,
+    useMemo,
+    useRef,
+    useState
+} from "react"
 import { toast } from "sonner"
 
 interface ImageDetailsModalProps {
@@ -82,6 +89,9 @@ const MOBILE_BOTTOM_ACTION_SAFE_SPACE = 16
 const MOBILE_DRAWER_HANDLE_HEIGHT = 24
 const MOBILE_DETAILS_DRAWER_MAX_HEIGHT = 420
 const MOBILE_DETAILS_TRANSITION_MS = 280
+const MOBILE_SWIPE_CLOSE_THRESHOLD = 110
+const MOBILE_SWIPE_TAP_SLOP = 10
+const MOBILE_SWIPE_MAX_OFFSET = 220
 const DESKTOP_NAV_BUTTON_SPACE = 176
 const loadedDetailImageUrls = new Set<string>()
 
@@ -198,10 +208,14 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
     const [loadState, setLoadState] = useState<"loading" | "revealing" | "ready">("loading")
     const [viewportSize, setViewportSize] = useState({ width: 1440, height: 900 })
     const [mobileDrawerTop, setMobileDrawerTop] = useState<number | null>(null)
+    const [mobileDismissOffset, setMobileDismissOffset] = useState(0)
     const revealTimeoutRef = useRef<number | null>(null)
     const copyPromptTimeoutRef = useRef<number | null>(null)
     const imageRef = useRef<HTMLImageElement | null>(null)
     const mobileDrawerRef = useRef<HTMLDivElement | null>(null)
+    const mobileSwipeStartYRef = useRef<number | null>(null)
+    const mobileSwipeTrackingRef = useRef(false)
+    const suppressImageClickRef = useRef(false)
     const aspectRatio = localImage?.aspectRatio || "1:1"
     const cssAspectRatio = useMemo(() => {
         if (aspectRatio.includes("x")) {
@@ -439,7 +453,21 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
     }
 
     const handleToggleImageVisibility = () => {
+        if (suppressImageClickRef.current) {
+            suppressImageClickRef.current = false
+            return
+        }
+
         setIsModalImageHidden((current) => !current)
+    }
+
+    const closeMobileDetailsOrViewer = () => {
+        if (isDetailsOpen) {
+            setIsDetailsOpen(false)
+            return
+        }
+
+        onClose()
     }
 
     const openDetailsDrawer = () => {
@@ -448,6 +476,52 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
         window.requestAnimationFrame(() => {
             setIsDetailsOpen(true)
         })
+    }
+
+    const handleMobileImageTouchStart = (event: ReactTouchEvent<HTMLButtonElement>) => {
+        if (isDetailsOpen || isDetailsPreviewVisible || event.touches.length !== 1) {
+            mobileSwipeStartYRef.current = null
+            mobileSwipeTrackingRef.current = false
+            return
+        }
+
+        mobileSwipeStartYRef.current = event.touches[0]?.clientY ?? null
+        mobileSwipeTrackingRef.current = true
+        suppressImageClickRef.current = false
+    }
+
+    const handleMobileImageTouchMove = (event: ReactTouchEvent<HTMLButtonElement>) => {
+        if (!mobileSwipeTrackingRef.current || mobileSwipeStartYRef.current === null) {
+            return
+        }
+
+        const currentY = event.touches[0]?.clientY
+        if (currentY === undefined) {
+            return
+        }
+
+        const offset = Math.max(
+            0,
+            Math.min(MOBILE_SWIPE_MAX_OFFSET, currentY - mobileSwipeStartYRef.current)
+        )
+        setMobileDismissOffset(offset)
+
+        if (offset > MOBILE_SWIPE_TAP_SLOP) {
+            suppressImageClickRef.current = true
+        }
+    }
+
+    const handleMobileImageTouchEnd = () => {
+        mobileSwipeTrackingRef.current = false
+        mobileSwipeStartYRef.current = null
+
+        if (mobileDismissOffset >= MOBILE_SWIPE_CLOSE_THRESHOLD) {
+            setMobileDismissOffset(0)
+            onClose()
+            return
+        }
+
+        setMobileDismissOffset(0)
     }
 
     useEffect(() => {
@@ -465,6 +539,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
             setIsDetailsOpen(false)
             setIsDetailsPreviewVisible(false)
             setMobileDrawerTop(null)
+            setMobileDismissOffset(0)
         }
     }, [isOpen])
 
@@ -472,7 +547,14 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
         setIsDetailsOpen(false)
         setIsDetailsPreviewVisible(false)
         setMobileDrawerTop(null)
+        setMobileDismissOffset(0)
     }, [localImage?._id])
+
+    useEffect(() => {
+        if (isDetailsPreviewVisible || isDetailsOpen) {
+            setMobileDismissOffset(0)
+        }
+    }, [isDetailsOpen, isDetailsPreviewVisible])
 
     useEffect(() => {
         if (isDetailsOpen || !isDetailsPreviewVisible) return
@@ -616,11 +698,15 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
         const isDetailsExpanded = isDetailsPreviewVisible || isDetailsOpen
 
         return (
-            <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <Dialog open={isOpen} onOpenChange={(open) => !open && closeMobileDetailsOrViewer()}>
                 <DialogContent
                     showCloseButton={false}
                     overlayClassName="bg-black/92 backdrop-blur-md"
                     className="pointer-events-none inset-0 z-[70] h-[100dvh] max-h-none w-full max-w-none translate-x-0 translate-y-0 rounded-none border-0 bg-transparent p-0 shadow-none"
+                    onInteractOutside={(event) => {
+                        event.preventDefault()
+                        closeMobileDetailsOrViewer()
+                    }}
                     onEscapeKeyDown={(event) => {
                         if (isDetailsOpen) {
                             event.preventDefault()
@@ -628,13 +714,18 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                         }
                     }}
                 >
-                    <div className="pointer-events-none relative h-full w-full">
+                    <div
+                        className="pointer-events-none relative h-full w-full transition-opacity duration-200 ease-out"
+                        style={{
+                            opacity: Math.max(0.6, 1 - mobileDismissOffset / 260)
+                        }}
+                    >
                         <div className="absolute top-[calc(env(safe-area-inset-top)+1rem)] right-4 left-4 z-20 flex items-center justify-end">
                             <Button
                                 type="button"
-                                variant="ghost"
+                                variant="secondary"
                                 size="icon"
-                                className="pointer-events-auto h-11 w-11 rounded-full border border-white/15 bg-background/15 text-white shadow-lg backdrop-blur-md hover:bg-background/25"
+                                className="pointer-events-auto h-8 w-8 border border-border/70 bg-background/80 text-foreground shadow-lg backdrop-blur-md transition-all hover:bg-background"
                                 onClick={onClose}
                             >
                                 <span className="sr-only">Close</span>
@@ -668,9 +759,14 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                             : layout.mobileFullscreenImage.height,
                                         maxWidth: "100%",
                                         maxHeight: "100%",
-                                        willChange: "width, height"
+                                        willChange: "width, height, transform",
+                                        transform: `translateY(${mobileDismissOffset}px)`
                                     }}
                                     onClick={handleToggleImageVisibility}
+                                    onTouchStart={handleMobileImageTouchStart}
+                                    onTouchMove={handleMobileImageTouchMove}
+                                    onTouchEnd={handleMobileImageTouchEnd}
+                                    onTouchCancel={handleMobileImageTouchEnd}
                                 >
                                     <span className="sr-only">
                                         {isImageHidden ? "Unhide image" : "Hide image"}
@@ -715,7 +811,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                 <Button
                                     type="button"
                                     variant="secondary"
-                                    className="pointer-events-auto h-11 rounded-full px-5 text-sm shadow-lg backdrop-blur-md"
+                                    className="pointer-events-auto h-9 rounded-[var(--radius-xl)] border border-border/70 bg-background/80 px-4 text-foreground text-sm shadow-lg backdrop-blur-md transition-all hover:bg-background"
                                     onClick={openDetailsDrawer}
                                 >
                                     View Details
@@ -733,15 +829,17 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                 ref={mobileDrawerRef}
                                 className="z-[80] max-h-[80dvh] min-h-0 overflow-hidden border-border/60 bg-background/98 backdrop-blur-xl"
                                 overlayClassName="z-[79] bg-transparent"
+                                onInteractOutside={(event) => {
+                                    event.preventDefault()
+                                    setIsDetailsOpen(false)
+                                }}
                                 style={{
                                     maxHeight: `${layout.mobileDetailsMaxHeight}px`
                                 }}
                             >
                                 <DrawerHeader className="shrink-0 text-left">
                                     <DrawerTitle>Image Details</DrawerTitle>
-                                    <DrawerDescription>
-                                        Prompt, metadata, and actions for this image.
-                                    </DrawerDescription>
+                                    <DrawerDescription>Metadata for this image.</DrawerDescription>
                                 </DrawerHeader>
                                 <div
                                     data-vaul-no-drag
