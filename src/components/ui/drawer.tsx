@@ -78,18 +78,25 @@ function DrawerOverlay({
   )
 }
 
-function DrawerContent({
-  className,
-  children,
-  overlayClassName,
-  ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Content> & {
-  overlayClassName?: string
-}) {
+const DrawerContent = React.forwardRef<
+  React.ElementRef<typeof DrawerPrimitive.Content>,
+  React.ComponentProps<typeof DrawerPrimitive.Content> & {
+    overlayClassName?: string
+  }
+>(function DrawerContent(
+  {
+    className,
+    children,
+    overlayClassName,
+    ...props
+  },
+  ref
+) {
   return (
     <DrawerPortal data-slot="drawer-portal">
       <DrawerOverlay className={overlayClassName} />
       <DrawerPrimitive.Content
+        ref={ref}
         data-slot="drawer-content"
         className={cn(
           "group/drawer-content bg-background fixed z-50 flex h-auto flex-col font-sans",
@@ -106,7 +113,7 @@ function DrawerContent({
       </DrawerPrimitive.Content>
     </DrawerPortal>
   )
-}
+})
 
 function DrawerHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (

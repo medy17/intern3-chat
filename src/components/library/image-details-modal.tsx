@@ -49,7 +49,6 @@ import {
     Trash2,
     X
 } from "lucide-react"
-import { motion } from "motion/react"
 import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
@@ -80,7 +79,9 @@ const MOBILE_PREVIEW_TOP_OFFSET = 88
 const MOBILE_PREVIEW_GAP_ABOVE_DRAWER = 24
 const MOBILE_PREVIEW_MIN_HEIGHT = 180
 const MOBILE_BOTTOM_ACTION_SAFE_SPACE = 16
+const MOBILE_DRAWER_HANDLE_HEIGHT = 24
 const MOBILE_DETAILS_DRAWER_MAX_HEIGHT = 420
+const MOBILE_DETAILS_TRANSITION_MS = 280
 const DESKTOP_NAV_BUTTON_SPACE = 176
 const loadedDetailImageUrls = new Set<string>()
 
@@ -192,12 +193,15 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
 
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
     const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+    const [isDetailsPreviewVisible, setIsDetailsPreviewVisible] = useState(false)
     const [isPromptCopied, setIsPromptCopied] = useState(false)
     const [loadState, setLoadState] = useState<"loading" | "revealing" | "ready">("loading")
     const [viewportSize, setViewportSize] = useState({ width: 1440, height: 900 })
+    const [mobileDrawerTop, setMobileDrawerTop] = useState<number | null>(null)
     const revealTimeoutRef = useRef<number | null>(null)
     const copyPromptTimeoutRef = useRef<number | null>(null)
     const imageRef = useRef<HTMLImageElement | null>(null)
+    const mobileDrawerRef = useRef<HTMLDivElement | null>(null)
     const aspectRatio = localImage?.aspectRatio || "1:1"
     const cssAspectRatio = useMemo(() => {
         if (aspectRatio.includes("x")) {
@@ -339,10 +343,15 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
             MOBILE_DETAILS_DRAWER_MAX_HEIGHT,
             viewportSize.height * 0.54
         )
+        const fallbackDrawerTop =
+            viewportSize.height - mobileDetailsMaxHeight - MOBILE_DRAWER_HANDLE_HEIGHT
+        const resolvedDrawerTop =
+            mobileDrawerTop === null
+                ? fallbackDrawerTop
+                : Math.min(mobileDrawerTop, fallbackDrawerTop)
         const mobilePreviewMaxHeight = Math.max(
             MOBILE_PREVIEW_MIN_HEIGHT,
-            viewportSize.height -
-                mobileDetailsMaxHeight -
+            resolvedDrawerTop -
                 MOBILE_PREVIEW_TOP_OFFSET -
                 MOBILE_PREVIEW_GAP_ABOVE_DRAWER -
                 MOBILE_BOTTOM_ACTION_SAFE_SPACE
@@ -360,10 +369,11 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
             mobileFullscreenImage: fullscreenImage,
             mobilePreviewImage: previewImage,
             mobileDetailsMaxHeight,
+            mobileDrawerTop: resolvedDrawerTop,
             infoWidth: fullscreenImage.width,
             shellWidth: fullscreenImage.width
         }
-    }, [aspectRatioValue, viewportSize.height, viewportSize.width])
+    }, [aspectRatioValue, mobileDrawerTop, viewportSize.height, viewportSize.width])
 
     const showDesktopNavButtons =
         layout.isDesktop &&
@@ -432,6 +442,14 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
         setIsModalImageHidden((current) => !current)
     }
 
+    const openDetailsDrawer = () => {
+        setIsDetailsPreviewVisible(true)
+        setMobileDrawerTop(layout.mobileDrawerTop ?? null)
+        window.requestAnimationFrame(() => {
+            setIsDetailsOpen(true)
+        })
+    }
+
     useEffect(() => {
         if (!isOpen || !localImage) return
 
@@ -445,12 +463,53 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
     useEffect(() => {
         if (!isOpen) {
             setIsDetailsOpen(false)
+            setIsDetailsPreviewVisible(false)
+            setMobileDrawerTop(null)
         }
     }, [isOpen])
 
     useEffect(() => {
         setIsDetailsOpen(false)
+        setIsDetailsPreviewVisible(false)
+        setMobileDrawerTop(null)
     }, [localImage?._id])
+
+    useEffect(() => {
+        if (isDetailsOpen || !isDetailsPreviewVisible) return
+
+        const timeoutId = window.setTimeout(() => {
+            setIsDetailsPreviewVisible(false)
+            setMobileDrawerTop(null)
+        }, MOBILE_DETAILS_TRANSITION_MS)
+
+        return () => window.clearTimeout(timeoutId)
+    }, [isDetailsOpen, isDetailsPreviewVisible])
+
+    useEffect(() => {
+        if (!isMobile || !isOpen || !isDetailsOpen || typeof window === "undefined") {
+            setMobileDrawerTop(null)
+            return
+        }
+
+        let frameId = 0
+        let previousTop = -1
+
+        const updateDrawerTop = () => {
+            const nextTop = mobileDrawerRef.current?.getBoundingClientRect().top ?? null
+            if (nextTop !== null && Math.abs(nextTop - previousTop) > 0.5) {
+                previousTop = nextTop
+                setMobileDrawerTop(nextTop)
+            }
+
+            frameId = window.requestAnimationFrame(updateDrawerTop)
+        }
+
+        frameId = window.requestAnimationFrame(updateDrawerTop)
+
+        return () => {
+            window.cancelAnimationFrame(frameId)
+        }
+    }, [isDetailsOpen, isMobile, isOpen])
 
     useEffect(() => {
         if (!isOpen || isMobile) return
@@ -554,6 +613,8 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
     )
 
     if (isMobile) {
+        const isDetailsExpanded = isDetailsPreviewVisible || isDetailsOpen
+
         return (
             <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
                 <DialogContent
@@ -583,36 +644,31 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
 
                         <div
                             className={cn(
-                                "absolute inset-x-0 transition-all duration-300 ease-out",
-                                isDetailsOpen
+                                "absolute inset-x-0 transition-[top,bottom] duration-300 ease-out",
+                                isDetailsExpanded
                                     ? "top-[calc(env(safe-area-inset-top)+4.5rem)]"
                                     : "top-[calc(env(safe-area-inset-top)+4rem)] bottom-[calc(env(safe-area-inset-bottom)+4.5rem)]"
                             )}
                         >
                             <div
                                 className={cn(
-                                    "flex h-full w-full justify-center px-4 transition-all duration-300 ease-out",
-                                    isDetailsOpen ? "items-start" : "items-center"
+                                    "flex h-full w-full justify-center px-4 transition-[align-items] duration-300 ease-out",
+                                    isDetailsExpanded ? "items-start" : "items-center"
                                 )}
                             >
-                                <motion.button
-                                    layout
+                                <button
                                     type="button"
-                                    className="pointer-events-auto relative flex items-center justify-center overflow-hidden rounded-[var(--radius-xl)] outline-none transition-all duration-300 ease-out focus-visible:ring-2 focus-visible:ring-primary"
-                                    transition={{
-                                        duration: 0.28,
-                                        ease: [0.16, 1, 0.3, 1]
-                                    }}
+                                    className="pointer-events-auto relative flex items-center justify-center overflow-hidden rounded-[var(--radius-xl)] outline-none transition-[width,height,transform] duration-300 ease-out focus-visible:ring-2 focus-visible:ring-primary"
                                     style={{
-                                        width: isDetailsOpen
+                                        width: isDetailsExpanded
                                             ? layout.mobilePreviewImage.width
                                             : layout.mobileFullscreenImage.width,
-                                        height: isDetailsOpen
+                                        height: isDetailsExpanded
                                             ? layout.mobilePreviewImage.height
                                             : layout.mobileFullscreenImage.height,
                                         maxWidth: "100%",
                                         maxHeight: "100%",
-                                        willChange: "transform, width, height"
+                                        willChange: "width, height"
                                     }}
                                     onClick={handleToggleImageVisibility}
                                 >
@@ -650,17 +706,17 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                             </div>
                                         </>
                                     )}
-                                </motion.button>
+                                </button>
                             </div>
                         </div>
 
-                        {!isDetailsOpen && (
+                        {!isDetailsExpanded && (
                             <div className="pointer-events-none absolute right-4 bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-4 z-20 flex justify-center">
                                 <Button
                                     type="button"
                                     variant="secondary"
                                     className="pointer-events-auto h-11 rounded-full px-5 text-sm shadow-lg backdrop-blur-md"
-                                    onClick={() => setIsDetailsOpen(true)}
+                                    onClick={openDetailsDrawer}
                                 >
                                     View Details
                                 </Button>
@@ -674,6 +730,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                             modal={false}
                         >
                             <DrawerContent
+                                ref={mobileDrawerRef}
                                 className="z-[80] max-h-[80dvh] overflow-hidden border-border/60 bg-background/98 backdrop-blur-xl"
                                 overlayClassName="z-[79] bg-transparent"
                                 style={{
