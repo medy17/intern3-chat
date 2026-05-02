@@ -73,8 +73,10 @@ const DESKTOP_VERTICAL_CHROME = 96
 const DESKTOP_INFO_PANEL_WIDTH = 420
 const DESKTOP_MAX_IMAGE_HEIGHT = 920
 const MOBILE_HORIZONTAL_CHROME = 32
-const MOBILE_VERTICAL_CHROME = 160
-const MOBILE_MAX_IMAGE_HEIGHT_RATIO = 0.6
+const MOBILE_DRAWER_HEIGHT_RATIO = 0.92
+const MOBILE_HEADER_CHROME = 72
+const MOBILE_DETAILS_SECTION_MAX_HEIGHT = 320
+const MOBILE_IMAGE_SECTION_CHROME = 32
 const DESKTOP_NAV_BUTTON_SPACE = 176
 const loadedDetailImageUrls = new Set<string>()
 
@@ -287,9 +289,17 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
         }
 
         const maxImageWidth = Math.max(280, viewportSize.width - MOBILE_HORIZONTAL_CHROME)
+        const mobileDrawerHeight = viewportSize.height * MOBILE_DRAWER_HEIGHT_RATIO
+        const mobileDetailsMaxHeight = Math.min(
+            MOBILE_DETAILS_SECTION_MAX_HEIGHT,
+            viewportSize.height * 0.38
+        )
         const maxImageHeight = Math.max(
-            240,
-            viewportSize.height * MOBILE_MAX_IMAGE_HEIGHT_RATIO - MOBILE_VERTICAL_CHROME / 3
+            200,
+            mobileDrawerHeight -
+                MOBILE_HEADER_CHROME -
+                mobileDetailsMaxHeight -
+                MOBILE_IMAGE_SECTION_CHROME
         )
 
         let imageWidth = maxImageWidth
@@ -304,6 +314,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
             isDesktop: false,
             imageWidth,
             imageHeight,
+            mobileDetailsMaxHeight,
             infoWidth: imageWidth,
             shellWidth: maxImageWidth
         }
@@ -500,7 +511,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                         </DrawerHeader>
 
                         {/* Top: Image Area */}
-                        <div className="relative flex min-h-[16rem] flex-1 items-center justify-center overflow-hidden bg-background p-4">
+                        <div className="relative flex min-h-[12rem] flex-1 items-center justify-center overflow-hidden bg-background p-4">
                             {loadState !== "ready" && (
                                 <div className="absolute inset-0 z-10 bg-gradient-to-br from-muted/85 via-muted/65 to-accent/20" />
                             )}
@@ -509,7 +520,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                             )}
                             <button
                                 type="button"
-                                className="relative flex max-h-full min-h-[16rem] max-w-full shrink-0 items-center justify-center overflow-hidden rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                                className="relative flex max-h-full min-h-[12rem] max-w-full shrink-0 items-center justify-center overflow-hidden rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary"
                                 style={{
                                     width: layout.imageWidth,
                                     height: layout.imageHeight,
@@ -549,7 +560,14 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                         </div>
 
                         {/* Bottom: Details Area */}
-                        <div className="flex max-h-[42vh] shrink-0 flex-col border-border/60 border-t bg-background">
+                        <div
+                            className="flex shrink-0 flex-col border-border/60 border-t bg-background"
+                            style={{
+                                maxHeight: layout.isDesktop
+                                    ? undefined
+                                    : `${layout.mobileDetailsMaxHeight}px`
+                            }}
+                        >
                             <div className="flex-1 space-y-6 overflow-y-auto p-5">
                                 <div>
                                     <h3 className="mb-2 font-semibold text-xl">Prompt</h3>
