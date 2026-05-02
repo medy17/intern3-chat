@@ -491,7 +491,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
         return (
             <>
                 <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
-                    <DrawerContent className="flex h-[92vh] max-h-[92vh] flex-col gap-0 overflow-hidden border-border/60 bg-background p-0">
+                    <DrawerContent className="flex h-[92dvh] max-h-[92dvh] flex-col gap-0 overflow-hidden border-border/60 bg-background p-0">
                         <DrawerHeader className="shrink-0 pb-0 text-left">
                             <DrawerTitle>Image Details</DrawerTitle>
                             <DrawerDescription>
@@ -588,7 +588,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                     </div>
                                 </div>
                             </div>
-                            <div className="border-border/60 border-t bg-background p-4">
+                            <div className="border-border/60 border-t bg-background px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
                                 <div className="flex flex-nowrap items-center gap-2">
                                     <Button
                                         variant="outline"
