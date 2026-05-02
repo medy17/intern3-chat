@@ -1780,7 +1780,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                 <div
                     className={cn(
                         "relative z-40 flex shrink-0 flex-col bg-background/95 backdrop-blur-xl transition-transform duration-300 ease-out",
-                        isMobile ? "gap-4 px-4 pt-16 pb-4" : "sticky top-0 px-6 pt-4 pb-4",
+                        isMobile ? "gap-3 px-3 pt-14 pb-3" : "sticky top-0 px-6 pt-4 pb-4",
                         !isMobile &&
                             (shouldHideDesktopStickyChrome ? "-translate-y-full" : "translate-y-0")
                     )}
@@ -2123,13 +2123,13 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                 )}
 
                 {/* Scrollable Gallery Area */}
-                <div className="px-4 pt-2 pb-4 lg:px-6 lg:pb-6">
+                <div className="px-3 pt-1 pb-3 sm:px-4 sm:pt-2 sm:pb-4 lg:px-6 lg:pb-6">
                     {!resolvedImagePage ? (
-                        <div className="columns-1 gap-4 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5">
+                        <div className="columns-2 gap-3 sm:gap-4 md:columns-3 lg:columns-4 xl:columns-5">
                             {Array.from({ length: 12 }).map((_, i) => (
                                 <div
                                     key={i}
-                                    className="mb-4 break-inside-avoid"
+                                    className="mb-3 break-inside-avoid sm:mb-4"
                                     style={{ height: `${Math.random() * 150 + 250}px` }}
                                 >
                                     <Skeleton className="h-full w-full rounded-lg" />
@@ -2168,7 +2168,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                             <ImageMetadataProvider
                                 storageKeys={images.map((img) => img.storageKey)}
                             >
-                                <div className="columns-1 gap-4 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5">
+                                <div className="columns-2 gap-3 sm:gap-4 md:columns-3 lg:columns-4 xl:columns-5">
                                     <AnimatePresence>
                                         {showPendingGenerations &&
                                             pendingGenerations.map((pending) => (
@@ -2186,7 +2186,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                                         duration: 0.3,
                                                         ease: [0.16, 1, 0.3, 1]
                                                     }}
-                                                    className="mb-4 break-inside-avoid"
+                                                    className="mb-3 break-inside-avoid sm:mb-4"
                                                 >
                                                     <PendingImageItem
                                                         aspectRatio={pending.aspectRatio}
@@ -2214,7 +2214,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                                         duration: 0.3,
                                                         ease: [0.16, 1, 0.3, 1]
                                                     }}
-                                                    className="mb-4 break-inside-avoid"
+                                                    className="mb-3 break-inside-avoid sm:mb-4"
                                                 >
                                                     <GeneratedImageItem
                                                         image={image}
