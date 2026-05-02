@@ -394,7 +394,7 @@ const EditableMessage = memo(
                                         <div className="flex items-center gap-2 pl-2 text-primary-foreground">
                                             {getFileIcon(part)}
                                             <div className="flex min-w-0 flex-col">
-                                                <span className="max-w-[100px] truncate font-medium text-xs">
+                                                <span className="max-w-[6.25rem] truncate font-medium text-xs">
                                                     {extractFileName(part.url)}
                                                 </span>
                                             </div>

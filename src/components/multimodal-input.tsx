@@ -154,7 +154,7 @@ export const AspectRatioSelector = ({ selectedModel }: { selectedModel: string |
     return (
         <PromptInputAction tooltip="Select aspect ratio">
             <Select value={selectedImageSize} onValueChange={setSelectedImageSize}>
-                <SelectTrigger className="!h-8 w-auto min-w-[80px] border bg-secondary/70 font-normal text-xs backdrop-blur-lg hover:bg-secondary/80 sm:text-sm">
+                <SelectTrigger className="!h-8 w-auto min-w-[5rem] border bg-secondary/70 font-normal text-xs backdrop-blur-lg hover:bg-secondary/80 sm:text-sm">
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -195,7 +195,7 @@ export const ImageResolutionSelector = ({ selectedModel }: { selectedModel: stri
     return (
         <PromptInputAction tooltip="Select output resolution">
             <Select value={selectedImageResolution} onValueChange={setSelectedImageResolution}>
-                <SelectTrigger className="!h-8 w-auto min-w-[76px] border bg-secondary/70 font-normal text-xs backdrop-blur-lg hover:bg-secondary/80 sm:text-sm">
+                <SelectTrigger className="!h-8 w-auto min-w-[4.75rem] border bg-secondary/70 font-normal text-xs backdrop-blur-lg hover:bg-secondary/80 sm:text-sm">
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -322,7 +322,7 @@ export const ReasoningEffortSelector = ({
                                         )}
                                     </span>
                                     {isEffortLocked && (
-                                        <span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium text-[10px] text-primary uppercase">
+                                        <span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium text-[0.625rem] text-primary uppercase">
                                             Pro
                                         </span>
                                     )}
@@ -570,7 +570,7 @@ function MobileOverflowMenu({
                                                     {effortLabel}
                                                 </span>
                                                 {isEffortLocked && (
-                                                    <span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium text-[10px] text-primary uppercase">
+                                                    <span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium text-[0.625rem] text-primary uppercase">
                                                         Pro
                                                     </span>
                                                 )}
@@ -646,7 +646,7 @@ function MobileOverflowMenu({
 
                     {!isImageModel && (
                         <div className="border-border/60 border-t pt-2">
-                            <p className="px-2.5 pb-1 font-medium text-[11px] text-muted-foreground uppercase tracking-[0.16em]">
+                            <p className="px-2.5 pb-1 font-medium text-[0.6875rem] text-muted-foreground uppercase tracking-[0.16em]">
                                 MCP Servers
                             </p>
                             <div className="space-y-1">
@@ -1336,8 +1336,8 @@ export const MultimodalInput = forwardRef<
             <div key={localFile.id} className="group relative">
                 <div
                     className={cn(
-                        "relative flex h-12 max-w-[200px] items-center justify-center overflow-hidden border-2 border-border bg-secondary/50 transition-colors",
-                        isImage ? "w-12" : "w-auto min-w-[80px]"
+                        "relative flex h-12 max-w-[12.5rem] items-center justify-center overflow-hidden border-2 border-border bg-secondary/50 transition-colors",
+                        isImage ? "w-12" : "w-auto min-w-[5rem]"
                     )}
                     style={{ borderRadius: "var(--radius)" }}
                 >
@@ -1354,7 +1354,7 @@ export const MultimodalInput = forwardRef<
                             />
                             {localFile.status === "uploading" && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/20">
-                                    <span className="font-semibold text-[10px] text-white drop-shadow-md">
+                                    <span className="font-semibold text-[0.625rem] text-white drop-shadow-md">
                                         {localFile.progress}%
                                     </span>
                                     <div
@@ -1436,7 +1436,7 @@ export const MultimodalInput = forwardRef<
                         setDialogOpen(true)
                     }}
                     className={cn(
-                        "relative flex h-12 max-w-[200px] items-center justify-center overflow-hidden border-2 border-border bg-secondary/50 transition-colors hover:bg-secondary/80",
+                        "relative flex h-12 max-w-[12.5rem] items-center justify-center overflow-hidden border-2 border-border bg-secondary/50 transition-colors hover:bg-secondary/80",
                         isImage ? "w-12" : "w-auto"
                     )}
                     style={{ borderRadius: "var(--radius)" }}

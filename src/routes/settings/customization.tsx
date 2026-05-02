@@ -139,7 +139,7 @@ function CustomizationSettings() {
                             <Button
                                 onClick={handleSave}
                                 disabled={isSaving}
-                                className="min-w-[100px]"
+                                className="min-w-[6.25rem]"
                             >
                                 {isSaving ? (
                                     <>

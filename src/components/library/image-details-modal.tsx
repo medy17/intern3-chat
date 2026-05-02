@@ -528,7 +528,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                 </div>
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-5 border-border/60 border-t pt-2">
                                     <div>
-                                        <h4 className="mb-1 font-medium text-[10px] text-muted-foreground uppercase tracking-[0.18em]">
+                                        <h4 className="mb-1 font-medium text-[0.625rem] text-muted-foreground uppercase tracking-[0.18em]">
                                             Model
                                         </h4>
                                         <p className="font-medium text-xs">
@@ -536,7 +536,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                         </p>
                                     </div>
                                     <div>
-                                        <h4 className="mb-1 font-medium text-[10px] text-muted-foreground uppercase tracking-[0.18em]">
+                                        <h4 className="mb-1 font-medium text-[0.625rem] text-muted-foreground uppercase tracking-[0.18em]">
                                             Aspect Ratio
                                         </h4>
                                         <p className="font-medium text-xs">
@@ -544,13 +544,13 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                         </p>
                                     </div>
                                     <div>
-                                        <h4 className="mb-1 font-medium text-[10px] text-muted-foreground uppercase tracking-[0.18em]">
+                                        <h4 className="mb-1 font-medium text-[0.625rem] text-muted-foreground uppercase tracking-[0.18em]">
                                             Resolution
                                         </h4>
                                         <p className="font-medium text-xs">{resolutionLabel}</p>
                                     </div>
                                     <div>
-                                        <h4 className="mb-1 font-medium text-[10px] text-muted-foreground uppercase tracking-[0.18em]">
+                                        <h4 className="mb-1 font-medium text-[0.625rem] text-muted-foreground uppercase tracking-[0.18em]">
                                             Date
                                         </h4>
                                         <p className="font-medium text-xs">{formattedDate}</p>
@@ -628,7 +628,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                 type="button"
                                 variant="outline"
                                 size="icon"
-                                className="-left-[72px] -translate-y-1/2 absolute top-1/2 z-20 h-11 w-11 rounded-lg border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-md hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-35"
+                                className="-left-[4.5rem] -translate-y-1/2 absolute top-1/2 z-20 h-11 w-11 rounded-lg border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-md hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-35"
                                 onClick={onPrevious}
                                 disabled={!canNavigatePrevious}
                             >
@@ -639,7 +639,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                 type="button"
                                 variant="outline"
                                 size="icon"
-                                className="-right-[72px] -translate-y-1/2 absolute top-1/2 z-20 h-11 w-11 rounded-lg border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-md hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-35"
+                                className="-right-[4.5rem] -translate-y-1/2 absolute top-1/2 z-20 h-11 w-11 rounded-lg border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-md hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-35"
                                 onClick={onNext}
                                 disabled={!canNavigateNext}
                             >
@@ -652,7 +652,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="-top-14 lg:-right-[72px] absolute right-0 z-20 h-11 w-11 rounded-lg border border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-sm hover:bg-accent lg:top-0"
+                        className="-top-14 lg:-right-[4.5rem] absolute right-0 z-20 h-11 w-11 rounded-lg border border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-sm hover:bg-accent lg:top-0"
                         onClick={onClose}
                     >
                         <span className="sr-only">Close</span>

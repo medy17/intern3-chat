@@ -196,18 +196,18 @@ export function RetryMenu({
                 </TooltipContent>
             </Tooltip>
 
-            <DropdownMenuContent align="end" className="w-[200px]">
+            <DropdownMenuContent align="end" className="w-[12.5rem]">
                 <DropdownMenuItem onClick={() => onRetry()} className="cursor-pointer gap-2">
                     <RotateCcw className="h-4 w-4" />
                     <span>Retry same</span>
                 </DropdownMenuItem>
 
                 <div className="flex items-center gap-2 px-2 py-1.5">
-                    <div className="h-[1px] flex-1 bg-border" />
+                    <div className="h-[0.0625rem] flex-1 bg-border" />
                     <span className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
                         or switch model
                     </span>
-                    <div className="h-[1px] flex-1 bg-border" />
+                    <div className="h-[0.0625rem] flex-1 bg-border" />
                 </div>
 
                 {providerSections.map((section) => {
@@ -231,7 +231,7 @@ export function RetryMenu({
                             </DropdownMenuSubTrigger>
                             <DropdownMenuPortal>
                                 <DropdownMenuSubContent
-                                    className="w-[240px]"
+                                    className="w-[15rem]"
                                     sideOffset={8}
                                     collisionPadding={16}
                                 >

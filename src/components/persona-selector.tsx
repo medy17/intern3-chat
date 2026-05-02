@@ -200,7 +200,7 @@ export function PersonaSelector({ threadId }: { threadId?: string }) {
                                     }
                                 }}
                             >
-                                <SelectTrigger className="!h-8 !px-1.5 min-[390px]:!px-2 min-w-0 gap-0.5 border bg-secondary/70 text-xs backdrop-blur-lg hover:bg-secondary/80 sm:min-w-[220px] sm:text-sm min-[390px]:gap-2">
+                                <SelectTrigger className="!h-8 !px-1.5 min-[390px]:!px-2 min-w-0 gap-0.5 border bg-secondary/70 text-xs backdrop-blur-lg hover:bg-secondary/80 sm:min-w-[13.75rem] sm:text-sm min-[390px]:gap-2">
                                     <div className="flex min-w-0 items-center gap-2">
                                         {selectedOption ? (
                                             <PersonaAvatar
@@ -267,7 +267,9 @@ export function PersonaSelector({ threadId }: { threadId?: string }) {
                                 ) : (
                                     <Sparkles className="size-4 shrink-0" />
                                 )}
-                                <span className="max-w-[140px] truncate">{lockedPersonaName}</span>
+                                <span className="max-w-[8.75rem] truncate">
+                                    {lockedPersonaName}
+                                </span>
                             </Badge>
                         </PromptInputAction>
                     </motion.div>

@@ -232,7 +232,7 @@ function PromptInputTextarea({
             onKeyDown={handleKeyDown}
             onInput={handleInput}
             className={cn(
-                "field-sizing-fixed min-h-[44px] w-full resize-none overflow-y-auto border-none bg-transparent text-foreground shadow-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
+                "field-sizing-fixed min-h-[2.75rem] w-full resize-none overflow-y-auto border-none bg-transparent text-foreground shadow-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
                 className
             )}
             rows={1}

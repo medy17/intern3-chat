@@ -98,7 +98,7 @@ export function FolderChat({ folderId, isActiveRoute = true }: FolderChatProps) 
 
     if (!session?.user && !isPending) {
         return (
-            <div className="relative flex h-[calc(100dvh-64px)] items-center justify-center">
+            <div className="relative flex h-[calc(100dvh-var(--app-header-height))] items-center justify-center">
                 <SignupMessagePrompt />
             </div>
         )
@@ -227,7 +227,9 @@ export function FolderChat({ folderId, isActiveRoute = true }: FolderChatProps) 
         <div
             className={cn(
                 "relative flex flex-col",
-                isEmpty ? "h-[calc(100dvh-8px)]" : "h-[calc(100dvh-64px)]"
+                isEmpty
+                    ? "h-[calc(100dvh-var(--chat-empty-offset))]"
+                    : "h-[calc(100dvh-var(--app-header-height))]"
             )}
         >
             <Messages
@@ -287,7 +289,10 @@ export function FolderChat({ folderId, isActiveRoute = true }: FolderChatProps) 
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 20 }}
                         transition={{ duration: 0.2, ease: "easeInOut" }}
-                        className="-bottom-[3.875rem] md:-bottom-10 absolute inset-x-0 z-[10] flex flex-col items-center justify-center"
+                        className="md:-bottom-10 absolute inset-x-0 z-[10] flex flex-col items-center justify-center"
+                        style={{
+                            bottom: "calc(-1 * var(--chat-composer-overlap))"
+                        }}
                     >
                         <div className="pointer-events-none absolute inset-x-0 bottom-full mb-2 flex justify-center">
                             <div className="pointer-events-auto">

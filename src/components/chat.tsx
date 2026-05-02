@@ -173,7 +173,7 @@ const ChatContent = ({ threadId: routeThreadId, folderId, isActiveRoute = true }
 
     if (!session?.user && !isPending) {
         return (
-            <div className="relative flex h-[calc(100dvh-64px)] items-center justify-center">
+            <div className="relative flex h-[calc(100dvh-var(--app-header-height))] items-center justify-center">
                 <SignupMessagePrompt />
             </div>
         )
@@ -184,7 +184,7 @@ const ChatContent = ({ threadId: routeThreadId, folderId, isActiveRoute = true }
             initial={false}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="relative flex h-[calc(100dvh-64px)] flex-col"
+            className="relative flex h-[calc(100dvh-var(--app-header-height))] flex-col"
         >
             <FullPageDropOverlay onDrop={handleFileDrop} enabled={isActiveRoute} />
 
@@ -203,7 +203,14 @@ const ChatContent = ({ threadId: routeThreadId, folderId, isActiveRoute = true }
                 className={
                     isEmpty
                         ? "absolute inset-0 z-[10] flex flex-col items-center justify-center gap-8 px-4"
-                        : "-bottom-[3.875rem] md:-bottom-10 absolute inset-x-0 z-[10] flex flex-col items-center justify-center"
+                        : "md:-bottom-10 absolute inset-x-0 z-[10] flex flex-col items-center justify-center"
+                }
+                style={
+                    isEmpty
+                        ? undefined
+                        : {
+                              bottom: "calc(-1 * var(--chat-composer-overlap))"
+                          }
                 }
             >
                 <AnimatePresence initial={false} mode="sync">

@@ -331,7 +331,7 @@ export const ArtifactPreview = memo(({ code, language, className }: ArtifactPrev
         }
     }
 
-    return <div className={cn("min-h-[200px] bg-card", className)}>{renderPreview()}</div>
+    return <div className={cn("min-h-[12.5rem] bg-card", className)}>{renderPreview()}</div>
 })
 
 ArtifactPreview.displayName = "ArtifactPreview"

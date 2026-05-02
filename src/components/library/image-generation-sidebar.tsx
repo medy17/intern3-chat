@@ -813,7 +813,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                         value={prompt}
                         onChange={(e) => setPrompt(e.target.value)}
                         onPaste={handlePaste}
-                        className="field-sizing-fixed max-h-[24dvh] min-h-[112px] resize-none overflow-y-auto rounded-md border-0 bg-muted/30 px-4 py-3 text-foreground placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-primary/30"
+                        className="field-sizing-fixed max-h-[24dvh] min-h-[7rem] resize-none overflow-y-auto rounded-md border-0 bg-muted/30 px-4 py-3 text-foreground placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-primary/30"
                     />
                 </div>
 
@@ -847,7 +847,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                     </div>
 
                     {!supportsReferenceImagesForSelection && (
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-[0.6875rem] text-muted-foreground">
                             Reference images are unavailable for the current model selection.
                         </p>
                     )}
@@ -906,7 +906,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                                     </svg>
                                     MODELS
                                 </div>
-                                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+                                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[0.625rem] text-primary">
                                     {selectedModelIds.length} active • {totalRequestedGenerations}{" "}
                                     outputs
                                 </span>
@@ -950,7 +950,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                                                     >
                                                         {model.name}
                                                     </span>
-                                                    <span className="mt-0.5 text-[10px] opacity-70">
+                                                    <span className="mt-0.5 text-[0.625rem] opacity-70">
                                                         {modelPlanLocked
                                                             ? "Pro plan required"
                                                             : `${
@@ -983,7 +983,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
 
                                             {isSelected && (
                                                 <div className="mt-2 flex items-center justify-between rounded-md border border-primary/10 bg-background/40 px-2 py-1.5">
-                                                    <span className="text-[10px] uppercase tracking-wider opacity-70">
+                                                    <span className="text-[0.625rem] uppercase tracking-wider opacity-70">
                                                         Variants
                                                     </span>
                                                     <div className="flex items-center gap-1">
@@ -1072,7 +1072,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                                             onClick={() => isAvailable && setAspectRatio(size)}
                                             disabled={!isAvailable}
                                             className={cn(
-                                                "flex min-w-[36px] shrink-0 flex-col items-center gap-1.5 rounded-md p-2 transition-all",
+                                                "flex min-w-[2.25rem] shrink-0 flex-col items-center gap-1.5 rounded-md p-2 transition-all",
                                                 !isAvailable && "cursor-not-allowed opacity-30",
                                                 isSelected && isAvailable
                                                     ? "bg-primary/15 text-primary"
@@ -1101,7 +1101,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                                             </div>
                                             <span
                                                 className={cn(
-                                                    "font-medium text-[9px]",
+                                                    "font-medium text-[0.5625rem]",
                                                     isSelected ? "text-foreground" : ""
                                                 )}
                                             >
@@ -1112,7 +1112,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                                 })}
                             </div>
                             {hasSingleReferenceXaiEdit && (
-                                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                <p className="text-[0.6875rem] text-muted-foreground leading-relaxed">
                                     xAI single-image edits keep the input image's aspect ratio. The
                                     aspect ratio picker only reliably applies to text-to-image and
                                     multi-image edits.
@@ -1149,7 +1149,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                                             onClick={() => isAvailable && setResolution(res)}
                                             disabled={!isAvailable}
                                             className={cn(
-                                                "flex min-w-[60px] flex-1 shrink-0 flex-col items-center justify-center rounded-md p-2 transition-all",
+                                                "flex min-w-[3.75rem] flex-1 shrink-0 flex-col items-center justify-center rounded-md p-2 transition-all",
                                                 !isAvailable && "cursor-not-allowed opacity-30",
                                                 isSelected && isAvailable
                                                     ? "border border-primary/20 bg-primary/15 text-primary"
@@ -1183,7 +1183,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                     {isDevMode && (
                         <div className="mb-3 rounded-md border border-border/60 bg-background/50 p-3">
                             <div className="mb-2 flex items-center justify-between gap-3">
-                                <span className="font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+                                <span className="font-medium text-[0.6875rem] text-muted-foreground uppercase tracking-wider">
                                     Time To Respond
                                 </span>
                                 <span className="font-medium text-foreground text-sm">
@@ -1203,7 +1203,7 @@ export function ImageGenerationSidebar({ disabled = false }: { disabled?: boolea
                                     }
                                 }}
                             />
-                            <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
+                            <div className="mt-2 flex items-center justify-between text-[0.625rem] text-muted-foreground">
                                 <span>5s min</span>
                                 <span>90s max</span>
                             </div>

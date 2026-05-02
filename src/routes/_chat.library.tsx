@@ -276,7 +276,7 @@ const MultiSelectFilter = ({
                     <span className="font-medium text-foreground/80">{label}</span>
                     {selectedValues.length > 0 && (
                         <>
-                            <div className="mx-2 h-4 w-[1px] shrink-0 bg-border" />
+                            <div className="mx-2 h-4 w-[0.0625rem] shrink-0 bg-border" />
                             <span className="truncate font-medium text-secondary-foreground">
                                 {getFilterButtonLabel({
                                     emptyLabel: "",
@@ -1885,7 +1885,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                     <Filter className="h-4 w-4" />
                                     <span>Filters</span>
                                     {activeFilterCount > 0 && (
-                                        <span className="ml-1 rounded-md bg-primary/20 px-1.5 py-0.5 text-[10px] text-primary leading-none">
+                                        <span className="ml-1 rounded-md bg-primary/20 px-1.5 py-0.5 text-[0.625rem] text-primary leading-none">
                                             {activeFilterCount}
                                         </span>
                                     )}
@@ -1936,10 +1936,10 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                         onClear={() => handleClearFilterGroup("orientations")}
                                     />
 
-                                    <div className="mx-1 hidden h-5 w-[1px] shrink-0 bg-border xl:block" />
+                                    <div className="mx-1 hidden h-5 w-[0.0625rem] shrink-0 bg-border xl:block" />
 
                                     <div className="flex items-center gap-2">
-                                        <span className="font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
+                                        <span className="font-medium text-[0.625rem] text-muted-foreground uppercase tracking-wider">
                                             Sort
                                         </span>
                                         <Select
@@ -1948,7 +1948,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                                 handleSortChange(value as ImageSortOption)
                                             }
                                         >
-                                            <SelectTrigger className="h-9 w-[130px] bg-background text-sm">
+                                            <SelectTrigger className="h-9 w-[8.125rem] bg-background text-sm">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -1966,7 +1966,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                     </div>
 
                                     <div className="flex items-center gap-2">
-                                        <span className="font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
+                                        <span className="font-medium text-[0.625rem] text-muted-foreground uppercase tracking-wider">
                                             Per Page
                                         </span>
                                         <Select
@@ -1977,7 +1977,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                                 )
                                             }
                                         >
-                                            <SelectTrigger className="h-9 w-[70px] bg-background text-sm">
+                                            <SelectTrigger className="h-9 w-[4.375rem] bg-background text-sm">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>

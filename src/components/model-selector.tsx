@@ -334,7 +334,7 @@ export const getProviderSectionIcon = (
         case "openrouter":
             return <OpenRouterIcon className={className} />
         default:
-            return <Badge className="h-5 px-1 text-[10px]">Custom</Badge>
+            return <Badge className="h-5 px-1 text-[0.625rem]">Custom</Badge>
     }
 }
 
@@ -938,7 +938,7 @@ const ModelCard = React.memo(function ModelCard({
                                     {badgeLabel && (
                                         <Badge
                                             variant="secondary"
-                                            className="border border-border/70 text-[10px] uppercase tracking-wide"
+                                            className="border border-border/70 text-[0.625rem] uppercase tracking-wide"
                                         >
                                             {badgeLabel}
                                         </Badge>
@@ -1520,7 +1520,7 @@ export function ModelSelector({
                 </div>
             )}
 
-            <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden md:max-h-[400px] md:grid-cols-[80px_minmax(0,1fr)] md:grid-rows-1">
+            <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden md:max-h-[25rem] md:grid-cols-[5rem_minmax(0,1fr)] md:grid-rows-1">
                 <div
                     className={cn(
                         "flex min-h-0 min-w-0 flex-col",
@@ -1700,7 +1700,7 @@ export function ModelSelector({
             <ResponsivePopoverTrigger asChild>{trigger}</ResponsivePopoverTrigger>
             <ResponsivePopoverContent
                 className={cn(
-                    "flex w-[min(92vw,680px)] flex-col overflow-hidden p-0 md:w-[680px]",
+                    "flex w-[min(92vw,42.5rem)] flex-col overflow-hidden p-0 md:w-[42.5rem]",
                     contentClassName
                 )}
                 align={align}

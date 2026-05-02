@@ -9,6 +9,10 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+    --app-root-font-size: 16px;
+    --app-header-height: 4rem;
+    --chat-empty-offset: 0.5rem;
+    --chat-composer-overlap: 3.875rem;
     --background: oklch(0.99 0 0);
     --foreground: oklch(0 0 0);
     --card: oklch(1 0 0);
@@ -54,6 +58,10 @@
     --shadow-xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 8px 10px -1px hsl(0 0% 0% / 0.18);
     --shadow-2xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.45);
     --tracking-normal: 0em;
+}
+
+html {
+    font-size: var(--app-root-font-size);
 }
 
 .dark {
@@ -102,6 +110,24 @@
     --shadow-xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 8px 10px -1px hsl(0 0% 0% / 0.18);
     --shadow-2xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.45);
     --tracking-normal: 0em;
+}
+
+@media (max-width: 767px) and (pointer: coarse) {
+    :root {
+        --app-root-font-size: 14px;
+    }
+}
+
+@media (max-width: 429px) and (pointer: coarse) {
+    :root {
+        --app-root-font-size: 15px;
+    }
+}
+
+@media (max-width: 389px) and (pointer: coarse) {
+    :root {
+        --app-root-font-size: 16px;
+    }
 }
 
 @theme inline {

@@ -393,7 +393,7 @@ export function FolderItem({
                             >
                                 <span
                                     className={cn(
-                                        "pointer-events-none absolute rounded bg-input px-1 py-0.5 text-[10px] leading-none transition-opacity",
+                                        "pointer-events-none absolute rounded bg-input px-1 py-0.5 text-[0.625rem] leading-none transition-opacity",
                                         isMenuOpen
                                             ? "opacity-0"
                                             : "opacity-100 group-hover/item:opacity-0"

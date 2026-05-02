@@ -34,7 +34,7 @@ export function PersonaAvatar({
     return (
         <Avatar className={cn("size-7", roundedClassName, className)}>
             <AvatarImage src={getPersonaAvatarSrc(avatarKind, avatarValue)} alt={name} />
-            <AvatarFallback className={cn(roundedClassName, "text-[10px]")}>
+            <AvatarFallback className={cn(roundedClassName, "text-[0.625rem]")}>
                 {getInitials(name)}
             </AvatarFallback>
         </Avatar>

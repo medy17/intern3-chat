@@ -1439,7 +1439,7 @@ export function ImportThreadDialog({
                                     </div>
                                 )}
 
-                                <div className="max-h-[30vh] min-h-[120px] overflow-y-auto sm:max-h-[40vh] sm:min-h-[150px]">
+                                <div className="max-h-[30vh] min-h-[7.5rem] overflow-y-auto sm:max-h-[40vh] sm:min-h-[9.375rem]">
                                     {queue.length === 0 ? (
                                         <div className="p-10 text-center text-muted-foreground">
                                             <FileText className="mx-auto mb-3 h-10 w-10 opacity-20" />
@@ -1811,7 +1811,7 @@ export function ImportThreadDialog({
                                     </div>
                                 </>
                             ) : (
-                                <div className="flex min-h-[260px] items-center justify-center text-muted-foreground">
+                                <div className="flex min-h-[16.25rem] items-center justify-center text-muted-foreground">
                                     <div className="inline-flex items-center gap-2 text-sm">
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                         Loading import job...
