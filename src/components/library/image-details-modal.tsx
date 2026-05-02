@@ -39,8 +39,10 @@ import { cn } from "@/lib/utils"
 import { useAction, useConvex, useMutation } from "convex/react"
 import {
     Archive,
+    Check,
     ChevronLeft,
     ChevronRight,
+    Clipboard,
     Download,
     ExternalLink,
     RotateCcw,
@@ -68,11 +70,11 @@ const DESKTOP_BREAKPOINT = 1100
 const DESKTOP_GAP = 24
 const DESKTOP_HORIZONTAL_CHROME = 96
 const DESKTOP_VERTICAL_CHROME = 96
-const DESKTOP_INFO_PANEL_WIDTH = 360
+const DESKTOP_INFO_PANEL_WIDTH = 420
 const DESKTOP_MAX_IMAGE_HEIGHT = 920
 const MOBILE_HORIZONTAL_CHROME = 32
 const MOBILE_VERTICAL_CHROME = 160
-const MOBILE_MAX_IMAGE_HEIGHT_RATIO = 0.52
+const MOBILE_MAX_IMAGE_HEIGHT_RATIO = 0.6
 const DESKTOP_NAV_BUTTON_SPACE = 176
 const loadedDetailImageUrls = new Set<string>()
 
@@ -149,9 +151,11 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
     }, [convex, localImage])
 
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+    const [isPromptCopied, setIsPromptCopied] = useState(false)
     const [loadState, setLoadState] = useState<"loading" | "revealing" | "ready">("loading")
     const [viewportSize, setViewportSize] = useState({ width: 1440, height: 900 })
     const revealTimeoutRef = useRef<number | null>(null)
+    const copyPromptTimeoutRef = useRef<number | null>(null)
     const imageRef = useRef<HTMLImageElement | null>(null)
     const aspectRatio = localImage?.aspectRatio || "1:1"
     const cssAspectRatio = useMemo(() => {
@@ -204,6 +208,10 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
             if (revealTimeoutRef.current !== null) {
                 window.clearTimeout(revealTimeoutRef.current)
                 revealTimeoutRef.current = null
+            }
+            if (copyPromptTimeoutRef.current !== null) {
+                window.clearTimeout(copyPromptTimeoutRef.current)
+                copyPromptTimeoutRef.current = null
             }
         }
     }, [imageUrl, isOpen, localImage])
@@ -345,6 +353,25 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
         window.open(fullResolutionUrl, "_blank")
     }
 
+    const handleCopyPrompt = () => {
+        const prompt = localImage?.prompt?.trim()
+        if (!prompt) {
+            toast.error("No prompt available to copy")
+            return
+        }
+
+        navigator.clipboard.writeText(prompt)
+        setIsPromptCopied(true)
+        if (copyPromptTimeoutRef.current !== null) {
+            window.clearTimeout(copyPromptTimeoutRef.current)
+        }
+        copyPromptTimeoutRef.current = window.setTimeout(() => {
+            setIsPromptCopied(false)
+            copyPromptTimeoutRef.current = null
+        }, 1500)
+        toast.success("Prompt copied to clipboard")
+    }
+
     const handleToggleImageVisibility = () => {
         setIsModalImageHidden((current) => !current)
     }
@@ -354,6 +381,10 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
 
         setIsModalImageHidden(initialImageHidden)
     }, [initialImageHidden, isOpen, localImage])
+
+    useEffect(() => {
+        setIsPromptCopied(false)
+    }, [localImage?._id, isOpen])
 
     useEffect(() => {
         if (!isOpen || isMobile) return
@@ -469,7 +500,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                         </DrawerHeader>
 
                         {/* Top: Image Area */}
-                        <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-background p-4">
+                        <div className="relative flex min-h-[16rem] flex-1 items-center justify-center overflow-hidden bg-background p-4">
                             {loadState !== "ready" && (
                                 <div className="absolute inset-0 z-10 bg-gradient-to-br from-muted/85 via-muted/65 to-accent/20" />
                             )}
@@ -478,7 +509,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                             )}
                             <button
                                 type="button"
-                                className="relative flex max-h-full max-w-full shrink-0 items-center justify-center overflow-hidden rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                                className="relative flex max-h-full min-h-[16rem] max-w-full shrink-0 items-center justify-center overflow-hidden rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary"
                                 style={{
                                     width: layout.imageWidth,
                                     height: layout.imageHeight,
@@ -518,7 +549,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                         </div>
 
                         {/* Bottom: Details Area */}
-                        <div className="flex max-h-[50vh] shrink-0 flex-col border-border/60 border-t bg-background">
+                        <div className="flex max-h-[42vh] shrink-0 flex-col border-border/60 border-t bg-background">
                             <div className="flex-1 space-y-6 overflow-y-auto p-5">
                                 <div>
                                     <h3 className="mb-2 font-semibold text-xl">Prompt</h3>
@@ -558,10 +589,10 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                 </div>
                             </div>
                             <div className="border-border/60 border-t bg-background p-4">
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-nowrap items-center gap-2">
                                     <Button
                                         variant="outline"
-                                        className="h-10 flex-1 text-xs"
+                                        className="h-10 min-w-0 flex-1 text-xs"
                                         onClick={handleViewFullResolution}
                                     >
                                         <ExternalLink className="mr-1.5 h-4 w-4" />
@@ -569,23 +600,49 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                     </Button>
                                     <Button
                                         variant="secondary"
-                                        className="h-10 flex-1 text-xs"
+                                        size="icon"
+                                        className="h-10 w-10 shrink-0"
                                         onClick={handleDownload}
+                                        aria-label="Download image"
                                     >
-                                        <Download className="mr-1.5 h-4 w-4" />
-                                        Download
+                                        <Download className="h-4 w-4" />
+                                        <span className="sr-only">Download</span>
+                                    </Button>
+                                    <Button
+                                        variant={isPromptCopied ? "secondary" : "outline"}
+                                        size="icon"
+                                        className="h-10 w-10 shrink-0"
+                                        onClick={handleCopyPrompt}
+                                        aria-label={
+                                            isPromptCopied ? "Prompt copied" : "Copy prompt"
+                                        }
+                                    >
+                                        {isPromptCopied ? (
+                                            <Check className="h-4 w-4" />
+                                        ) : (
+                                            <Clipboard className="h-4 w-4" />
+                                        )}
+                                        <span className="sr-only">
+                                            {isPromptCopied ? "Copied" : "Copy Prompt"}
+                                        </span>
                                     </Button>
                                     <Button
                                         variant="outline"
-                                        className="h-10 flex-1 text-xs"
+                                        size="icon"
+                                        className="h-10 w-10 shrink-0"
                                         onClick={handleArchiveStateChange}
+                                        aria-label={
+                                            isArchivedView ? "Restore image" : "Archive image"
+                                        }
                                     >
                                         {isArchivedView ? (
-                                            <RotateCcw className="mr-1.5 h-4 w-4" />
+                                            <RotateCcw className="h-4 w-4" />
                                         ) : (
-                                            <Archive className="mr-1.5 h-4 w-4" />
+                                            <Archive className="h-4 w-4" />
                                         )}
-                                        {isArchivedView ? "Restore" : "Archive"}
+                                        <span className="sr-only">
+                                            {isArchivedView ? "Restore" : "Archive"}
+                                        </span>
                                     </Button>
                                     <Button
                                         variant="destructive"
@@ -609,6 +666,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent
                 showCloseButton={false}
+                overlayClassName="backdrop-blur-md"
                 className="w-fit max-w-none border-0 bg-transparent p-0 shadow-none sm:max-w-none"
             >
                 <DialogHeader className="sr-only">
@@ -759,10 +817,10 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                         </div>
 
                         <div className="border-border/60 border-t p-4">
-                            <div className="flex flex-wrap gap-3">
+                            <div className="flex flex-nowrap items-center gap-3">
                                 <Button
                                     variant="outline"
-                                    className="flex-1"
+                                    className="min-w-0 flex-1"
                                     onClick={handleViewFullResolution}
                                 >
                                     <ExternalLink className="mr-2 h-4 w-4" />
@@ -770,23 +828,45 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                 </Button>
                                 <Button
                                     variant="secondary"
-                                    className="flex-1"
+                                    size="icon"
+                                    className="h-10 w-10 shrink-0"
                                     onClick={handleDownload}
+                                    aria-label="Download image"
                                 >
-                                    <Download className="mr-2 h-4 w-4" />
-                                    Download
+                                    <Download className="h-4 w-4" />
+                                    <span className="sr-only">Download</span>
+                                </Button>
+                                <Button
+                                    variant={isPromptCopied ? "secondary" : "outline"}
+                                    size="icon"
+                                    className="h-10 w-10 shrink-0"
+                                    onClick={handleCopyPrompt}
+                                    aria-label={isPromptCopied ? "Prompt copied" : "Copy prompt"}
+                                >
+                                    {isPromptCopied ? (
+                                        <Check className="h-4 w-4" />
+                                    ) : (
+                                        <Clipboard className="h-4 w-4" />
+                                    )}
+                                    <span className="sr-only">
+                                        {isPromptCopied ? "Copied" : "Copy Prompt"}
+                                    </span>
                                 </Button>
                                 <Button
                                     variant="outline"
-                                    className="flex-1"
+                                    size="icon"
+                                    className="h-10 w-10 shrink-0"
                                     onClick={handleArchiveStateChange}
+                                    aria-label={isArchivedView ? "Restore image" : "Archive image"}
                                 >
                                     {isArchivedView ? (
-                                        <RotateCcw className="mr-2 h-4 w-4" />
+                                        <RotateCcw className="h-4 w-4" />
                                     ) : (
-                                        <Archive className="mr-2 h-4 w-4" />
+                                        <Archive className="h-4 w-4" />
                                     )}
-                                    {isArchivedView ? "Restore" : "Archive"}
+                                    <span className="sr-only">
+                                        {isArchivedView ? "Restore" : "Archive"}
+                                    </span>
                                 </Button>
                                 <Button
                                     variant="destructive"
