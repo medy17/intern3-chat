@@ -144,12 +144,25 @@ export function ThreadsSidebarHeader({
                 <SidebarTrigger className="h-8 w-8 text-muted-foreground transition-colors hover:text-foreground md:hidden" />
                 <div className="hidden h-8 w-8 shrink-0 md:block" />
 
-                <Link to="/">
-                    {isLibraryMode ? (
-                        <LibraryLogo className="h-5 w-auto" />
-                    ) : (
-                        <LogoMark className="h-5 w-auto" />
-                    )}
+                <Link
+                    to="/"
+                    className="-my-1 flex h-[28px] items-start overflow-hidden py-1"
+                    style={{
+                        maskImage:
+                            "linear-gradient(to bottom, transparent 0px, black 4px, black 24px, transparent 28px)",
+                        WebkitMaskImage:
+                            "linear-gradient(to bottom, transparent 0px, black 4px, black 24px, transparent 28px)"
+                    }}
+                >
+                    <div
+                        className={cn(
+                            "flex flex-col items-center gap-2 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+                            isLibraryMode ? "-translate-y-[28px]" : "translate-y-0"
+                        )}
+                    >
+                        <LogoMark className="h-5 w-auto shrink-0" />
+                        <LibraryLogo className="h-5 w-auto shrink-0" />
+                    </div>
                 </Link>
 
                 <Button
