@@ -2,6 +2,7 @@ import { defineSchema, defineTable } from "convex/server"
 import { PrototypeCreditAccount, PrototypeCreditEvent } from "./schema/credits"
 import { Project } from "./schema/folders"
 import { GeneratedImage } from "./schema/generated_image"
+import { ImageCollection } from "./schema/image_collections"
 import { ImportJob, ImportJobSource, ImportJobThread } from "./schema/import_job"
 import { Message } from "./schema/message"
 import { ThreadPersonaSnapshot, UserPersona } from "./schema/persona"
@@ -24,7 +25,8 @@ export {
     ImportJob,
     ImportJobSource,
     ImportJobThread,
-    GeneratedImage
+    GeneratedImage,
+    ImageCollection
 }
 
 export default defineSchema({
@@ -85,8 +87,17 @@ export default defineSchema({
     generatedImages: defineTable(GeneratedImage)
         .index("byUserId", ["userId"])
         .index("byUserIdAndCreatedAt", ["userId", "createdAt"])
+        .index("byCollectionId", ["collectionId"])
         .searchIndex("search_text", {
             searchField: "searchText",
+            filterFields: ["userId"]
+        }),
+
+    imageCollections: defineTable(ImageCollection)
+        .index("byUserId", ["userId"])
+        .index("byUserIdAndUpdatedAt", ["userId", "updatedAt"])
+        .searchIndex("search_name", {
+            searchField: "name",
             filterFields: ["userId"]
         })
 })

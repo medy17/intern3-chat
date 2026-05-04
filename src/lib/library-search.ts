@@ -2,7 +2,7 @@ import type { GeneratedImageOrientation } from "@/lib/generated-image-filters"
 
 export type ImageSortOption = "relevance" | "newest" | "oldest"
 export type LibraryPageSize = 20 | 30 | 40 | 50
-export type LibraryView = "active" | "archived"
+export type LibraryView = "active" | "archived" | "all"
 
 export const LIBRARY_PAGE_SIZE_OPTIONS = [20, 30, 40, 50] as const
 
@@ -11,6 +11,7 @@ export type LibraryFiltersState = {
     resolutions: string[]
     aspectRatios: string[]
     orientations: GeneratedImageOrientation[]
+    collectionId?: string
 }
 
 export type LibrarySearchState = LibraryFiltersState & {
@@ -44,7 +45,7 @@ const GENERATED_IMAGE_ORIENTATIONS = new Set<GeneratedImageOrientation>([
 ])
 
 const GENERATED_IMAGE_SORT_OPTIONS = new Set<ImageSortOption>(["relevance", "newest", "oldest"])
-const LIBRARY_VIEW_OPTIONS = new Set<LibraryView>(["active", "archived"])
+const LIBRARY_VIEW_OPTIONS = new Set<LibraryView>(["active", "archived", "all"])
 
 const getFirstValue = (value: unknown) => (Array.isArray(value) ? value[0] : value)
 
@@ -104,7 +105,8 @@ export const cloneLibraryFilters = (filters: LibraryFiltersState): LibraryFilter
     modelIds: [...filters.modelIds],
     resolutions: [...filters.resolutions],
     aspectRatios: [...filters.aspectRatios],
-    orientations: [...filters.orientations]
+    orientations: [...filters.orientations],
+    collectionId: filters.collectionId
 })
 
 export const getLibraryFiltersFromSearch = (search: LibrarySearchState): LibraryFiltersState =>
@@ -139,5 +141,6 @@ export const validateLibrarySearch = (search: Record<string, unknown>): LibraryS
     modelIds: normalizeStringArray(search.modelIds),
     resolutions: normalizeStringArray(search.resolutions),
     aspectRatios: normalizeStringArray(search.aspectRatios),
-    orientations: normalizeStringArray(search.orientations).filter(isGeneratedImageOrientation)
+    orientations: normalizeStringArray(search.orientations).filter(isGeneratedImageOrientation),
+    collectionId: typeof search.collectionId === "string" ? search.collectionId : undefined
 })

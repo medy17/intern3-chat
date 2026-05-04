@@ -2,7 +2,9 @@ import { useDesktopLibraryChromeStore } from "@/components/library/desktop-libra
 import { useGenerationStore } from "@/components/library/generation-store"
 import { ImageDetailsModal } from "@/components/library/image-details-modal"
 import { ImageLoadIndicator } from "@/components/library/image-load-indicator"
+import { NewCollectionDialog } from "@/components/library/new-collection-dialog"
 import { usePrivateViewingStore } from "@/components/library/private-viewing-store"
+import { SelectionToolbar } from "@/components/library/selection-toolbar"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -11,6 +13,9 @@ import {
     ContextMenuContent,
     ContextMenuItem,
     ContextMenuSeparator,
+    ContextMenuSub,
+    ContextMenuSubContent,
+    ContextMenuSubTrigger,
     ContextMenuTrigger
 } from "@/components/ui/context-menu"
 import {
@@ -46,6 +51,7 @@ import {
     Select,
     SelectContent,
     SelectItem,
+    SelectSeparator,
     SelectTrigger,
     SelectValue
 } from "@/components/ui/select"
@@ -98,6 +104,8 @@ import {
     Eye,
     EyeOff,
     Filter,
+    FolderMinus,
+    FolderPlus,
     Image as ImageIcon,
     ImageOff,
     PlusCircle,
@@ -495,7 +503,10 @@ const GeneratedImageItem = memo(
         onToggleImageHidden,
         isArchivedView = false,
         onArchive,
-        onRestore
+        onRestore,
+        collections = [],
+        onAddToCollection,
+        onRemoveFromCollection
     }: {
         image: Doc<"generatedImages">
         onClick: () => void
@@ -516,6 +527,9 @@ const GeneratedImageItem = memo(
         isArchivedView?: boolean
         onArchive?: () => void
         onRestore?: () => void
+        collections?: Array<{ _id: string; name: string }>
+        onAddToCollection?: (collectionId: string) => void
+        onRemoveFromCollection?: () => void
     }) => {
         const [isError, setIsError] = useState(false)
         const [blurVariantStatus, setBlurVariantStatus] = useState<
@@ -970,7 +984,7 @@ const GeneratedImageItem = memo(
                         )}
                     </div>
                 </ContextMenuTrigger>
-                <ContextMenuContent className="w-48">
+                <ContextMenuContent className="w-65">
                     {onStartSelection && !isSelectionMode && (
                         <>
                             <ContextMenuItem onClick={onStartSelection}>
@@ -1053,6 +1067,39 @@ const GeneratedImageItem = memo(
                                     {isArchivedView ? "Restore Image" : "Archive Image"}
                                 </ContextMenuItem>
                             )}
+
+                            {onRemoveFromCollection && image.collectionId && (
+                                <ContextMenuItem onClick={onRemoveFromCollection}>
+                                    <FolderMinus className="mr-2 h-4 w-4" />
+                                    Remove from Collection
+                                </ContextMenuItem>
+                            )}
+
+                            {onAddToCollection && collections && collections.length > 0 && (
+                                <ContextMenuSub>
+                                    <ContextMenuSubTrigger>
+                                        <FolderPlus className="mr-2 h-4 w-4" />
+                                        {image.collectionId
+                                            ? "Move to Collection"
+                                            : "Add to Collection"}
+                                    </ContextMenuSubTrigger>
+                                    <ContextMenuSubContent className="w-48">
+                                        {collections.map((collection) => (
+                                            <ContextMenuItem
+                                                key={collection._id}
+                                                onClick={() => onAddToCollection(collection._id)}
+                                                disabled={image.collectionId === collection._id}
+                                            >
+                                                {collection.name}
+                                                {image.collectionId === collection._id && (
+                                                    <Check className="ml-auto h-4 w-4" />
+                                                )}
+                                            </ContextMenuItem>
+                                        ))}
+                                    </ContextMenuSubContent>
+                                </ContextMenuSub>
+                            )}
+
                             {onDelete && (
                                 <>
                                     <ContextMenuSeparator />
@@ -1107,6 +1154,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
     const currentCursor = pageNumber > 1 ? String((pageNumber - 1) * pageSize) : null
     const filters = getLibraryFiltersFromSearch(search)
     const [isFiltersDrawerOpen, setIsFiltersDrawerOpen] = useState(false)
+    const [isNewCollectionDialogOpen, setIsNewCollectionDialogOpen] = useState(false)
     const [draftQuery, setDraftQuery] = useState(searchQuery)
     const [draftSortBy, setDraftSortBy] = useState<ImageSortOption>(sortBy)
     const [draftPageSize, setDraftPageSize] = useState<LibraryPageSize>(pageSize)
@@ -1152,7 +1200,8 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                   query: searchQuery,
                   sortBy,
                   filters: activeFilters,
-                  view
+                  view,
+                  collectionId: filters.collectionId
               }
             : "skip"
     )
@@ -1162,8 +1211,26 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
             key: libraryCacheScope ? `library-count:${libraryCacheScope}` : "library-count:guest",
             default: undefined
         },
-        session.user?.id ? { query: searchQuery, filters: activeFilters, view } : "skip"
+        session.user?.id
+            ? {
+                  query: searchQuery,
+                  filters: activeFilters,
+                  view,
+                  collectionId: filters.collectionId
+              }
+            : "skip"
     )
+    const collections = useDiskCachedQuery(
+        api.image_collections.listCollections as any,
+        {
+            key: session.user?.id
+                ? `image-collections:${session.user.id}`
+                : "image-collections:guest",
+            default: []
+        },
+        session.user?.id ? {} : "skip"
+    )
+
     const filterOptions = useDiskCachedQuery(
         api.images.getGeneratedImageFacetOptions,
         {
@@ -1304,6 +1371,8 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
     const deleteImageAction = useAction(api.images_node.deleteGeneratedImage)
     const archiveImage = useMutation(api.images.archiveGeneratedImage)
     const restoreImage = useMutation(api.images.restoreGeneratedImage)
+    const addImageToCollection = useMutation(api.images.addImageToCollection)
+    const removeImageFromCollection = useMutation(api.images.removeImageFromCollection)
 
     useEffect(() => {
         void view
@@ -1316,6 +1385,7 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
     const resolvedImagePage = isQueryErrorResult(imagePage) ? undefined : imagePage
     const resolvedTotalImages = isQueryErrorResult(totalImages) ? undefined : totalImages
     const resolvedFilterOptions = isQueryErrorResult(filterOptions) ? undefined : filterOptions
+    const resolvedCollections = isQueryErrorResult(collections) ? [] : (collections ?? [])
 
     const images = (resolvedImagePage?.page ?? []).filter((img) => !hiddenImageIds.has(img._id))
     const selectedImageIndex = useMemo(
@@ -1447,16 +1517,19 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
         [navigate, view]
     )
 
+    type ArrayFilterKeys = "modelIds" | "resolutions" | "aspectRatios" | "orientations"
+
     const handleFilterChange = useCallback(
-        <K extends keyof LibraryFiltersState>(key: K, value: LibraryFiltersState[K][number]) => {
+        <K extends ArrayFilterKeys>(key: K, value: NonNullable<LibraryFiltersState[K]>[number]) => {
             navigate({
                 replace: true,
                 search: (prev) => {
                     const nextFilters = getLibraryFiltersFromSearch(prev)
+                    // @ts-ignore - TS doesn't understand the intersection of types here
                     nextFilters[key] = toggleFilterValue(
-                        nextFilters[key],
-                        value
-                    ) as LibraryFiltersState[K]
+                        nextFilters[key] as any[],
+                        value as any
+                    ) as any
 
                     return {
                         ...prev,
@@ -1481,11 +1554,12 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
     }, [navigate])
 
     const handleClearFilterGroup = useCallback(
-        <K extends keyof LibraryFiltersState>(key: K) => {
+        <K extends ArrayFilterKeys>(key: K) => {
             navigate({
                 replace: true,
                 search: (prev) => {
                     const nextFilters = getLibraryFiltersFromSearch(prev)
+                    // @ts-ignore
                     nextFilters[key] = []
 
                     return {
@@ -1507,24 +1581,22 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
     }, [filters, pageSize, sortBy])
 
     const handleDraftFilterChange = useCallback(
-        <K extends keyof LibraryFiltersState>(key: K, value: string) => {
+        <K extends ArrayFilterKeys>(key: K, value: string) => {
             setDraftFilters((prev) => ({
                 ...prev,
-                [key]: toggleFilterValue(prev[key], value)
+                // @ts-ignore
+                [key]: toggleFilterValue(prev[key] as string[], value)
             }))
         },
         []
     )
 
-    const handleClearDraftFilterGroup = useCallback(
-        <K extends keyof LibraryFiltersState>(key: K) => {
-            setDraftFilters((prev) => ({
-                ...prev,
-                [key]: []
-            }))
-        },
-        []
-    )
+    const handleClearDraftFilterGroup = useCallback(<K extends ArrayFilterKeys>(key: K) => {
+        setDraftFilters((prev) => ({
+            ...prev,
+            [key]: []
+        }))
+    }, [])
 
     const handleResetDraftFilters = useCallback(() => {
         setDraftSortBy(hasSearchQuery ? "relevance" : DEFAULT_LIBRARY_SEARCH.sort)
@@ -1746,6 +1818,27 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
         })
     }, [restoreImage, selectedImageIds])
 
+    const handleBulkAddToCollection = useCallback(
+        (collectionId: Id<"imageCollections">) => {
+            if (selectedImageIds.size === 0) return
+
+            const idsToAdd = Array.from(selectedImageIds)
+
+            // Clear selection but don't hide images
+            setSelectedImageIds(new Set())
+            setIsSelectionMode(false)
+
+            idsToAdd.forEach((id) => {
+                addImageToCollection({ imageId: id, collectionId }).catch(console.error)
+            })
+
+            toast.success(
+                `Added ${idsToAdd.length} image${idsToAdd.length === 1 ? "" : "s"} to collection`
+            )
+        },
+        [addImageToCollection, selectedImageIds]
+    )
+
     if (!session.user?.id) {
         return (
             <div className="container mx-auto max-w-6xl px-4 pt-16 pb-8">
@@ -1825,6 +1918,12 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                             <Archive className="mr-2 hidden h-3.5 w-3.5 sm:block" />
                                             Archive
                                         </TabsTrigger>
+                                        {filters.collectionId && (
+                                            <TabsTrigger value="all" className="text-xs">
+                                                <Filter className="mr-2 hidden h-3.5 w-3.5 sm:block" />
+                                                All
+                                            </TabsTrigger>
+                                        )}
                                     </TabsList>
                                 </Tabs>
                                 <Button
@@ -1936,6 +2035,63 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                         onClear={() => handleClearFilterGroup("orientations")}
                                     />
 
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium text-[0.625rem] text-muted-foreground uppercase tracking-wider">
+                                            Collection
+                                        </span>
+                                        <Select
+                                            value={filters.collectionId ?? "all-collections"}
+                                            onValueChange={(value) => {
+                                                if (value === "create-new") {
+                                                    setIsNewCollectionDialogOpen(true)
+                                                } else {
+                                                    navigate({
+                                                        replace: true,
+                                                        search: (prev) => ({
+                                                            ...prev,
+                                                            collectionId:
+                                                                value === "all-collections"
+                                                                    ? undefined
+                                                                    : value,
+                                                            page: DEFAULT_LIBRARY_SEARCH.page
+                                                        })
+                                                    })
+                                                }
+                                            }}
+                                        >
+                                            <SelectTrigger className="h-9 w-[12rem] bg-background text-sm">
+                                                <SelectValue placeholder="All collections" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem
+                                                    value="all-collections"
+                                                    className="font-medium text-sm"
+                                                >
+                                                    All collections
+                                                </SelectItem>
+                                                {resolvedCollections.map((collection) => (
+                                                    <SelectItem
+                                                        key={collection._id}
+                                                        value={collection._id}
+                                                        className="text-sm"
+                                                    >
+                                                        {collection.name}
+                                                    </SelectItem>
+                                                ))}
+                                                <SelectSeparator />
+                                                <SelectItem
+                                                    value="create-new"
+                                                    className="font-medium text-primary text-sm"
+                                                >
+                                                    <span className="flex items-center">
+                                                        <PlusCircle className="mr-2 h-3.5 w-3.5" />
+                                                        Create Collection
+                                                    </span>
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
                                     <div className="mx-1 hidden h-5 w-[0.0625rem] shrink-0 bg-border xl:block" />
 
                                     <div className="flex items-center gap-2">
@@ -2030,6 +2186,36 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                     value={draftSortBy}
                                     onChange={setDraftSortBy}
                                 />
+                                <MobileFilterSection title="Collection">
+                                    <Select
+                                        value={draftFilters.collectionId ?? "all-collections"}
+                                        onValueChange={(value) =>
+                                            setDraftFilters((prev) => ({
+                                                ...prev,
+                                                collectionId:
+                                                    value === "all-collections" ? undefined : value
+                                            }))
+                                        }
+                                    >
+                                        <SelectTrigger className="w-full bg-background">
+                                            <SelectValue placeholder="All collections" />
+                                        </SelectTrigger>
+                                        <SelectContent className="z-[70]">
+                                            <SelectItem value="all-collections">
+                                                All collections
+                                            </SelectItem>
+                                            {resolvedCollections.map((collection) => (
+                                                <SelectItem
+                                                    key={collection._id}
+                                                    value={collection._id}
+                                                >
+                                                    {collection.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </MobileFilterSection>
+
                                 <MobileFilterSection title="Results Per Page">
                                     <Select
                                         value={String(draftPageSize)}
@@ -2245,6 +2431,26 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                                                         onRestore={() =>
                                                             handleRestoreImage(image._id)
                                                         }
+                                                        collections={
+                                                            resolvedCollections as Array<{
+                                                                _id: string
+                                                                name: string
+                                                            }>
+                                                        }
+                                                        onAddToCollection={(collectionId) => {
+                                                            addImageToCollection({
+                                                                imageId: image._id,
+                                                                collectionId:
+                                                                    collectionId as Id<"imageCollections">
+                                                            }).catch(console.error)
+                                                            toast.success("Added to collection")
+                                                        }}
+                                                        onRemoveFromCollection={() => {
+                                                            removeImageFromCollection({
+                                                                imageId: image._id
+                                                            }).catch(console.error)
+                                                            toast.success("Removed from collection")
+                                                        }}
                                                         onBulkArchive={handleBulkArchive}
                                                         onBulkRestore={handleBulkRestore}
                                                         selectedCount={selectedImageIds.size}
@@ -2333,6 +2539,37 @@ export function LibraryView({ search }: { search: LibrarySearchState }) {
                     onDeleteStart={handleHideImageLocally}
                     onArchiveStart={handleHideImageLocally}
                     onRestoreStart={handleHideImageLocally}
+                />
+
+                <NewCollectionDialog
+                    open={isNewCollectionDialogOpen}
+                    onOpenChange={setIsNewCollectionDialogOpen}
+                    onSuccess={(collectionId) => {
+                        navigate({
+                            replace: true,
+                            search: (prev) => ({
+                                ...prev,
+                                collectionId,
+                                page: DEFAULT_LIBRARY_SEARCH.page
+                            })
+                        })
+                    }}
+                />
+
+                <SelectionToolbar
+                    selectedCount={selectedImageIds.size}
+                    isArchivedView={isArchivedView}
+                    collections={resolvedCollections as Array<{ _id: string; name: string }>}
+                    onClearSelection={() => {
+                        setSelectedImageIds(new Set())
+                        setIsSelectionMode(false)
+                    }}
+                    onArchive={handleBulkArchive}
+                    onRestore={handleBulkRestore}
+                    onDelete={handleBulkDelete}
+                    onAddToCollection={(collectionId) =>
+                        handleBulkAddToCollection(collectionId as Id<"imageCollections">)
+                    }
                 />
             </motion.div>
         </AnimatePresence>

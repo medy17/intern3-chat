@@ -25,6 +25,12 @@ import {
     DrawerHeader,
     DrawerTitle
 } from "@/components/ui/drawer"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu"
 import { api } from "@/convex/_generated/api"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -45,6 +51,8 @@ import {
     Clipboard,
     Download,
     ExternalLink,
+    FolderMinus,
+    FolderPlus,
     RotateCcw,
     Trash2,
     X
@@ -72,6 +80,9 @@ interface ImageDetailsModalProps {
     onDeleteStart?: (id: Id<"generatedImages">) => void
     onArchiveStart?: (id: Id<"generatedImages">) => void
     onRestoreStart?: (id: Id<"generatedImages">) => void
+    collections?: Array<{ _id: string; name: string }>
+    onAddToCollection?: (collectionId: string) => void
+    onRemoveFromCollection?: () => void
 }
 
 const DESKTOP_BREAKPOINT = 1100
@@ -155,7 +166,10 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
     prefetchImageUrls = [],
     onDeleteStart,
     onArchiveStart,
-    onRestoreStart
+    onRestoreStart,
+    collections = [],
+    onAddToCollection,
+    onRemoveFromCollection
 }: ImageDetailsModalProps) {
     const isMobile = useIsMobile()
     const { models } = useSharedModels()
@@ -921,6 +935,75 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                                 {isPromptCopied ? "Copied" : "Copy Prompt"}
                                             </span>
                                         </Button>
+
+                                        {localImage.collectionId && onRemoveFromCollection && (
+                                            <Button
+                                                variant="outline"
+                                                size="icon"
+                                                className="h-10 w-10 shrink-0"
+                                                onClick={() => {
+                                                    onRemoveFromCollection()
+                                                    toast.success("Removed from collection")
+                                                }}
+                                                aria-label="Remove from collection"
+                                            >
+                                                <FolderMinus className="h-4 w-4" />
+                                                <span className="sr-only">
+                                                    Remove from collection
+                                                </span>
+                                            </Button>
+                                        )}
+                                        {onAddToCollection &&
+                                            collections &&
+                                            collections.length > 0 && (
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="icon"
+                                                            className="h-10 w-10 shrink-0"
+                                                            aria-label={
+                                                                localImage.collectionId
+                                                                    ? "Move to collection"
+                                                                    : "Add to collection"
+                                                            }
+                                                        >
+                                                            <FolderPlus className="h-4 w-4" />
+                                                            <span className="sr-only">
+                                                                {localImage.collectionId
+                                                                    ? "Move to collection"
+                                                                    : "Add to collection"}
+                                                            </span>
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        {collections.map((c) => (
+                                                            <DropdownMenuItem
+                                                                key={c._id}
+                                                                onClick={() => {
+                                                                    onAddToCollection(c._id)
+                                                                    toast.success(
+                                                                        localImage.collectionId
+                                                                            ? "Moved to collection"
+                                                                            : "Added to collection"
+                                                                    )
+                                                                }}
+                                                                disabled={
+                                                                    localImage.collectionId ===
+                                                                    c._id
+                                                                }
+                                                            >
+                                                                {c.name}
+                                                                {localImage.collectionId ===
+                                                                    c._id && (
+                                                                    <Check className="ml-auto h-4 w-4" />
+                                                                )}
+                                                            </DropdownMenuItem>
+                                                        ))}
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            )}
+
                                         <Button
                                             variant="outline"
                                             size="icon"
@@ -1148,6 +1231,67 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                         {isPromptCopied ? "Copied" : "Copy Prompt"}
                                     </span>
                                 </Button>
+
+                                {localImage.collectionId && onRemoveFromCollection && (
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        className="h-10 w-10 shrink-0"
+                                        onClick={() => {
+                                            onRemoveFromCollection()
+                                            toast.success("Removed from collection")
+                                        }}
+                                        aria-label="Remove from collection"
+                                    >
+                                        <FolderMinus className="h-4 w-4" />
+                                        <span className="sr-only">Remove from collection</span>
+                                    </Button>
+                                )}
+                                {onAddToCollection && collections && collections.length > 0 && (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                size="icon"
+                                                className="h-10 w-10 shrink-0"
+                                                aria-label={
+                                                    localImage.collectionId
+                                                        ? "Move to collection"
+                                                        : "Add to collection"
+                                                }
+                                            >
+                                                <FolderPlus className="h-4 w-4" />
+                                                <span className="sr-only">
+                                                    {localImage.collectionId
+                                                        ? "Move to collection"
+                                                        : "Add to collection"}
+                                                </span>
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            {collections.map((c) => (
+                                                <DropdownMenuItem
+                                                    key={c._id}
+                                                    onClick={() => {
+                                                        onAddToCollection(c._id)
+                                                        toast.success(
+                                                            localImage.collectionId
+                                                                ? "Moved to collection"
+                                                                : "Added to collection"
+                                                        )
+                                                    }}
+                                                    disabled={localImage.collectionId === c._id}
+                                                >
+                                                    {c.name}
+                                                    {localImage.collectionId === c._id && (
+                                                        <Check className="ml-auto h-4 w-4" />
+                                                    )}
+                                                </DropdownMenuItem>
+                                            ))}
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                )}
+
                                 <Button
                                     variant="outline"
                                     size="icon"
