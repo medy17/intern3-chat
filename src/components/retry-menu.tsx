@@ -396,24 +396,6 @@ export function RetryMenu({
                                                                 sideOffset={8}
                                                                 collisionPadding={16}
                                                             >
-                                                                <DropdownMenuItem
-                                                                    disabled={isModelLocked}
-                                                                    onClick={() =>
-                                                                        defaultRetryEffort !== null
-                                                                            ? handleSelect(
-                                                                                  defaultRetryEffort ??
-                                                                                      undefined
-                                                                              )
-                                                                            : undefined
-                                                                    }
-                                                                    className="mb-1 cursor-pointer font-medium"
-                                                                >
-                                                                    Retry with{" "}
-                                                                    {"shortName" in model &&
-                                                                    model.shortName
-                                                                        ? model.shortName
-                                                                        : model.name}
-                                                                </DropdownMenuItem>
                                                                 {(() => {
                                                                     const effortItems =
                                                                         allowedEfforts.map(
