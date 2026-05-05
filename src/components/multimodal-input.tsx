@@ -47,6 +47,7 @@ import {
     getAllowedReasoningEffortsForModel,
     getPrototypeCreditTierForModel,
     getReasoningEffortForPlan,
+    getReasoningEffortIcon,
     getReasoningEffortLabelForModel,
     getRequiredPlanToPickModel
 } from "@/lib/models-providers-shared"
@@ -58,7 +59,6 @@ import type { useChat } from "@ai-sdk/react"
 import { useConvexAuth } from "convex/react"
 import {
     ArrowUp,
-    Brain,
     Check,
     ChevronDown,
     ChevronUp,
@@ -72,8 +72,7 @@ import {
     MoreHorizontal,
     Paperclip,
     Square,
-    X,
-    Zap
+    X
 } from "lucide-react"
 import { motion } from "motion/react"
 import {
@@ -265,6 +264,7 @@ export const ReasoningEffortSelector = ({
         !selectedModelBaseUsesProCredits &&
         getPrototypeCreditTierForModel(selectedSharedModel, reasoningEffort) === "pro"
     const reasoningLabel = getReasoningEffortLabelForModel(selectedSharedModel, reasoningEffort)
+    const ReasoningIcon = getReasoningEffortIcon(reasoningEffort)
 
     if (!modelSupportsReasoningControl) return null
 
@@ -282,14 +282,14 @@ export const ReasoningEffortSelector = ({
                     )}
                 >
                     <div className="hidden items-center gap-1.5 sm:flex">
-                        {isReasoningOff ? <Zap className="size-4" /> : <Brain className="size-4" />}
+                        <ReasoningIcon className="size-4" />
                         {selectedEffortUsesProCredits && (
                             <Crown className="size-3.5 shrink-0" aria-label="Uses Pro credits" />
                         )}
                         <span>{reasoningLabel}</span>
                     </div>
                     <span className="flex items-center gap-1 sm:hidden">
-                        {isReasoningOff ? <Zap className="size-4" /> : <Brain className="size-4" />}
+                        <ReasoningIcon className="size-4" />
                         {selectedEffortUsesProCredits && (
                             <Crown className="size-2.5 shrink-0" aria-label="Uses Pro credits" />
                         )}
@@ -297,6 +297,7 @@ export const ReasoningEffortSelector = ({
                 </SelectTrigger>
                 <SelectContent>
                     {allowedEfforts.map((effort) => {
+                        const EffortIcon = getReasoningEffortIcon(effort)
                         const isEffortLocked =
                             resolvedCreditPlan === "free" &&
                             selectedSharedModel !== undefined &&
@@ -315,11 +316,14 @@ export const ReasoningEffortSelector = ({
                                 className="text-xs sm:text-sm"
                             >
                                 <span className="flex w-full items-center justify-between gap-3">
-                                    <span>
-                                        {getReasoningEffortLabelForModel(
-                                            selectedSharedModel,
-                                            effort
-                                        )}
+                                    <span className="flex items-center gap-2">
+                                        <EffortIcon className="size-4 shrink-0" />
+                                        <span>
+                                            {getReasoningEffortLabelForModel(
+                                                selectedSharedModel,
+                                                effort
+                                            )}
+                                        </span>
                                     </span>
                                     {isEffortLocked && (
                                         <span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium text-[0.625rem] text-primary uppercase">
@@ -455,6 +459,7 @@ function MobileOverflowMenu({
     const { enabledTools, reasoningEffort, setReasoningEffort } = useModelStore()
     const [reasoningExpanded, setReasoningExpanded] = useState(false)
     const reasoningLabel = getReasoningEffortLabelForModel(selectedSharedModel, reasoningEffort)
+    const ReasoningIcon = getReasoningEffortIcon(reasoningEffort)
     const selectedModelBaseUsesProCredits =
         selectedSharedModel !== undefined &&
         getPrototypeCreditTierForModel(selectedSharedModel, "off") === "pro"
@@ -509,11 +514,7 @@ function MobileOverflowMenu({
                                 className={mobileMenuRowClassName}
                                 onClick={() => setReasoningExpanded((expanded) => !expanded)}
                             >
-                                {reasoningEffort === "off" ? (
-                                    <Zap className="size-4 shrink-0" />
-                                ) : (
-                                    <Brain className="size-4 shrink-0" />
-                                )}
+                                <ReasoningIcon className="size-4 shrink-0" />
                                 {selectedEffortUsesProCredits && (
                                     <Crown
                                         className="size-3.5 shrink-0"
@@ -532,6 +533,7 @@ function MobileOverflowMenu({
                             {reasoningExpanded && (
                                 <div className="space-y-1 px-2 pb-1">
                                     {allowedReasoningEfforts.map((effort) => {
+                                        const EffortIcon = getReasoningEffortIcon(effort)
                                         const effortLabel = getReasoningEffortLabelForModel(
                                             selectedSharedModel,
                                             effort
@@ -566,6 +568,7 @@ function MobileOverflowMenu({
                                                 disabled={isEffortLocked}
                                                 onClick={() => setReasoningEffort(effort)}
                                             >
+                                                <EffortIcon className="size-4 shrink-0" />
                                                 <span className="min-w-0 flex-1 truncate">
                                                     {effortLabel}
                                                 </span>

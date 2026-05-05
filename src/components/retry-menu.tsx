@@ -9,6 +9,7 @@ import {
     getPrototypeCreditTierForModel,
     getProviderDisplayName,
     getReasoningEffortForPlan,
+    getReasoningEffortIcon,
     getReasoningEffortLabelForModel,
     getRequiredPlanToPickModel,
     isImageGenerationCapableModel,
@@ -17,7 +18,7 @@ import {
 import type { DisplayModel } from "@/lib/models-providers-shared"
 import { cn } from "@/lib/utils"
 import { useConvexAuth } from "@convex-dev/react-query"
-import { Archive, Brain, Crown, RotateCcw } from "lucide-react"
+import { Archive, Crown, RotateCcw } from "lucide-react"
 import * as React from "react"
 import { getProviderSectionIcon } from "./model-selector"
 import { Badge } from "./ui/badge"
@@ -298,7 +299,7 @@ export function RetryMenu({
                             </DropdownMenuSubTrigger>
                             <DropdownMenuPortal>
                                 <DropdownMenuSubContent
-                                    className="w-[15rem]"
+                                    className="w-fit min-w-[11rem] max-w-[15rem]"
                                     sideOffset={8}
                                     collisionPadding={16}
                                 >
@@ -391,6 +392,7 @@ export function RetryMenu({
                                                         </DropdownMenuSubTrigger>
                                                         <DropdownMenuPortal>
                                                             <DropdownMenuSubContent
+                                                                className="w-fit min-w-[10.5rem] max-w-[12rem]"
                                                                 sideOffset={8}
                                                                 collisionPadding={16}
                                                             >
@@ -412,65 +414,105 @@ export function RetryMenu({
                                                                         ? model.shortName
                                                                         : model.name}
                                                                 </DropdownMenuItem>
-                                                                <DropdownMenuSeparator />
-                                                                <div className="flex items-center gap-2 px-2 py-1.5">
-                                                                    <Brain className="size-3 text-muted-foreground" />
-                                                                    <span className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-                                                                        Reasoning Effort
-                                                                    </span>
-                                                                </div>
-                                                                {allowedEfforts.map((effort) => {
-                                                                    const isEffortLocked =
-                                                                        creditPlan === "free" &&
-                                                                        sharedModel !== null &&
-                                                                        getRequiredPlanToPickModel(
-                                                                            sharedModel,
-                                                                            effort
-                                                                        ) === "pro"
-                                                                    const effortUsesProCredits =
-                                                                        creditPlan === "pro" &&
-                                                                        sharedModel !== null &&
-                                                                        getPrototypeCreditTierForModel(
-                                                                            sharedModel,
-                                                                            effort
-                                                                        ) === "pro"
+                                                                {(() => {
+                                                                    const effortItems =
+                                                                        allowedEfforts.map(
+                                                                            (effort) => {
+                                                                                const requiredPlan =
+                                                                                    sharedModel !==
+                                                                                    null
+                                                                                        ? getRequiredPlanToPickModel(
+                                                                                              sharedModel,
+                                                                                              effort
+                                                                                          )
+                                                                                        : null
 
-                                                                    return (
-                                                                        <DropdownMenuItem
-                                                                            key={effort}
-                                                                            disabled={
+                                                                                return {
+                                                                                    effort,
+                                                                                    requiredPlan,
+                                                                                    isEffortLocked:
+                                                                                        creditPlan ===
+                                                                                            "free" &&
+                                                                                        requiredPlan ===
+                                                                                            "pro"
+                                                                                }
+                                                                            }
+                                                                        )
+                                                                    const firstProIndex =
+                                                                        effortItems.findIndex(
+                                                                            ({ requiredPlan }) =>
+                                                                                requiredPlan ===
+                                                                                "pro"
+                                                                        )
+                                                                    const shouldShowProDivider =
+                                                                        effortItems.length >= 3 &&
+                                                                        firstProIndex > 0
+
+                                                                    return effortItems.map(
+                                                                        (
+                                                                            {
+                                                                                effort,
                                                                                 isEffortLocked
-                                                                            }
-                                                                            onClick={() =>
-                                                                                handleSelect(effort)
-                                                                            }
-                                                                            className="cursor-pointer pl-6"
-                                                                        >
-                                                                            <span className="flex min-w-0 flex-1 items-center gap-2">
-                                                                                <span className="truncate">
-                                                                                    {getReasoningEffortLabelForModel(
-                                                                                        sharedModel,
-                                                                                        effort
-                                                                                    )}
-                                                                                </span>
-                                                                                {isEffortLocked && (
-                                                                                    <Badge
-                                                                                        variant="secondary"
-                                                                                        className="border border-border/70 text-[0.625rem] uppercase tracking-wide"
+                                                                            },
+                                                                            index
+                                                                        ) => {
+                                                                            const EffortIcon =
+                                                                                getReasoningEffortIcon(
+                                                                                    effort
+                                                                                )
+
+                                                                            return (
+                                                                                <React.Fragment
+                                                                                    key={effort}
+                                                                                >
+                                                                                    {shouldShowProDivider &&
+                                                                                        firstProIndex ===
+                                                                                            index && (
+                                                                                            <div className="flex items-center gap-2 px-2 py-1.5">
+                                                                                                <div className="h-[0.0625rem] flex-1 bg-border" />
+                                                                                                <span className="flex items-center gap-1 font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+                                                                                                    <Crown className="size-3 shrink-0" />
+                                                                                                    <span>
+                                                                                                        Pro
+                                                                                                    </span>
+                                                                                                </span>
+                                                                                                <div className="h-[0.0625rem] flex-1 bg-border" />
+                                                                                            </div>
+                                                                                        )}
+                                                                                    <DropdownMenuItem
+                                                                                        disabled={
+                                                                                            isEffortLocked
+                                                                                        }
+                                                                                        onClick={() =>
+                                                                                            handleSelect(
+                                                                                                effort
+                                                                                            )
+                                                                                        }
+                                                                                        className="cursor-pointer"
                                                                                     >
-                                                                                        Pro
-                                                                                    </Badge>
-                                                                                )}
-                                                                                {effortUsesProCredits && (
-                                                                                    <Crown
-                                                                                        className="size-3.5 shrink-0"
-                                                                                        aria-label="Uses Pro credits"
-                                                                                    />
-                                                                                )}
-                                                                            </span>
-                                                                        </DropdownMenuItem>
+                                                                                        <span className="flex min-w-0 flex-1 items-center gap-2">
+                                                                                            <EffortIcon className="size-4 shrink-0" />
+                                                                                            <span className="truncate">
+                                                                                                {getReasoningEffortLabelForModel(
+                                                                                                    sharedModel,
+                                                                                                    effort
+                                                                                                )}
+                                                                                            </span>
+                                                                                            {isEffortLocked && (
+                                                                                                <Badge
+                                                                                                    variant="secondary"
+                                                                                                    className="border border-border/70 text-[0.625rem] uppercase tracking-wide"
+                                                                                                >
+                                                                                                    Pro
+                                                                                                </Badge>
+                                                                                            )}
+                                                                                        </span>
+                                                                                    </DropdownMenuItem>
+                                                                                </React.Fragment>
+                                                                            )
+                                                                        }
                                                                     )
-                                                                })}
+                                                                })()}
                                                             </DropdownMenuSubContent>
                                                         </DropdownMenuPortal>
                                                     </DropdownMenuSub>

@@ -6,6 +6,9 @@ import {
     GroqIcon,
     OpenAIIcon,
     OpenRouterIcon,
+    ReasoningHighIcon,
+    ReasoningLowIcon,
+    ReasoningMediumIcon,
     SerperDevIcon,
     TavilyIcon,
     VercelIcon,
@@ -18,7 +21,7 @@ import { optionalBrowserEnv } from "@/lib/browser-env"
 import type { ReasoningEffort } from "@/lib/model-store"
 import { useSharedModels } from "@/lib/shared-models"
 import type { Infer } from "convex/values"
-import { Brain, Code, Eye, File, Key } from "lucide-react"
+import { Brain, Code, Eye, File, Key, Zap } from "lucide-react"
 
 export type DisplayModel =
     | SharedModel
@@ -399,13 +402,17 @@ export const getReasoningEffortLabelForModel = (
     model: SharedModel | null | undefined,
     effort: ReasoningEffort
 ) => {
+    if (effort === "off") {
+        return "Instant"
+    }
+
     const allowedEfforts = getAllowedReasoningEffortsForModel(model)
     const isToggleOnlyReasoningModel =
         allowedEfforts.length === 2 && allowedEfforts[0] === "off" && allowedEfforts[1] === "medium"
     const isAlwaysOnReasoningModel = allowedEfforts.length === 1 && allowedEfforts[0] === "medium"
 
     if (isToggleOnlyReasoningModel) {
-        return effort === "off" ? "Instant" : "Thinking"
+        return "Thinking"
     }
 
     if (isAlwaysOnReasoningModel) {
@@ -413,6 +420,19 @@ export const getReasoningEffortLabelForModel = (
     }
 
     return effort.charAt(0).toUpperCase() + effort.slice(1)
+}
+
+export const getReasoningEffortIcon = (effort: ReasoningEffort) => {
+    switch (effort) {
+        case "off":
+            return Zap
+        case "low":
+            return ReasoningLowIcon
+        case "medium":
+            return ReasoningMediumIcon
+        case "high":
+            return ReasoningHighIcon
+    }
 }
 
 export type SearchProviderInfo = {

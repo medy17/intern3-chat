@@ -127,7 +127,7 @@ export const formatFooterReasoningEffort = (
 ) => {
     switch (value) {
         case "off":
-            return "Off"
+            return "Instant"
         case "low":
             return "Low"
         case "medium":

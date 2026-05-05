@@ -53,6 +53,7 @@ import {
     getPrototypeCreditTierForModel,
     getProviderDisplayName,
     getReasoningEffortForPlan,
+    getReasoningEffortIcon,
     getRequiredPlanToPickModel,
     isImageGenerationCapableModel,
     useAvailableModels
@@ -62,7 +63,6 @@ import { cn } from "@/lib/utils"
 import { useConvexAuth } from "@convex-dev/react-query"
 import {
     Archive,
-    Brain,
     Calculator,
     Check,
     ChevronDown,
@@ -76,8 +76,7 @@ import {
     KeyRound,
     Search,
     Terminal,
-    Trophy,
-    Zap
+    Trophy
 } from "lucide-react"
 import * as React from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip"
@@ -162,7 +161,8 @@ const getGrokModeIcon = (
 
     if (!isToggleOnlyReasoningModel) return null
 
-    return reasoningEffort === "off" ? <Zap className="size-4" /> : <Brain className="size-4" />
+    const ReasoningIcon = getReasoningEffortIcon(reasoningEffort)
+    return <ReasoningIcon className="size-4" />
 }
 
 type ProviderSection = {

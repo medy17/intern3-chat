@@ -209,6 +209,78 @@ export function XAIIcon(props: SVGProps<SVGSVGElement>) {
     )
 }
 
+export function ReasoningLowIcon({ className, ...rest }: React.SVGProps<SVGSVGElement>) {
+    return (
+        <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            xmlns="http://www.w3.org/2000/svg"
+            {...rest}
+            className={cn("line-height-1 size-4 flex-none", className)}
+        >
+            <path d="M12 4.69c0-1.66 1.33-3 2.99-3.01 1.18 0 1.94.82 2.65 1.65.94 1.09 1.84 2.27 2.51 3.55.82 1.55 1.08 3.17 1.27 4.89.1.94.12 1.9-.02 2.84s-.5 1.7-.92 2.56c-.45.94-.7 2.03-1.26 2.89-.57.88-1.68 1.46-2.7 1.59-2.19.28-4.2-1.26-4.48-3.45-.02-.17-.03-.34-.03-.51V4.69Z" />
+            <path d="M12 17.69c0 .17-.01.34-.03.51-.28 2.19-2.29 3.74-4.48 3.45-1.02-.13-2.13-.71-2.7-1.59-.56-.86-.81-1.96-1.26-2.89-.42-.87-.78-1.59-.92-2.56s-.12-1.9-.02-2.84c.19-1.72.45-3.34 1.27-4.89.67-1.28 1.57-2.46 2.51-3.55.71-.83 1.47-1.66 2.65-1.65 1.66 0 3 1.35 2.99 3.01v13Z" />
+            <path d="M13.32 12.24c-.76-.27-1.28-.96-1.32-1.76-.04.8-.57 1.5-1.32 1.76" />
+        </svg>
+    )
+}
+
+export function ReasoningMediumIcon({ className, ...rest }: React.SVGProps<SVGSVGElement>) {
+    return (
+        <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            xmlns="http://www.w3.org/2000/svg"
+            {...rest}
+            className={cn("line-height-1 size-4 flex-none", className)}
+        >
+            <path d="M12 18V5" />
+            <path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4" />
+            <path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5" />
+            <path d="M17.997 5.125a4 4 0 0 1 2.526 5.77" />
+            <path d="M18 18a4 4 0 0 0 2-7.464" />
+            <path d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517" />
+            <path d="M6 18a4 4 0 0 1-2-7.464" />
+            <path d="M6.003 5.125a4 4 0 0 0-2.526 5.77" />
+        </svg>
+    )
+}
+
+export function ReasoningHighIcon({ className, ...rest }: React.SVGProps<SVGSVGElement>) {
+    return (
+        <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            xmlns="http://www.w3.org/2000/svg"
+            {...rest}
+            className={cn("line-height-1 size-4 flex-none", className)}
+        >
+            <path d="M12 4.69c0-1.66-1.33-3-2.99-3.01-1.66 0-3 1.33-3.01 2.99v.14c-2.14.55-3.43 2.73-2.88 4.87.08.31.2.62.35.9-1.71 1.39-1.98 3.91-.58 5.63.32.39.7.71 1.14.96-.28 2.19 1.26 4.2 3.45 4.48 2.19.28 4.2-1.26 4.48-3.45.02-.17.03-.34.03-.51V4.69Z" />
+            <path d="M6 4.81c.02.48.32 2.19 2.42 2.76" />
+            <path d="M3.48 10.58c.93-.61 1.8-.83 2.88-.7" />
+            <path d="M7.85 17.43c-1.49.47-3.22.08-3.82-.26" />
+            <path d="M12 17.69c0 .17.01.34.03.51.28 2.19 2.29 3.74 4.48 3.45 2.19-.28 3.74-2.29 3.45-4.48.44-.25.82-.57 1.14-.96 1.39-1.71 1.13-4.23-.58-5.63.15-.28.27-.59.35-.9.55-2.14-.74-4.32-2.88-4.87v-.14c0-1.66-1.35-3-3.01-2.99-1.66 0-3 1.35-2.99 3.01v13Z" />
+            <path d="M15.58 7.57c2.1-.57 2.4-2.28 2.42-2.76" />
+            <path d="M17.64 9.88c1.08-.13 1.95.1 2.88.7" />
+            <path d="M19.97 17.17c-.6.34-2.33.73-3.82.26" />
+            <path d="M17.22 13.44c-3.72 1.79-5.31-1.79-5.21-4.66" />
+            <path d="M11.94 8.78c.1 2.87-1.49 6.45-5.21 4.66" />
+        </svg>
+    )
+}
+
 export function ZAIIcon(props: SVGProps<SVGSVGElement>) {
     return (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 46" fill="none" {...props}>
