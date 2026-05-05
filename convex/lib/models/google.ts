@@ -158,7 +158,7 @@ export const GOOGLE_MODELS: SharedModel[] = [
         supportsDisablingReasoning: true,
         prototypeCreditTier: "pro",
         legacy: true,
-        sunsetOn: "2026-03-26",
+        sunsetOn: "2026-03-09",
         replacementId: "gemini-3.1-pro-preview"
     },
     {
