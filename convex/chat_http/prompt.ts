@@ -5,6 +5,8 @@ import type { UserSettings } from "../schema/settings"
 
 export const buildPrompt = (
     enabledTools: AbilityId[],
+    userTimezone?: string, // e.g., "Asia/Kuala_Lumpur"
+    clientTimestampMs?: number, // Pass Date.now() from the client to fix Convex's clock
     userSettings?: Infer<typeof UserSettings>,
     personaPrompt?: string
 ) => {
@@ -12,18 +14,38 @@ export const buildPrompt = (
     const hasSupermemory = enabledTools.includes("supermemory")
     const hasMCP = enabledTools.includes("mcp")
 
+    // Fuck Convex's broken clock. If the client passes a timestamp, use
+    // that instead to guarantee the right UTC and local time basis.
+    const now = clientTimestampMs ? new Date(clientTimestampMs) : new Date()
+
     // Get current UTC date in DD-MM-YYYY format
-    const now = new Date()
-    const utcDate = `${now.getUTCDate().toString().padStart(2, "0")}-${(now.getUTCMonth() + 1)
-        .toString()
-        .padStart(2, "0")}-${now.getUTCFullYear()}`
+    // Get full UTC date and time
+    const utcDateTime = now.toUTCString()
+
+    let userTimeInfo = ""
+    if (userTimezone) {
+        try {
+            const localTime = now.toLocaleString("en-GB", {
+                timeZone: userTimezone,
+                hour: "2-digit",
+                minute: "2-digit",
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+                timeZoneName: "short"
+            })
+            userTimeInfo = `\nThe user's local time in ${userTimezone}: ${localTime}.`
+        } catch {
+            // Gracefully ignore invalid timezones without shitting the bed
+            userTimeInfo = ""
+        }
+    }
 
     const layers: string[] = [
         dedent`
 ## Identity
-You are "Silky", a helpful assistant in the "SilkChat" app. Today's date (UTC): ${utcDate}.
-
-In the event of conflicting instructions, system-level rules take precedence over user requests.
+You are "Silky", a helpful assistant in the "SilkChat" app. 
+Current true time (UTC): ${utcDateTime}.${userTimeInfo}
 
 Answer identity questions briefly: you are Silky, an AI assistant in SilkChat. Only mention Medy (Lead Dev), DropSilk (Company), or the about page if the user explicitly asks who created you, who built SilkChat, or asks for more information about your origins. DropSilk is the company behind SilkChat and its P2P file sharing app. Do not volunteer creator, company, or about-page information in a general identity answer.`,
 
