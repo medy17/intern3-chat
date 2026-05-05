@@ -31,7 +31,10 @@ const MermaidRenderer = memo(({ code }: { code: string }) => {
     useEffect(() => {
         ;(async () => {
             try {
-                const mermaid = await import("mermaid")
+                // Avoid Vite's dev prebundle for the package root. That optimized path
+                // can emit a broken `require_dist()` call for Mermaid's sanitize-url helper.
+                const mermaidModule = await import("mermaid/dist/mermaid.core.mjs")
+                const mermaid = mermaidModule.default ?? mermaidModule
 
                 // Hardcoded colors based on globals.css
                 const lightTheme = {
@@ -56,7 +59,7 @@ const MermaidRenderer = memo(({ code }: { code: string }) => {
 
                 const colors = isDark ? darkTheme : lightTheme
 
-                mermaid.default.initialize({
+                mermaid.initialize({
                     startOnLoad: false,
                     theme: "base",
                     themeVariables: {
@@ -84,7 +87,7 @@ const MermaidRenderer = memo(({ code }: { code: string }) => {
                         classText: colors.foreground
                     }
                 })
-                const { svg } = await mermaid.default.render(
+                const { svg } = await mermaid.render(
                     `mermaid-${Date.now()}-${isDark ? "dark" : "light"}`,
                     code
                 )
