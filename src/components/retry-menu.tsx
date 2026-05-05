@@ -6,16 +6,21 @@ import { DefaultSettings } from "@/lib/default-user-settings"
 import { type ReasoningEffort, useModelStore } from "@/lib/model-store"
 import {
     getAllowedReasoningEffortsForModel,
+    getPrototypeCreditTierForModel,
     getProviderDisplayName,
+    getReasoningEffortForPlan,
     getReasoningEffortLabelForModel,
+    getRequiredPlanToPickModel,
     isImageGenerationCapableModel,
     useAvailableModels
 } from "@/lib/models-providers-shared"
 import type { DisplayModel } from "@/lib/models-providers-shared"
+import { cn } from "@/lib/utils"
 import { useConvexAuth } from "@convex-dev/react-query"
-import { Archive, Brain, RotateCcw } from "lucide-react"
+import { Archive, Brain, Crown, RotateCcw } from "lucide-react"
 import * as React from "react"
 import { getProviderSectionIcon } from "./model-selector"
+import { Badge } from "./ui/badge"
 import { Button } from "./ui/button"
 import {
     DropdownMenu,
@@ -115,10 +120,72 @@ export function RetryMenu({
 
     const [expandedProviders, setExpandedProviders] = React.useState<Record<string, boolean>>({})
 
-    const { setSelectedModel, setReasoningEffort } = useModelStore()
+    const reasoningEffort = useModelStore((state) => state.reasoningEffort)
+    const setSelectedModel = useModelStore((state) => state.setSelectedModel)
+    const setReasoningEffort = useModelStore((state) => state.setReasoningEffort)
+    const [creditPlan, setCreditPlan] = React.useState<"free" | "pro" | null>(null)
 
     const { availableModels, currentProviders } = useAvailableModels(
         "error" in userSettings ? DefaultSettings(session.user?.id ?? "") : userSettings
+    )
+
+    React.useEffect(() => {
+        if (!session.user?.id || auth.isLoading) {
+            setCreditPlan(null)
+            return
+        }
+
+        let cancelled = false
+
+        const loadCreditPlan = async () => {
+            try {
+                const response = await fetch("/api/credit-summary", {
+                    credentials: "include"
+                })
+
+                if (!response.ok) {
+                    throw new Error("Failed to load credit summary")
+                }
+
+                const data = (await response.json()) as { plan?: "free" | "pro" }
+                if (!cancelled) {
+                    setCreditPlan(data.plan === "pro" ? "pro" : "free")
+                }
+            } catch {
+                if (!cancelled) {
+                    setCreditPlan("free")
+                }
+            }
+        }
+
+        void loadCreditPlan()
+
+        return () => {
+            cancelled = true
+        }
+    }, [auth.isLoading, session.user?.id])
+
+    const getDefaultRetryEffort = React.useCallback(
+        (
+            model: DisplayModel,
+            sharedModel: SharedModel | null,
+            allowedEfforts: ReasoningEffort[]
+        ) => {
+            if (allowedEfforts.length === 0) {
+                return undefined
+            }
+
+            if (!sharedModel) {
+                return creditPlan === "free" ? null : allowedEfforts[0]
+            }
+
+            if (creditPlan === "free") {
+                return getReasoningEffortForPlan(sharedModel, reasoningEffort, creditPlan)
+            }
+
+            return allowedEfforts.includes(reasoningEffort) ? reasoningEffort : allowedEfforts[0]
+        },
+        [creditPlan, reasoningEffort]
     )
 
     const providerSections = React.useMemo(() => {
@@ -236,20 +303,40 @@ export function RetryMenu({
                                     collisionPadding={16}
                                 >
                                     {visibleModels.map((model) => {
-                                        const handleSelect = (effort?: ReasoningEffort) => {
-                                            setSelectedModel(model.id)
-                                            if (effort) {
-                                                setReasoningEffort(effort)
-                                            }
-                                            onRetry(model.id)
-                                        }
-
                                         const sharedModel =
                                             "isCustom" in model && model.isCustom
                                                 ? null
                                                 : (model as SharedModel)
                                         const allowedEfforts =
                                             getAllowedReasoningEffortsForModel(sharedModel)
+                                        const defaultRetryEffort = getDefaultRetryEffort(
+                                            model,
+                                            sharedModel,
+                                            allowedEfforts
+                                        )
+                                        const isModelLocked =
+                                            creditPlan === "free" &&
+                                            (allowedEfforts.length > 0
+                                                ? defaultRetryEffort === null
+                                                : getRequiredPlanToPickModel(model, "off") ===
+                                                  "pro")
+                                        const usesProCredits =
+                                            creditPlan === "pro" &&
+                                            getPrototypeCreditTierForModel(
+                                                model,
+                                                defaultRetryEffort ?? "off"
+                                            ) === "pro"
+
+                                        const handleSelect = (effort?: ReasoningEffort) => {
+                                            if (isModelLocked) {
+                                                return
+                                            }
+                                            setSelectedModel(model.id)
+                                            if (effort) {
+                                                setReasoningEffort(effort)
+                                            }
+                                            onRetry(model.id)
+                                        }
 
                                         if (allowedEfforts.length > 0) {
                                             return (
@@ -258,19 +345,46 @@ export function RetryMenu({
                                                     className="flex items-center gap-0.5"
                                                 >
                                                     <DropdownMenuItem
+                                                        disabled={isModelLocked}
                                                         onClick={() =>
-                                                            handleSelect(allowedEfforts[0])
+                                                            defaultRetryEffort !== null
+                                                                ? handleSelect(
+                                                                      defaultRetryEffort ??
+                                                                          undefined
+                                                                  )
+                                                                : undefined
                                                         }
                                                         className="flex-1 cursor-pointer pr-2"
                                                     >
-                                                        <div className="flex min-w-0 flex-1 flex-col">
+                                                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                                                            {usesProCredits && (
+                                                                <Crown
+                                                                    className="size-3.5 shrink-0"
+                                                                    aria-label="Uses Pro credits"
+                                                                />
+                                                            )}
                                                             <span className="truncate font-medium text-sm">
                                                                 {model.name}
                                                             </span>
+                                                            {isModelLocked && (
+                                                                <Badge
+                                                                    variant="secondary"
+                                                                    className="border border-border/70 text-[0.625rem] uppercase tracking-wide"
+                                                                >
+                                                                    Pro
+                                                                </Badge>
+                                                            )}
                                                         </div>
                                                     </DropdownMenuItem>
                                                     <DropdownMenuSub>
-                                                        <DropdownMenuSubTrigger className="h-9 cursor-pointer px-2">
+                                                        <DropdownMenuSubTrigger
+                                                            disabled={isModelLocked}
+                                                            className={cn(
+                                                                "h-9 cursor-pointer px-2",
+                                                                isModelLocked &&
+                                                                    "text-muted-foreground/40"
+                                                            )}
+                                                        >
                                                             <span className="sr-only">
                                                                 Reasoning Options
                                                             </span>
@@ -281,7 +395,15 @@ export function RetryMenu({
                                                                 collisionPadding={16}
                                                             >
                                                                 <DropdownMenuItem
-                                                                    onClick={() => handleSelect()}
+                                                                    disabled={isModelLocked}
+                                                                    onClick={() =>
+                                                                        defaultRetryEffort !== null
+                                                                            ? handleSelect(
+                                                                                  defaultRetryEffort ??
+                                                                                      undefined
+                                                                              )
+                                                                            : undefined
+                                                                    }
                                                                     className="mb-1 cursor-pointer font-medium"
                                                                 >
                                                                     Retry with{" "}
@@ -297,20 +419,58 @@ export function RetryMenu({
                                                                         Reasoning Effort
                                                                     </span>
                                                                 </div>
-                                                                {allowedEfforts.map((effort) => (
-                                                                    <DropdownMenuItem
-                                                                        key={effort}
-                                                                        onClick={() =>
-                                                                            handleSelect(effort)
-                                                                        }
-                                                                        className="cursor-pointer pl-6"
-                                                                    >
-                                                                        {getReasoningEffortLabelForModel(
+                                                                {allowedEfforts.map((effort) => {
+                                                                    const isEffortLocked =
+                                                                        creditPlan === "free" &&
+                                                                        sharedModel !== null &&
+                                                                        getRequiredPlanToPickModel(
                                                                             sharedModel,
                                                                             effort
-                                                                        )}
-                                                                    </DropdownMenuItem>
-                                                                ))}
+                                                                        ) === "pro"
+                                                                    const effortUsesProCredits =
+                                                                        creditPlan === "pro" &&
+                                                                        sharedModel !== null &&
+                                                                        getPrototypeCreditTierForModel(
+                                                                            sharedModel,
+                                                                            effort
+                                                                        ) === "pro"
+
+                                                                    return (
+                                                                        <DropdownMenuItem
+                                                                            key={effort}
+                                                                            disabled={
+                                                                                isEffortLocked
+                                                                            }
+                                                                            onClick={() =>
+                                                                                handleSelect(effort)
+                                                                            }
+                                                                            className="cursor-pointer pl-6"
+                                                                        >
+                                                                            <span className="flex min-w-0 flex-1 items-center gap-2">
+                                                                                <span className="truncate">
+                                                                                    {getReasoningEffortLabelForModel(
+                                                                                        sharedModel,
+                                                                                        effort
+                                                                                    )}
+                                                                                </span>
+                                                                                {isEffortLocked && (
+                                                                                    <Badge
+                                                                                        variant="secondary"
+                                                                                        className="border border-border/70 text-[0.625rem] uppercase tracking-wide"
+                                                                                    >
+                                                                                        Pro
+                                                                                    </Badge>
+                                                                                )}
+                                                                                {effortUsesProCredits && (
+                                                                                    <Crown
+                                                                                        className="size-3.5 shrink-0"
+                                                                                        aria-label="Uses Pro credits"
+                                                                                    />
+                                                                                )}
+                                                                            </span>
+                                                                        </DropdownMenuItem>
+                                                                    )
+                                                                })}
                                                             </DropdownMenuSubContent>
                                                         </DropdownMenuPortal>
                                                     </DropdownMenuSub>
@@ -321,13 +481,28 @@ export function RetryMenu({
                                         return (
                                             <DropdownMenuItem
                                                 key={model.id}
+                                                disabled={isModelLocked}
                                                 onClick={() => handleSelect()}
                                                 className="cursor-pointer"
                                             >
-                                                <div className="flex min-w-0 flex-col">
+                                                <div className="flex min-w-0 items-center gap-2">
+                                                    {usesProCredits && (
+                                                        <Crown
+                                                            className="size-3.5 shrink-0"
+                                                            aria-label="Uses Pro credits"
+                                                        />
+                                                    )}
                                                     <span className="truncate font-medium text-sm">
                                                         {model.name}
                                                     </span>
+                                                    {isModelLocked && (
+                                                        <Badge
+                                                            variant="secondary"
+                                                            className="border border-border/70 text-[0.625rem] uppercase tracking-wide"
+                                                        >
+                                                            Pro
+                                                        </Badge>
+                                                    )}
                                                 </div>
                                             </DropdownMenuItem>
                                         )
