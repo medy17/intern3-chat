@@ -73,6 +73,16 @@ export const XAI_MODELS: SharedModel[] = [
         prototypeCreditTier: "pro"
     },
     {
+        id: "grok-4.3",
+        name: "Grok 4.3",
+        shortName: "Grok 4.3",
+        releaseOrder: 20260430,
+        adapters: ["i3-xai:grok-4.3", "xai:grok-4.3", "openrouter:x-ai/grok-4.3"],
+        abilities: ["reasoning", "vision", "function_calling", "effort_control"],
+        contextLength: 1_000_000,
+        customIcon: "xai"
+    },
+    {
         id: "grok-4-1-fast",
         name: "Grok 4.1 Fast",
         shortName: "Grok 4.1",

@@ -78,7 +78,6 @@ export const GOOGLE_MODELS: SharedModel[] = [
         releaseOrder: 20260219,
         adapters: googleTextAdapters("gemini-3.1-pro-preview"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
-        supportsDisablingReasoning: true,
         prototypeCreditTier: "pro"
     },
     {
@@ -116,7 +115,6 @@ export const GOOGLE_MODELS: SharedModel[] = [
         releaseOrder: 20250617,
         adapters: googleTextAdapters("gemini-2.5-pro"),
         abilities: ["reasoning", "vision", "function_calling", "pdf", "effort_control"],
-        supportsDisablingReasoning: true,
         prototypeCreditTier: "pro",
         legacy: true,
         sunsetOn: "2026-06-17",

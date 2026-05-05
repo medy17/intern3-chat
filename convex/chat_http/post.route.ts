@@ -84,6 +84,7 @@ const GOOGLE_IMAGE_PREVIEW_MODEL_IDS = new Set([
     "gemini-3.1-flash-image-preview",
     "gemini-3-pro-image-preview"
 ])
+const OPENROUTER_ONLY_REASONING_CONTROL_MODEL_IDS = new Set(["grok-4.3"])
 
 const GOOGLE_MINIMUM_SAFETY_SETTINGS = [
     {
@@ -246,7 +247,7 @@ const buildOpenAIProviderOptions = (
         (modelId.startsWith("o1") ||
             modelId.startsWith("o3") ||
             modelId.startsWith("o4") ||
-            modelId.startsWith("gpt-5.4"))
+            modelId.startsWith("gpt-5"))
     ) {
         options.reasoningEffort = openaiProfile.reasoningEffort
         options.reasoningSummary = openaiProfile.reasoningSummary
@@ -289,10 +290,20 @@ const buildOpenRouterProviderOptions = (
     supportsReasoning = false
 ): OpenRouterProviderOptions => {
     const options: OpenRouterRequestProviderOptions = {}
+    const isXaiPinnedReasoningModel = modelId === "grok-4.3"
     const shouldForceReasoningForVariant =
         modelId.endsWith("-reasoning") || modelId.endsWith("-thinking")
-    const isAlwaysOnReasoningModel =
-        supportsReasoning && !supportsReasoningToggle && !supportsEffortControl
+    const isAlwaysOnReasoningModel = supportsReasoning && !supportsReasoningToggle
+
+    const baseProviderConfig = isXaiPinnedReasoningModel
+        ? {
+              only: ["x-ai"],
+              allow_fallbacks: false,
+              require_parameters: true
+          }
+        : {
+              require_parameters: true
+          }
 
     if (reasoningEffort === "off" && !isAlwaysOnReasoningModel) {
         options.reasoning = {
@@ -301,9 +312,7 @@ const buildOpenRouterProviderOptions = (
             effort: "none"
         }
         options.extraBody = {
-            provider: {
-                require_parameters: true
-            },
+            provider: baseProviderConfig,
             include_reasoning: false,
             usage: {
                 include: true
@@ -321,9 +330,7 @@ const buildOpenRouterProviderOptions = (
             enabled: true
         } as OpenRouterRequestProviderOptions["reasoning"]
         options.extraBody = {
-            provider: {
-                require_parameters: true
-            },
+            provider: baseProviderConfig,
             include_reasoning: true,
             usage: {
                 include: true
@@ -334,9 +341,7 @@ const buildOpenRouterProviderOptions = (
 
     if (!supportsEffortControl && !shouldForceReasoningForVariant) {
         options.extraBody = {
-            provider: {
-                require_parameters: true
-            },
+            provider: baseProviderConfig,
             usage: {
                 include: true
             }
@@ -349,9 +354,7 @@ const buildOpenRouterProviderOptions = (
         effort: reasoningEffort === "off" ? "medium" : reasoningEffort
     }
     options.extraBody = {
-        provider: {
-            require_parameters: true
-        },
+        provider: baseProviderConfig,
         include_reasoning: true,
         usage: {
             include: true
@@ -371,15 +374,18 @@ const resolveEffectiveReasoningEffort = (
     const reasoningEffort = requestedReasoningEffort ?? "medium"
     const isForcedReasoningVariant = modelId.endsWith("-reasoning") || modelId.endsWith("-thinking")
     const isToggleOnlyReasoningModel = supportsReasoningToggle && !supportsEffortControl
-    const isAlwaysOnReasoningModel =
-        supportsReasoning && !supportsReasoningToggle && !supportsEffortControl
+    const isAlwaysOnReasoningModel = supportsReasoning && !supportsReasoningToggle
 
     if (isForcedReasoningVariant && reasoningEffort === "off") {
-        return "medium"
+        return supportsEffortControl ? "low" : "medium"
     }
 
     if (isAlwaysOnReasoningModel) {
-        return "medium"
+        return supportsEffortControl
+            ? reasoningEffort === "off"
+                ? "low"
+                : reasoningEffort
+            : "medium"
     }
 
     if (isToggleOnlyReasoningModel) {
@@ -578,7 +584,10 @@ export const chatPOST = httpAction(async (ctx, req) => {
         selectedRegistryModel?.abilities?.includes("reasoning") === true &&
         selectedRegistryModel?.supportsDisablingReasoning === true
     const supportsReasoning = selectedRegistryModel?.abilities?.includes("reasoning") === true
-    const supportsEffortControl = modelData.abilities.includes("effort_control")
+    const supportsEffortControl =
+        modelData.abilities.includes("effort_control") &&
+        (!OPENROUTER_ONLY_REASONING_CONTROL_MODEL_IDS.has(body.model) ||
+            modelData.runtimeProvider === "openrouter")
     const maxTokens =
         typeof configuredMaxTokens === "number" && configuredMaxTokens > 0
             ? configuredMaxTokens

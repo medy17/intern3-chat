@@ -1179,4 +1179,179 @@ describe("chatPOST", () => {
             })
         )
     })
+
+    it("pins Grok 4.3 reasoning control to x-ai when routed through OpenRouter", async () => {
+        const ctx = createCtx()
+        ctx.runMutation.mockImplementation(async (name: string) => {
+            switch (name) {
+                case "createThreadOrInsertMessages":
+                    return {
+                        threadId: "thread-1",
+                        assistantMessageId: "assistant-1",
+                        assistantMessageConvexId: 42
+                    }
+                case "appendStreamId":
+                    return "stream-1"
+                case "updateThreadStreamingState":
+                case "patchMessage":
+                case "recordCreditEventForMessage":
+                    return null
+                default:
+                    throw new Error(`Unexpected mutation: ${name}`)
+            }
+        })
+        ctx.runQuery.mockImplementation(async (name: string) => {
+            switch (name) {
+                case "getMessagesByThreadId":
+                    return [{ _id: "db-message-1" }]
+                case "getUserSettingsInternal":
+                    return {
+                        mcpServers: []
+                    }
+                case "getThreadPersonaSnapshotInternal":
+                    return null
+                default:
+                    throw new Error(`Unexpected query: ${name}`)
+            }
+        })
+
+        getUserIdentityMock.mockResolvedValueOnce({ id: "user-1", creditPlan: "pro" })
+        getModelMock.mockResolvedValueOnce({
+            model: { provider: "runtime-openrouter", modelType: "text" },
+            modelId: "grok-4.3",
+            modelName: "Grok 4.3",
+            runtimeProvider: "openrouter",
+            providerSource: "openrouter",
+            abilities: ["reasoning", "vision", "function_calling", "effort_control"],
+            registry: {
+                models: {
+                    "grok-4.3": {
+                        abilities: ["reasoning", "vision", "function_calling", "effort_control"]
+                    }
+                }
+            },
+            prototypeCreditTier: "basic",
+            prototypeCreditTierWithReasoning: undefined
+        })
+        manualStreamTransformMock.mockImplementationOnce(() => new TransformStream())
+        streamTextMock.mockReturnValueOnce({
+            fullStream: createObjectStream([]),
+            finishReason: Promise.resolve("stop")
+        })
+
+        const response = await chatPOSTHandler(
+            ctx,
+            createRequest({
+                model: "grok-4.3",
+                proposedNewAssistantId: "assistant-1",
+                message: {
+                    role: "user",
+                    parts: [{ type: "text", text: "hello" }]
+                },
+                enabledTools: [],
+                reasoningEffort: "high"
+            })
+        )
+
+        expect(response.status).toBe(200)
+        await response.text()
+
+        expect(streamTextMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+                providerOptions: expect.objectContaining({
+                    openrouter: expect.objectContaining({
+                        reasoning: {
+                            enabled: true,
+                            effort: "high"
+                        },
+                        extraBody: expect.objectContaining({
+                            provider: expect.objectContaining({
+                                only: ["x-ai"],
+                                allow_fallbacks: false,
+                                require_parameters: true
+                            }),
+                            include_reasoning: true
+                        })
+                    })
+                })
+            })
+        )
+    })
+
+    it("falls back to medium reasoning for Grok 4.3 outside OpenRouter", async () => {
+        const ctx = createCtx()
+        ctx.runMutation.mockImplementation(async (name: string) => {
+            switch (name) {
+                case "createThreadOrInsertMessages":
+                    return {
+                        threadId: "thread-1",
+                        assistantMessageId: "assistant-1",
+                        assistantMessageConvexId: 42
+                    }
+                case "appendStreamId":
+                    return "stream-1"
+                case "updateThreadStreamingState":
+                case "patchMessage":
+                case "recordCreditEventForMessage":
+                    return null
+                default:
+                    throw new Error(`Unexpected mutation: ${name}`)
+            }
+        })
+        ctx.runQuery.mockImplementation(async (name: string) => {
+            switch (name) {
+                case "getMessagesByThreadId":
+                    return [{ _id: "db-message-1" }]
+                case "getUserSettingsInternal":
+                    return {
+                        mcpServers: []
+                    }
+                case "getThreadPersonaSnapshotInternal":
+                    return null
+                default:
+                    throw new Error(`Unexpected query: ${name}`)
+            }
+        })
+
+        getUserIdentityMock.mockResolvedValueOnce({ id: "user-1", creditPlan: "pro" })
+        getModelMock.mockResolvedValueOnce({
+            model: { provider: "runtime-xai", modelType: "text" },
+            modelId: "grok-4.3",
+            modelName: "Grok 4.3",
+            runtimeProvider: "xai",
+            providerSource: "byok",
+            abilities: ["reasoning", "vision", "function_calling", "effort_control"],
+            registry: {
+                models: {
+                    "grok-4.3": {
+                        abilities: ["reasoning", "vision", "function_calling", "effort_control"]
+                    }
+                }
+            },
+            prototypeCreditTier: "basic",
+            prototypeCreditTierWithReasoning: undefined
+        })
+        manualStreamTransformMock.mockImplementationOnce(() => new TransformStream())
+        streamTextMock.mockReturnValueOnce({
+            fullStream: createObjectStream([]),
+            finishReason: Promise.resolve("stop")
+        })
+
+        const response = await chatPOSTHandler(
+            ctx,
+            createRequest({
+                model: "grok-4.3",
+                proposedNewAssistantId: "assistant-1",
+                message: {
+                    role: "user",
+                    parts: [{ type: "text", text: "hello" }]
+                },
+                enabledTools: [],
+                reasoningEffort: "high"
+            })
+        )
+
+        expect(response.status).toBe(200)
+        await expect(response.text()).resolves.toContain('"reasoningEffort":"medium"')
+    })
 })
