@@ -299,7 +299,7 @@ export function RetryMenu({
                             </DropdownMenuSubTrigger>
                             <DropdownMenuPortal>
                                 <DropdownMenuSubContent
-                                    className="w-fit min-w-[11rem] max-w-[15rem]"
+                                    className="w-fit min-w-[7rem] max-w-[15rem]"
                                     sideOffset={8}
                                     collisionPadding={16}
                                 >
