@@ -1,3 +1,4 @@
+import { LOCAL_THEME_FONT_FAMILY_NAMES } from "@/lib/theme-font-config"
 import { DEFAULT_THEME_PRESET, LEGACY_GREEN_THEME_PRESET } from "@/lib/theme-store"
 
 export function ThemeScript() {
@@ -19,6 +20,9 @@ export function ThemeScript() {
         "cursive",
         "fantasy"
       ]);
+      const LOCAL_FONTS = new Set(${JSON.stringify(
+          LOCAL_THEME_FONT_FAMILY_NAMES.map((family) => family.toLowerCase())
+      )});
 
       function extractFontFamily(fontFamilyValue) {
         if (!fontFamilyValue) return null;
@@ -27,7 +31,8 @@ export function ThemeScript() {
         if (!firstFont) return null;
 
         const cleanFont = firstFont.replace(/['"]/g, "");
-        if (SYSTEM_FONTS.has(cleanFont.toLowerCase())) {
+        const normalizedFont = cleanFont.toLowerCase();
+        if (SYSTEM_FONTS.has(normalizedFont) || LOCAL_FONTS.has(normalizedFont)) {
           return null;
         }
 

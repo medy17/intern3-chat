@@ -682,11 +682,13 @@ describe("chatPOST", () => {
 
         expect(generateThreadNameMock).toHaveBeenCalledTimes(1)
         expect(buildPromptMock).toHaveBeenCalledWith(
-            ["web_search"],
             expect.objectContaining({
-                mcpServers: []
-            }),
-            undefined
+                enabledTools: ["web_search"],
+                userSettings: expect.objectContaining({
+                    mcpServers: []
+                }),
+                personaPrompt: undefined
+            })
         )
         expect(getToolkitMock).toHaveBeenCalledWith(
             ctx,

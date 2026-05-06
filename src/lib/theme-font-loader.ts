@@ -1,3 +1,5 @@
+import { LOCAL_THEME_FONT_FAMILY_NAMES } from "@/lib/theme-font-config"
+
 const DEFAULT_FONT_WEIGHTS = ["400"]
 
 const SYSTEM_FONTS = new Set([
@@ -11,6 +13,8 @@ const SYSTEM_FONTS = new Set([
     "cursive",
     "fantasy"
 ])
+
+const LOCAL_FONTS = new Set(LOCAL_THEME_FONT_FAMILY_NAMES.map((family) => family.toLowerCase()))
 
 type ThemeMode = "dark" | "light"
 
@@ -30,7 +34,8 @@ function extractFontFamily(fontFamilyValue?: string | null) {
     if (!firstFont) return null
 
     const cleanFont = firstFont.replace(/['"]/g, "")
-    if (SYSTEM_FONTS.has(cleanFont.toLowerCase())) {
+    const normalizedFont = cleanFont.toLowerCase()
+    if (SYSTEM_FONTS.has(normalizedFont) || LOCAL_FONTS.has(normalizedFont)) {
         return null
     }
 

@@ -3,13 +3,21 @@ import dedent from "ts-dedent"
 import type { AbilityId } from "../lib/toolkit"
 import type { UserSettings } from "../schema/settings"
 
-export const buildPrompt = (
-    enabledTools: AbilityId[],
-    userTimezone?: string, // e.g., "Asia/Kuala_Lumpur"
-    clientTimestampMs?: number, // Pass Date.now() from the client to fix Convex's clock
-    userSettings?: Infer<typeof UserSettings>,
+type BuildPromptOptions = {
+    enabledTools: AbilityId[]
+    userTimezone?: string // e.g., "Asia/Kuala_Lumpur"
+    clientTimestampMs?: number // Pass Date.now() from the client to fix Convex's clock
+    userSettings?: Infer<typeof UserSettings>
     personaPrompt?: string
-) => {
+}
+
+export const buildPrompt = ({
+    enabledTools,
+    userTimezone,
+    clientTimestampMs,
+    userSettings,
+    personaPrompt
+}: BuildPromptOptions) => {
     const hasWebSearch = enabledTools.includes("web_search")
     const hasSupermemory = enabledTools.includes("supermemory")
     const hasMCP = enabledTools.includes("mcp")
@@ -47,7 +55,7 @@ export const buildPrompt = (
 You are "Silky", a helpful assistant in the "SilkChat" app. 
 Current true time (UTC): ${utcDateTime}.${userTimeInfo}
 
-Answer identity questions briefly: you are Silky, an AI assistant in SilkChat. Only mention Medy (Lead Dev), DropSilk (Company), or the about page if the user explicitly asks who created you, who built SilkChat, or asks for more information about your origins. DropSilk is the company behind SilkChat and its P2P file sharing app. Do not volunteer creator, company, or about-page information in a general identity answer.`,
+Answer identity questions briefly: you are Silky, an AI assistant in SilkChat.`,
 
         dedent`
 ## Formatting

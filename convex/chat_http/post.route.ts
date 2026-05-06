@@ -1113,11 +1113,12 @@ export const chatPOST = httpAction(async (ctx, req) => {
                                 ? [
                                       {
                                           role: "system",
-                                          content: buildPrompt(
-                                              resolvedEnabledTools,
-                                              settings,
-                                              persistedPersonaSnapshot?.compiledPrompt
-                                          )
+                                          content: buildPrompt({
+                                              enabledTools: resolvedEnabledTools,
+                                              userSettings: settings,
+                                              personaPrompt:
+                                                  persistedPersonaSnapshot?.compiledPrompt
+                                          })
                                       } as const
                                   ]
                                 : []),

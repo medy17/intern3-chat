@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { DEFAULT_THEME_SANS_FONT_STACK } from "@/lib/theme-font-config"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 function createLocalStorage() {
@@ -46,6 +47,7 @@ describe("theme-store", () => {
         expect(selectedThemeUrl).toBeNull()
         expect(themeState.currentMode).toBe("dark")
         expect(isDefaultThemeCssVars(themeState.cssVars)).toBe(true)
+        expect(themeState.cssVars.theme["font-sans"]).toBe(DEFAULT_THEME_SANS_FONT_STACK)
         expect(themeState.cssVars.light.primary).toBe("oklch(0 0 0)")
     })
 

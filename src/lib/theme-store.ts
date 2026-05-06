@@ -1,3 +1,4 @@
+import { DEFAULT_THEME_SANS_FONT_STACK } from "@/lib/theme-font-config"
 import isEqual from "fast-deep-equal"
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
@@ -41,7 +42,7 @@ type PersistedThemeState = {
 export const VERCEL_THEME_PRESET = {
     cssVars: {
         theme: {
-            "font-sans": "Geist, sans-serif",
+            "font-sans": DEFAULT_THEME_SANS_FONT_STACK,
             "font-mono": "Geist Mono, monospace",
             "font-serif": "Georgia, serif",
             radius: "0.5rem",
@@ -85,7 +86,7 @@ export const VERCEL_THEME_PRESET = {
             "sidebar-accent-foreground": "oklch(0 0 0)",
             "sidebar-border": "oklch(0.9400 0 0)",
             "sidebar-ring": "oklch(0 0 0)",
-            "font-sans": "Geist, sans-serif",
+            "font-sans": DEFAULT_THEME_SANS_FONT_STACK,
             "font-serif": "Georgia, serif",
             "font-mono": "Geist Mono, monospace",
             "shadow-color": "hsl(0 0% 0%)",
@@ -144,7 +145,7 @@ export const VERCEL_THEME_PRESET = {
             "sidebar-accent-foreground": "oklch(1 0 0)",
             "sidebar-border": "oklch(0.3200 0 0)",
             "sidebar-ring": "oklch(0.7200 0 0)",
-            "font-sans": "Geist, sans-serif",
+            "font-sans": DEFAULT_THEME_SANS_FONT_STACK,
             "font-serif": "Georgia, serif",
             "font-mono": "Geist Mono, monospace",
             "shadow-color": "hsl(0 0% 0%)",

@@ -1,8 +1,10 @@
+import { T3_CHAT_THEME_URL, applyThemeFontOverrides } from "@/lib/theme-font-config"
+
 export const THEME_URLS = [
     "https://tweakcn.com/editor/theme?theme=mono",
     "https://tweakcn.com/themes/cmn60bwp8000004kzgfz9f93r",
     "https://tweakcn.com/themes/cmndaz3pj000604js33fr1gsk",
-    "https://tweakcn.com/editor/theme?theme=t3-chat",
+    T3_CHAT_THEME_URL,
     "https://tweakcn.com/editor/theme?theme=tangerine",
     "https://tweakcn.com/editor/theme?theme=perpetuity",
     "https://tweakcn.com/editor/theme?theme=modern-minimal",
@@ -65,7 +67,7 @@ export async function fetchThemeFromUrl(url: string): Promise<FetchedTheme> {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`)
         }
         const themeData = await response.json()
-        const themePreset = convertToThemePreset(themeData)
+        const themePreset = applyThemeFontOverrides(url, convertToThemePreset(themeData))
         const themeName = getThemeName(themeData, url)
         return {
             name: themeName,
