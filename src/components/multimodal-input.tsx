@@ -27,7 +27,7 @@ import { useVoiceRecorder } from "@/hooks/use-voice-recorder"
 import { resolveJwtToken } from "@/lib/auth-token"
 import { browserEnv, optionalBrowserEnv } from "@/lib/browser-env"
 import { type UploadedFile, useChatStore } from "@/lib/chat-store"
-import { getComposerWidthClass, useChatWidthStore } from "@/lib/chat-width-store"
+import { getChatWidthClass, useChatWidthStore } from "@/lib/chat-width-store"
 import { useDiskCachedQuery } from "@/lib/convex-cached-query"
 import { DefaultSettings } from "@/lib/default-user-settings"
 import {
@@ -1540,34 +1540,51 @@ export const MultimodalInput = forwardRef<
     }, [handlePaste, isActive])
 
     useEffect(() => {
-        if (!isClient) {
+        const composer = composerViewportRef.current
+        if (!composer) {
             return
         }
 
-        const updateComposerLift = () => {
-            const visualViewport = window.visualViewport
-            if (!visualViewport) {
-                setComposerLiftPx(0)
-                return
-            }
+        let frameId = 0
 
-            const keyboardInset = Math.max(
-                0,
-                window.innerHeight - visualViewport.height - visualViewport.offsetTop
-            )
-            setComposerLiftPx(keyboardInset > 0 ? Math.ceil(keyboardInset + 8) : 0)
+        const updateComposerLift = () => {
+            const rect = composer.getBoundingClientRect()
+            const viewportBottom = window.visualViewport
+                ? window.visualViewport.height + window.visualViewport.offsetTop
+                : window.innerHeight
+            const overlap = rect.bottom - (viewportBottom - 8)
+            setComposerLiftPx(overlap > 0 ? Math.ceil(overlap) : 0)
         }
+
+        const scheduleComposerLiftUpdate = () => {
+            cancelAnimationFrame(frameId)
+            frameId = requestAnimationFrame(updateComposerLift)
+        }
+
+        scheduleComposerLiftUpdate()
+
+        const resizeObserver =
+            typeof ResizeObserver === "undefined"
+                ? null
+                : new ResizeObserver(() => {
+                      scheduleComposerLiftUpdate()
+                  })
+
+        resizeObserver?.observe(composer)
 
         const viewport = window.visualViewport
-        updateComposerLift()
-        viewport?.addEventListener("resize", updateComposerLift)
-        viewport?.addEventListener("scroll", updateComposerLift)
+        viewport?.addEventListener("resize", scheduleComposerLiftUpdate)
+        viewport?.addEventListener("scroll", scheduleComposerLiftUpdate)
+        composer.addEventListener("focusin", scheduleComposerLiftUpdate)
 
         return () => {
-            viewport?.removeEventListener("resize", updateComposerLift)
-            viewport?.removeEventListener("scroll", updateComposerLift)
+            cancelAnimationFrame(frameId)
+            resizeObserver?.disconnect()
+            viewport?.removeEventListener("resize", scheduleComposerLiftUpdate)
+            viewport?.removeEventListener("scroll", scheduleComposerLiftUpdate)
+            composer.removeEventListener("focusin", scheduleComposerLiftUpdate)
         }
-    }, [isClient])
+    }, [])
 
     if (!isClient) return null
 
@@ -1580,7 +1597,7 @@ export const MultimodalInput = forwardRef<
                         onStop={stopRecording}
                         className={cn(
                             "mx-auto w-full",
-                            getComposerWidthClass(chatWidthState.chatWidth)
+                            getChatWidthClass(chatWidthState.chatWidth)
                         )}
                     />
                 </div>
@@ -1599,11 +1616,8 @@ export const MultimodalInput = forwardRef<
                 <PromptInput
                     ref={promptInputRef}
                     onSubmit={handleSubmit}
-                    maxHeight={320}
-                    className={cn(
-                        "mx-auto w-full",
-                        getComposerWidthClass(chatWidthState.chatWidth)
-                    )}
+                    maxHeight={240}
+                    className={cn("mx-auto w-full", getChatWidthClass(chatWidthState.chatWidth))}
                 >
                     {(extendedFiles.length > 0 || localUploadingFiles.length > 0) && (
                         <div className="flex flex-wrap gap-2 pb-3">
@@ -1619,7 +1633,7 @@ export const MultimodalInput = forwardRef<
                         }
                     />
 
-                    <PromptInputActions className="flex items-center gap-2 pt-3">
+                    <PromptInputActions className="flex items-center gap-2 pt-2">
                         <motion.div
                             layout
                             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
