@@ -1305,19 +1305,6 @@ export const MultimodalInput = forwardRef<
             if (!hasText && files.length === 0) {
                 e.preventDefault()
             }
-
-            // THE FIX: Override native caret-scrolling to bring the
-            // entire composer block (including buttons) into view.
-            if (hasText) {
-                setTimeout(() => {
-                    if (composerViewportRef.current) {
-                        composerViewportRef.current.scrollIntoView({
-                            behavior: "smooth",
-                            block: "end"
-                        })
-                    }
-                }, 100) // Wait 100ms for browser DOM repaint/scroll to finish
-            }
         },
         [handleFileUpload]
     )
@@ -1653,9 +1640,10 @@ export const MultimodalInput = forwardRef<
                                 ? "Describe the image you want to generate..."
                                 : "Ask me anything..."
                         }
+                        className="pb-12"
                     />
 
-                    <PromptInputActions className="flex items-center gap-2 pt-2">
+                    <PromptInputActions className="-mt-12 relative z-10 flex items-center gap-2 pt-2">
                         <motion.div
                             layout
                             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
