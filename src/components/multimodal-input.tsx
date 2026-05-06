@@ -1549,9 +1549,8 @@ export const MultimodalInput = forwardRef<
 
         const updateComposerLift = () => {
             const rect = composer.getBoundingClientRect()
-            const viewportBottom = window.visualViewport
-                ? window.visualViewport.height + window.visualViewport.offsetTop
-                : window.innerHeight
+            const visualViewport = window.visualViewport
+            const viewportBottom = visualViewport ? visualViewport.height : window.innerHeight
             const overlap = rect.bottom - (viewportBottom - 8)
             setComposerLiftPx(overlap > 0 ? Math.ceil(overlap) : 0)
         }
