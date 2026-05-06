@@ -107,7 +107,11 @@ const IMAGE_COMPRESSION_STEPS = [
     { quality: 0.56, maxDimension: 2048 }
 ] as const
 
-export const AspectRatioSelector = ({ selectedModel }: { selectedModel: string | null }) => {
+export const AspectRatioSelector = ({
+    selectedModel
+}: {
+    selectedModel: string | null
+}) => {
     const { selectedImageSize, setSelectedImageSize } = useModelStore()
     const { models: sharedModels } = useSharedModels()
 
@@ -117,12 +121,9 @@ export const AspectRatioSelector = ({ selectedModel }: { selectedModel: string |
         return model?.supportedImageSizes || []
     }, [selectedModel, sharedModels])
 
-    // Auto-select a valid image size when the model changes
     useEffect(() => {
         if (supportedImageSizes.length > 0) {
-            // Check if current selection is supported
             if (!supportedImageSizes.includes(selectedImageSize)) {
-                // Try "1:1" first, otherwise pick the first supported size
                 const defaultSize = supportedImageSizes.includes("1:1" as ImageSize)
                     ? ("1:1" as ImageSize)
                     : supportedImageSizes[0]
@@ -132,7 +133,6 @@ export const AspectRatioSelector = ({ selectedModel }: { selectedModel: string |
     }, [supportedImageSizes, selectedImageSize, setSelectedImageSize])
 
     const formatImageSizeForDisplay = (size: string) => {
-        // Convert resolution format (1024x1024) to aspect ratio (1:1)
         if (size.includes("x")) {
             const [width, height] = size.split("x").map(Number)
             const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b))
@@ -140,7 +140,6 @@ export const AspectRatioSelector = ({ selectedModel }: { selectedModel: string |
             return `${width / divisor}:${height / divisor}`
         }
 
-        // Handle HD variants
         if (size.endsWith("-hd")) {
             return size.replace("-hd", " (HD)")
         }
@@ -168,7 +167,11 @@ export const AspectRatioSelector = ({ selectedModel }: { selectedModel: string |
     )
 }
 
-export const ImageResolutionSelector = ({ selectedModel }: { selectedModel: string | null }) => {
+export const ImageResolutionSelector = ({
+    selectedModel
+}: {
+    selectedModel: string | null
+}) => {
     const { selectedImageResolution, setSelectedImageResolution } = useModelStore()
     const { models: sharedModels } = useSharedModels()
 
@@ -739,7 +742,7 @@ export const MultimodalInput = forwardRef<
     } | null>(null)
     const [dialogOpen, setDialogOpen] = useState(false)
     const [extendedFiles, setExtendedFiles] = useState<ExtendedUploadedFile[]>([])
-    const [composerLiftPx, setComposerLiftPx] = useState(0)
+
     const userSettings = useDiskCachedQuery(
         api.settings.getUserSettings,
         {
@@ -758,28 +761,24 @@ export const MultimodalInput = forwardRef<
         },
         session.user?.id && !auth.isLoading ? {} : "skip"
     )
-    // Voice recording state
+
     const {
         state: voiceState,
         startRecording,
         stopRecording
     } = useVoiceRecorder({
         onTranscript: (text: string) => {
-            // Insert transcribed text into the input
             if (promptInputRef.current) {
                 const currentValue = promptInputRef.current.getValue()
                 const newValue = currentValue ? `${currentValue} ${text}` : text
                 promptInputRef.current.setValue(newValue)
-                // Save to localStorage like the existing system does
                 localStorage.setItem("user-input", newValue)
                 promptInputRef.current.focus()
-                // Update our input value state
                 setInputValue(newValue)
             }
         }
     })
 
-    // Check if current model supports vision and is image model
     const selectedSharedModel = useMemo(
         () => sharedModels.find((model) => model.id === selectedModel),
         [selectedModel, sharedModels]
@@ -885,28 +884,23 @@ export const MultimodalInput = forwardRef<
 
         promptInputRef.current?.clear()
         localStorage.removeItem("user-input")
-        setInputValue("") // Update our state too
+        setInputValue("")
         onSubmit(inputValue, uploadedFiles)
     }
 
-    // Check if input is empty for mic button display
     const [inputValue, setInputValue] = useState("")
     const isInputEmpty = !inputValue.trim()
     const voiceInputEnabled = optionalBrowserEnv("VITE_ENABLE_VOICE_INPUT") === "true"
 
-    // Listen to input changes by checking the prompt input value periodically
-    // This is simpler and avoids accessing internal refs
     useEffect(() => {
         const checkInputValue = () => {
             const value = promptInputRef.current?.getValue() || ""
             setInputValue(value)
         }
 
-        // Check initial value from localStorage
         const initialValue = localStorage.getItem("user-input") || ""
         setInputValue(initialValue)
 
-        // Check periodically for changes
         const interval = setInterval(checkInputValue, 200)
         return () => clearInterval(interval)
     }, [])
@@ -1070,7 +1064,6 @@ export const MultimodalInput = forwardRef<
         async (filesToUpload: File[]) => {
             if (filesToUpload.length === 0) return
 
-            // Synchronous instant validation
             const syncErrors: string[] = []
             const validFiles: File[] = []
 
@@ -1101,7 +1094,6 @@ export const MultimodalInput = forwardRef<
 
             if (validFiles.length === 0) return
 
-            // Create local state entries immediately to show UI at 0%
             const newLocalFiles = validFiles.map((file) => {
                 const id = Math.random().toString(36).substring(7)
                 let previewUrl: string | undefined
@@ -1126,13 +1118,11 @@ export const MultimodalInput = forwardRef<
             setLocalUploadingFiles((prev) => [...prev, ...newLocalFiles])
             setUploading(true)
 
-            // Start uploads concurrently, doing heavy validation/compression first
             newLocalFiles.forEach(async (localFile) => {
                 let fileToUpload = localFile.file
                 const fileTypeInfo = getFileTypeInfo(fileToUpload.name, fileToUpload.type)
 
                 try {
-                    // Heavy validation and compression step
                     if (fileTypeInfo.isVisionImage && fileToUpload.size > MAX_FILE_SIZE) {
                         try {
                             fileToUpload = await compressImageIfNeeded(fileToUpload)
@@ -1151,7 +1141,9 @@ export const MultimodalInput = forwardRef<
                             const tokenCount = estimateTokenCount(content)
                             if (tokenCount > MAX_TOKENS_PER_FILE) {
                                 throw new Error(
-                                    `${fileToUpload.name}: File exceeds ${MAX_TOKENS_PER_FILE.toLocaleString()} token limit`
+                                    `${
+                                        fileToUpload.name
+                                    }: File exceeds ${MAX_TOKENS_PER_FILE.toLocaleString()} token limit`
                                 )
                             }
                         } catch (error) {
@@ -1162,19 +1154,16 @@ export const MultimodalInput = forwardRef<
                         }
                     }
 
-                    // Actual upload network request
                     const result = await uploadFileWithProgress(fileToUpload, (progress) => {
                         setLocalUploadingFiles((prev) =>
                             prev.map((f) => (f.id === localFile.id ? { ...f, progress } : f))
                         )
                     })
 
-                    // Force 100% progress state
                     setLocalUploadingFiles((prev) =>
                         prev.map((f) => (f.id === localFile.id ? { ...f, progress: 100 } : f))
                     )
 
-                    // Read content for preview if needed concurrently
                     if (result.file) {
                         const content = await readFileContent(result.file)
                         setFileContents((prev) => ({
@@ -1183,25 +1172,20 @@ export const MultimodalInput = forwardRef<
                         }))
                     }
 
-                    // Wait 500ms at 100% state
                     await new Promise((resolve) => setTimeout(resolve, 500))
 
-                    // Mark as success and show checkmark
                     setLocalUploadingFiles((prev) =>
                         prev.map((f) => (f.id === localFile.id ? { ...f, status: "success" } : f))
                     )
 
-                    // Add a delay so the user sees the checkmark state
                     await new Promise((resolve) => setTimeout(resolve, 500))
 
                     addUploadedFile(result)
 
-                    // Clean up object url
                     if (localFile.previewUrl) {
                         URL.revokeObjectURL(localFile.previewUrl)
                     }
 
-                    // Remove from local uploading state
                     setLocalUploadingFiles((prev) => {
                         const next = prev.filter((f) => f.id !== localFile.id)
                         if (next.length === 0) {
@@ -1221,7 +1205,6 @@ export const MultimodalInput = forwardRef<
                         )
                     )
 
-                    // Remove failed uploads after a longer delay
                     setTimeout(() => {
                         if (localFile.previewUrl) {
                             URL.revokeObjectURL(localFile.previewUrl)
@@ -1400,7 +1383,9 @@ export const MultimodalInput = forwardRef<
                                         >
                                             <div
                                                 className="h-full bg-primary transition-all duration-200"
-                                                style={{ width: `${localFile.progress}%` }}
+                                                style={{
+                                                    width: `${localFile.progress}%`
+                                                }}
                                             />
                                         </div>
                                     </div>
@@ -1424,7 +1409,7 @@ export const MultimodalInput = forwardRef<
 
     const renderFilePreview = (uploadedFile: ExtendedUploadedFile) => {
         const content = fileContents[uploadedFile.key]
-        const { isImage, isText } = getFileType(uploadedFile)
+        const { isImage } = getFileType(uploadedFile)
 
         return (
             <div key={uploadedFile.key} className="group relative">
@@ -1539,62 +1524,6 @@ export const MultimodalInput = forwardRef<
         return () => document.removeEventListener("paste", handleGlobalPaste)
     }, [handlePaste, isActive])
 
-    useEffect(() => {
-        const composer = composerViewportRef.current
-        if (!composer) {
-            return
-        }
-
-        let frameId = 0
-
-        const updateComposerLift = () => {
-            let currentLift = 0
-            const mb = composer.style.marginBottom
-            if (mb?.endsWith("px")) {
-                currentLift = Number.parseFloat(mb)
-            }
-
-            const rect = composer.getBoundingClientRect()
-            const unTransformedBottom = rect.bottom + currentLift
-
-            const viewportBottom = window.visualViewport
-                ? window.visualViewport.height + window.visualViewport.offsetTop
-                : window.innerHeight
-
-            const overlap = unTransformedBottom - (viewportBottom - 8)
-            setComposerLiftPx(overlap > 0 ? Math.ceil(overlap) : 0)
-        }
-
-        const scheduleComposerLiftUpdate = () => {
-            cancelAnimationFrame(frameId)
-            frameId = requestAnimationFrame(updateComposerLift)
-        }
-
-        scheduleComposerLiftUpdate()
-
-        const resizeObserver =
-            typeof ResizeObserver === "undefined"
-                ? null
-                : new ResizeObserver(() => {
-                      scheduleComposerLiftUpdate()
-                  })
-
-        resizeObserver?.observe(composer)
-
-        const viewport = window.visualViewport
-        viewport?.addEventListener("resize", scheduleComposerLiftUpdate)
-        viewport?.addEventListener("scroll", scheduleComposerLiftUpdate)
-        composer.addEventListener("focusin", scheduleComposerLiftUpdate)
-
-        return () => {
-            cancelAnimationFrame(frameId)
-            resizeObserver?.disconnect()
-            viewport?.removeEventListener("resize", scheduleComposerLiftUpdate)
-            viewport?.removeEventListener("scroll", scheduleComposerLiftUpdate)
-            composer.removeEventListener("focusin", scheduleComposerLiftUpdate)
-        }
-    }, [])
-
     if (!isClient) return null
 
     return (
@@ -1637,10 +1566,9 @@ export const MultimodalInput = forwardRef<
                                 ? "Describe the image you want to generate..."
                                 : "Ask me anything..."
                         }
-                        className="pb-12"
                     />
 
-                    <PromptInputActions className="-mt-12 relative z-10 flex items-center gap-2 pt-2">
+                    <PromptInputActions className="flex items-center gap-2 pt-2">
                         <motion.div
                             layout
                             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
@@ -1649,7 +1577,10 @@ export const MultimodalInput = forwardRef<
                             {selectedModel && (
                                 <motion.div
                                     layout
-                                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                                    transition={{
+                                        duration: 0.2,
+                                        ease: [0.16, 1, 0.3, 1]
+                                    }}
                                     className="shrink-0"
                                 >
                                     <ModelSelector
@@ -1661,10 +1592,12 @@ export const MultimodalInput = forwardRef<
                             )}
                             <PersonaSelector threadId={threadId} />
 
-                            {/* Desktop: Show everything inline */}
                             <motion.div
                                 layout
-                                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                                transition={{
+                                    duration: 0.2,
+                                    ease: [0.16, 1, 0.3, 1]
+                                }}
                                 className="hidden items-center gap-2 sm:flex"
                             >
                                 {modelSupportsImageSizing && (
@@ -1724,7 +1657,6 @@ export const MultimodalInput = forwardRef<
                             </motion.div>
                         </motion.div>
 
-                        {/* Mobile-only overflow actions stay on the right edge to keep menu content on-screen. */}
                         {(modelSupportsImageSizing ||
                             modelSupportsImageResolution ||
                             !isImageModel ||
