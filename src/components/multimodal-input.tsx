@@ -1549,10 +1549,9 @@ export const MultimodalInput = forwardRef<
 
         const updateComposerLift = () => {
             let currentLift = 0
-            const transform = composer.style.transform
-            if (transform?.includes("translateY(-")) {
-                const match = transform.match(/translateY\(-([\d.]+)px\)/)
-                if (match) currentLift = Number.parseFloat(match[1])
+            const mb = composer.style.marginBottom
+            if (mb?.endsWith("px")) {
+                currentLift = Number.parseFloat(mb)
             }
 
             const rect = composer.getBoundingClientRect()
@@ -1620,7 +1619,7 @@ export const MultimodalInput = forwardRef<
                     (voiceState.isRecording || voiceState.isTranscribing) && "hidden"
                 )}
                 style={{
-                    transform: composerLiftPx > 0 ? `translateY(-${composerLiftPx}px)` : undefined
+                    marginBottom: composerLiftPx > 0 ? `${composerLiftPx}px` : undefined
                 }}
             >
                 <PromptInput
