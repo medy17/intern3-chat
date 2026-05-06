@@ -1305,6 +1305,19 @@ export const MultimodalInput = forwardRef<
             if (!hasText && files.length === 0) {
                 e.preventDefault()
             }
+
+            // THE FIX: Override native caret-scrolling to bring the
+            // entire composer block (including buttons) into view.
+            if (hasText) {
+                setTimeout(() => {
+                    if (composerViewportRef.current) {
+                        composerViewportRef.current.scrollIntoView({
+                            behavior: "smooth",
+                            block: "end"
+                        })
+                    }
+                }, 100) // Wait 100ms for browser DOM repaint/scroll to finish
+            }
         },
         [handleFileUpload]
     )
