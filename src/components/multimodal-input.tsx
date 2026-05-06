@@ -1548,14 +1548,21 @@ export const MultimodalInput = forwardRef<
         let frameId = 0
 
         const updateComposerLift = () => {
-            const originalTransform = composer.style.transform
-            composer.style.transform = "none"
+            let currentLift = 0
+            const transform = composer.style.transform
+            if (transform?.includes("translateY(-")) {
+                const match = transform.match(/translateY\(-([\d.]+)px\)/)
+                if (match) currentLift = Number.parseFloat(match[1])
+            }
+
             const rect = composer.getBoundingClientRect()
+            const unTransformedBottom = rect.bottom + currentLift
+
             const viewportBottom = window.visualViewport
                 ? window.visualViewport.height + window.visualViewport.offsetTop
                 : window.innerHeight
-            const overlap = rect.bottom - (viewportBottom - 8)
-            composer.style.transform = originalTransform
+
+            const overlap = unTransformedBottom - (viewportBottom - 8)
             setComposerLiftPx(overlap > 0 ? Math.ceil(overlap) : 0)
         }
 
