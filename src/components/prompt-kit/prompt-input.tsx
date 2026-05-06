@@ -29,7 +29,7 @@ export function applyPromptTextareaSize(
     if (typeof maxHeight === "number") {
         const nextHeight = Math.min(textarea.scrollHeight, maxHeight)
         textarea.style.height = `${nextHeight}px`
-        textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden"
+        textarea.style.overflowY = "auto"
         return
     }
 
@@ -63,7 +63,6 @@ function usePromptInput() {
 
 export type PromptInputRef = {
     getValue: () => string
-    getTextareaElement: () => HTMLTextAreaElement | null
     setValue: (value: string) => void
     clear: () => void
     focus: () => void
@@ -112,7 +111,6 @@ const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(
             ref,
             () => ({
                 getValue: () => textareaRef.current?.value || "",
-                getTextareaElement: () => textareaRef.current,
                 setValue: (value: string) => {
                     if (textareaRef.current) {
                         textareaRef.current.value = value
@@ -234,7 +232,7 @@ function PromptInputTextarea({
             onKeyDown={handleKeyDown}
             onInput={handleInput}
             className={cn(
-                "field-sizing-fixed min-h-[3.5rem] w-full resize-none overflow-y-auto border-none bg-transparent text-foreground shadow-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0 md:min-h-[4rem]",
+                "field-sizing-fixed min-h-[3.5rem] w-full resize-none overflow-y-auto overscroll-y-contain border-none bg-transparent text-foreground shadow-none outline-none [scroll-padding-bottom:var(--chat-composer-overlap)] focus-visible:ring-0 focus-visible:ring-offset-0 md:min-h-[4rem]",
                 className
             )}
             rows={1}

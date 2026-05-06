@@ -1545,13 +1545,11 @@ export const MultimodalInput = forwardRef<
         }
 
         const composer = composerViewportRef.current
-        const textarea = promptInputRef.current?.getTextareaElement()
-        if (!composer || !textarea) {
+        if (!composer) {
             return
         }
 
         let frameId = 0
-        let visibilityFrameId = 0
 
         const updateComposerLift = () => {
             const rect = composer.getBoundingClientRect()
@@ -1566,61 +1564,30 @@ export const MultimodalInput = forwardRef<
             frameId = requestAnimationFrame(updateComposerLift)
         }
 
-        const scheduleComposerReanchor = () => {
-            cancelAnimationFrame(visibilityFrameId)
-            visibilityFrameId = requestAnimationFrame(() => {
-                visibilityFrameId = requestAnimationFrame(() => {
-                    if (document.activeElement !== textarea) {
-                        return
-                    }
-
-                    const visualViewport = window.visualViewport
-                    const viewportBottom = visualViewport
-                        ? visualViewport.height
-                        : window.innerHeight
-                    const rect = composer.getBoundingClientRect()
-
-                    if (rect.bottom > viewportBottom - 8) {
-                        composer.scrollIntoView({
-                            block: "end",
-                            inline: "nearest"
-                        })
-                        scheduleComposerLiftUpdate()
-                    }
-                })
-            })
-        }
-
-        const syncComposerPosition = () => {
-            scheduleComposerLiftUpdate()
-            scheduleComposerReanchor()
-        }
-
-        syncComposerPosition()
+        scheduleComposerLiftUpdate()
 
         const resizeObserver =
             typeof ResizeObserver === "undefined"
                 ? null
                 : new ResizeObserver(() => {
-                      syncComposerPosition()
+                      scheduleComposerLiftUpdate()
                   })
 
         resizeObserver?.observe(composer)
 
         const viewport = window.visualViewport
-        viewport?.addEventListener("resize", syncComposerPosition)
-        viewport?.addEventListener("scroll", syncComposerPosition)
-        composer.addEventListener("focusin", syncComposerPosition)
-        textarea.addEventListener("scroll", syncComposerPosition)
+        viewport?.addEventListener("resize", scheduleComposerLiftUpdate)
+        viewport?.addEventListener("scroll", scheduleComposerLiftUpdate)
+        window.addEventListener("scroll", scheduleComposerLiftUpdate, { passive: true })
+        composer.addEventListener("focusin", scheduleComposerLiftUpdate)
 
         return () => {
             cancelAnimationFrame(frameId)
-            cancelAnimationFrame(visibilityFrameId)
             resizeObserver?.disconnect()
-            viewport?.removeEventListener("resize", syncComposerPosition)
-            viewport?.removeEventListener("scroll", syncComposerPosition)
-            composer.removeEventListener("focusin", syncComposerPosition)
-            textarea.removeEventListener("scroll", syncComposerPosition)
+            viewport?.removeEventListener("resize", scheduleComposerLiftUpdate)
+            viewport?.removeEventListener("scroll", scheduleComposerLiftUpdate)
+            window.removeEventListener("scroll", scheduleComposerLiftUpdate)
+            composer.removeEventListener("focusin", scheduleComposerLiftUpdate)
         }
     }, [isClient])
 
