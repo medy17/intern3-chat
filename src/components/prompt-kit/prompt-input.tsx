@@ -162,7 +162,7 @@ const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(
                     <div
                         data-slot="prompt-input-root"
                         className={cn(
-                            "rounded-t-lg border-2 border-input bg-background/80 p-2 shadow-xs backdrop-blur-lg md:rounded-lg dark:bg-input/70",
+                            "rounded-t-lg border-2 border-input bg-background/80 p-3 shadow-xs backdrop-blur-lg md:rounded-lg dark:bg-input/70",
                             className
                         )}
                     >
@@ -232,7 +232,7 @@ function PromptInputTextarea({
             onKeyDown={handleKeyDown}
             onInput={handleInput}
             className={cn(
-                "field-sizing-fixed min-h-[2.75rem] w-full resize-none overflow-y-auto border-none bg-transparent text-foreground shadow-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
+                "field-sizing-fixed min-h-[3.5rem] w-full resize-none overflow-y-auto border-none bg-transparent text-foreground shadow-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0 md:min-h-[4rem]",
                 className
             )}
             rows={1}

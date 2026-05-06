@@ -40,3 +40,14 @@ export const getChatWidthClass = (chatWidth: ChatWidth) => {
             return "max-w-2xl"
     }
 }
+
+export const getComposerWidthClass = (chatWidth: ChatWidth) => {
+    switch (chatWidth) {
+        case "normal":
+            return "max-w-3xl"
+        case "wider":
+            return "max-w-5xl"
+        default:
+            return "max-w-3xl"
+    }
+}

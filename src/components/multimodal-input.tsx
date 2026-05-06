@@ -27,7 +27,7 @@ import { useVoiceRecorder } from "@/hooks/use-voice-recorder"
 import { resolveJwtToken } from "@/lib/auth-token"
 import { browserEnv, optionalBrowserEnv } from "@/lib/browser-env"
 import { type UploadedFile, useChatStore } from "@/lib/chat-store"
-import { getChatWidthClass, useChatWidthStore } from "@/lib/chat-width-store"
+import { getComposerWidthClass, useChatWidthStore } from "@/lib/chat-width-store"
 import { useDiskCachedQuery } from "@/lib/convex-cached-query"
 import { DefaultSettings } from "@/lib/default-user-settings"
 import {
@@ -1597,7 +1597,7 @@ export const MultimodalInput = forwardRef<
                         onStop={stopRecording}
                         className={cn(
                             "mx-auto w-full",
-                            getChatWidthClass(chatWidthState.chatWidth)
+                            getComposerWidthClass(chatWidthState.chatWidth)
                         )}
                     />
                 </div>
@@ -1616,8 +1616,11 @@ export const MultimodalInput = forwardRef<
                 <PromptInput
                     ref={promptInputRef}
                     onSubmit={handleSubmit}
-                    maxHeight={240}
-                    className={cn("mx-auto w-full", getChatWidthClass(chatWidthState.chatWidth))}
+                    maxHeight={320}
+                    className={cn(
+                        "mx-auto w-full",
+                        getComposerWidthClass(chatWidthState.chatWidth)
+                    )}
                 >
                     {(extendedFiles.length > 0 || localUploadingFiles.length > 0) && (
                         <div className="flex flex-wrap gap-2 pb-3">
@@ -1633,7 +1636,7 @@ export const MultimodalInput = forwardRef<
                         }
                     />
 
-                    <PromptInputActions className="flex items-center gap-2 pt-2">
+                    <PromptInputActions className="flex items-center gap-2 pt-3">
                         <motion.div
                             layout
                             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}

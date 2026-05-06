@@ -1019,7 +1019,7 @@ export const Messages = forwardRef<
     return (
         <>
             <div
-                className="min-h-[90dvh] overflow-y-auto p-4 pt-0 [overflow-anchor:none]"
+                className="min-h-[90dvh] overflow-y-auto p-4 pt-0 [overflow-anchor:none] md:[scrollbar-gutter:stable_both-edges]"
                 ref={scrollerRef}
             >
                 <div
