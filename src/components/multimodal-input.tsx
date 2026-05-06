@@ -1544,50 +1544,28 @@ export const MultimodalInput = forwardRef<
             return
         }
 
-        const composer = composerViewportRef.current
-        if (!composer) {
-            return
-        }
-
-        let frameId = 0
-
         const updateComposerLift = () => {
-            const rect = composer.getBoundingClientRect()
             const visualViewport = window.visualViewport
-            const viewportBottom = visualViewport ? visualViewport.height : window.innerHeight
-            const overlap = rect.bottom - (viewportBottom - 8)
-            setComposerLiftPx(overlap > 0 ? Math.ceil(overlap) : 0)
+            if (!visualViewport) {
+                setComposerLiftPx(0)
+                return
+            }
+
+            const keyboardInset = Math.max(
+                0,
+                window.innerHeight - visualViewport.height - visualViewport.offsetTop
+            )
+            setComposerLiftPx(keyboardInset > 0 ? Math.ceil(keyboardInset + 8) : 0)
         }
-
-        const scheduleComposerLiftUpdate = () => {
-            cancelAnimationFrame(frameId)
-            frameId = requestAnimationFrame(updateComposerLift)
-        }
-
-        scheduleComposerLiftUpdate()
-
-        const resizeObserver =
-            typeof ResizeObserver === "undefined"
-                ? null
-                : new ResizeObserver(() => {
-                      scheduleComposerLiftUpdate()
-                  })
-
-        resizeObserver?.observe(composer)
 
         const viewport = window.visualViewport
-        viewport?.addEventListener("resize", scheduleComposerLiftUpdate)
-        viewport?.addEventListener("scroll", scheduleComposerLiftUpdate)
-        window.addEventListener("scroll", scheduleComposerLiftUpdate, { passive: true })
-        composer.addEventListener("focusin", scheduleComposerLiftUpdate)
+        updateComposerLift()
+        viewport?.addEventListener("resize", updateComposerLift)
+        viewport?.addEventListener("scroll", updateComposerLift)
 
         return () => {
-            cancelAnimationFrame(frameId)
-            resizeObserver?.disconnect()
-            viewport?.removeEventListener("resize", scheduleComposerLiftUpdate)
-            viewport?.removeEventListener("scroll", scheduleComposerLiftUpdate)
-            window.removeEventListener("scroll", scheduleComposerLiftUpdate)
-            composer.removeEventListener("focusin", scheduleComposerLiftUpdate)
+            viewport?.removeEventListener("resize", updateComposerLift)
+            viewport?.removeEventListener("scroll", updateComposerLift)
         }
     }, [isClient])
 

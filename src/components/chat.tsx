@@ -203,14 +203,7 @@ const ChatContent = ({ threadId: routeThreadId, folderId, isActiveRoute = true }
                 className={
                     isEmpty
                         ? "absolute inset-0 z-[10] flex flex-col items-center justify-center gap-8 px-4"
-                        : "md:-bottom-10 absolute inset-x-0 z-[10] flex flex-col items-center justify-center"
-                }
-                style={
-                    isEmpty
-                        ? undefined
-                        : {
-                              bottom: "calc(-1 * var(--chat-composer-overlap))"
-                          }
+                        : "absolute inset-x-0 bottom-0 z-[10] flex flex-col items-center justify-center md:[bottom:calc(-1*var(--chat-composer-overlap))]"
                 }
             >
                 <AnimatePresence initial={false} mode="sync">
