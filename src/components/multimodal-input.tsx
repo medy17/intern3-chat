@@ -1618,9 +1618,6 @@ export const MultimodalInput = forwardRef<
                     "@container w-full px-1",
                     (voiceState.isRecording || voiceState.isTranscribing) && "hidden"
                 )}
-                style={{
-                    marginBottom: composerLiftPx > 0 ? `${composerLiftPx}px` : undefined
-                }}
             >
                 <PromptInput
                     ref={promptInputRef}
