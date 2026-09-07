@@ -13,7 +13,7 @@
 #### Frontend
 
 - **Shared chat controller.** Move the common model, message, composer, retry, and thread-sync behavior out of `chat.tsx` and `folder-chat.tsx`. Keep only the thread/folder differences in those components.
-- **Shared image viewer.** Reuse loading, source fallback, responsive layout, copy, download, archive, restore, and delete behavior across the library and image modals.
+- **Shared image viewer (partially completed).** Details and comparison now share load/cache/timer handling while retaining their different reveal timing and source order. Both modals and the library context menu share prompt copying and original-file downloads. Responsive layouts, private-viewing state, comparison gestures, and archive/restore/delete callbacks remain local; review those separately before extracting any further common behavior. Scope is SilkScreen and its image modals, not the landing-page lightbox or artifact viewers.
 
 ### Completed:
 

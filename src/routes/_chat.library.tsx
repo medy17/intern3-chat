@@ -77,6 +77,8 @@ import {
     getLibraryImageSources
 } from "@/lib/generated-image-urls"
 import { ImageMetadataProvider, useImageMetadata } from "@/lib/image-metadata-context"
+import { downloadViewerImage } from "@/lib/image-viewer-download"
+import { copyViewerPrompt } from "@/lib/image-viewer-clipboard"
 import {
     DEFAULT_LIBRARY_FILTERS,
     DEFAULT_LIBRARY_SEARCH,
@@ -753,7 +755,7 @@ const GeneratedImageItem = memo(
         })
 
         const handleDownload = () => {
-            window.open(fullResolutionUrl, "_blank")
+            void downloadViewerImage({ url: fullResolutionUrl, storageKey: image.storageKey })
         }
 
         const handleCopyImage = async () => {
@@ -773,10 +775,7 @@ const GeneratedImageItem = memo(
         }
 
         const handleCopyPrompt = () => {
-            if (image.prompt) {
-                navigator.clipboard.writeText(image.prompt)
-                toast.success("Prompt copied to clipboard")
-            }
+            void copyViewerPrompt({ prompt: image.prompt, trim: false, reportEmpty: false })
         }
 
         const handleViewFullResolution = () => {

@@ -112,6 +112,22 @@ favorites using its normal model rows, including the same plan and attachment re
 Only Retry's Favorites rows show provider logos: that submenu mixes providers. Provider-specific
 submenus omit row logos because their parent entry already identifies the provider.
 
+### Image viewers
+
+- SilkScreen details (also opened from chat) and comparison share `useImageViewerLoad` for cached
+  loads, reveal timers, and cleanup. Keep their caches separate: details reveals over 240 ms;
+  comparison shows a loaded image immediately.
+- Keep source order explicit: details prefers the optimized image, then the original; comparison
+  prefers full resolution, then the optimized image. Both use `generated-image-recovery.ts`.
+- Modal Copy Prompt feedback uses `useImageViewerActions`. The library context menu and modals
+  share `copyViewerPrompt` and `downloadViewerImage`. Modal prompts are trimmed; context-menu
+  prompts retain their original text. Only show copy success after the clipboard write succeeds.
+- Download saves original bytes with the stored filename. Full Resolution opens a new tab.
+- Keep responsive layout, comparison zoom/slider behaviour, private viewing, confirmations, and
+  archive/restore/delete callbacks local unless their semantics genuinely match. Do not add
+  mutation controls to comparison or change when the library hides an item or closes a modal.
+- The landing-page lightbox and artifact viewers are separate variants, outside this extraction.
+
 ### State
 
 | Kind of state | Owner |

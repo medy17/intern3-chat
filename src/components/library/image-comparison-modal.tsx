@@ -1,3 +1,5 @@
+import { useImageViewerLoad } from "@/hooks/use-image-viewer-load"
+import { useImageViewerActions } from "@/hooks/use-image-viewer-actions"
 import { ImageLoadIndicator } from "@/components/library/image-load-indicator"
 import { ImageMetadataPanel } from "@/components/library/image-metadata-panel"
 import { Button } from "@/components/ui/button"
@@ -23,7 +25,7 @@ import {
 } from "@/lib/generated-image-urls"
 import { fitImageAspectRatioBox, getImageAspectRatioValue } from "@/lib/image-aspect-ratios"
 import { useSharedModels } from "@/lib/shared-models"
-import { cn, downloadUrl } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import {
     ArrowLeftRight,
     Check,
@@ -46,7 +48,6 @@ import {
     useRef,
     useState
 } from "react"
-import { toast } from "sonner"
 
 type GeneratedImage = Doc<"generatedImages">
 
@@ -71,7 +72,6 @@ const DOUBLE_CLICK_SCALE = 2.5
 const WHEEL_ZOOM_SENSITIVITY = 0.0015
 const INITIAL_SLIDER_PERCENT = 50
 const SLIDER_KEYBOARD_STEP = 5
-const COPY_FEEDBACK_MS = 1500
 // Metadata panels are hidden below Tailwind's md breakpoint.
 const METADATA_PANEL_BREAKPOINT = 768
 const METADATA_PANEL_MIN_HEIGHT = 288
@@ -174,8 +174,6 @@ function ComparisonImage({
     clipPercent?: number
 }) {
     const [recoveryPhase, setRecoveryPhase] = useState<GeneratedImageRecoveryPhase>("primary")
-    const [isLoaded, setIsLoaded] = useState(false)
-    const imageRef = useRef<HTMLImageElement | null>(null)
 
     useEffect(() => {
         setRecoveryPhase("primary")
@@ -191,43 +189,20 @@ function ComparisonImage({
     })
     const renderedUrl = renderedSource.src
 
-    // Cached images can finish before onLoad attaches (mode switches remount
-    // this component), which would leave the blur state stuck forever. Sync
-    // from the element like the details modal does.
-    useEffect(() => {
-        if (loadedComparisonImageUrls.has(renderedUrl)) {
-            setIsLoaded(true)
-            return
-        }
-
-        setIsLoaded(false)
-
-        const frame = window.requestAnimationFrame(() => {
-            const element = imageRef.current
-            if (element?.complete && element.naturalWidth > 0) {
-                loadedComparisonImageUrls.add(renderedUrl)
-                setIsLoaded(true)
-            }
-        })
-
-        return () => window.cancelAnimationFrame(frame)
-    }, [renderedUrl])
-
-    const handleLoad = () => {
-        loadedComparisonImageUrls.add(renderedUrl)
-        setIsLoaded(true)
-    }
-
+    const {
+        imageRef,
+        loadState,
+        handleImageLoad: handleLoad,
+        handleImageFailure
+    } = useImageViewerLoad({
+        url: renderedUrl,
+        cache: loadedComparisonImageUrls
+    })
+    const isLoaded = loadState === "ready"
     const handleError = () => {
-        loadedComparisonImageUrls.delete(renderedUrl)
-
         const nextPhase = getNextGeneratedImageRecoveryPhase(recoveryPhase)
-        if (nextPhase === "error") {
-            setIsLoaded(true)
-            return
-        }
-
-        setRecoveryPhase(nextPhase)
+        handleImageFailure(nextPhase !== "error")
+        if (nextPhase !== "error") setRecoveryPhase(nextPhase)
     }
 
     return (
@@ -287,47 +262,14 @@ function PaneBadge({
 
 function PanelActions({ image, label }: { image: GeneratedImage; label: "A" | "B" }) {
     const { fullResolutionUrl } = getComparisonImageUrls(image)
-    const [isPromptCopied, setIsPromptCopied] = useState(false)
-    const copyPromptTimeoutRef = useRef<number | null>(null)
-
-    useEffect(() => {
-        return () => {
-            if (copyPromptTimeoutRef.current !== null) {
-                window.clearTimeout(copyPromptTimeoutRef.current)
-            }
-        }
-    }, [])
-
-    const handleDownload = async () => {
-        try {
-            await downloadUrl({
-                url: fullResolutionUrl,
-                fileName: image.storageKey.split("/").pop() || `silkscreen-image-${label}`
-            })
-        } catch (error) {
-            console.error("Failed to download comparison image:", error)
-            toast.error("Failed to download image")
-        }
-    }
-
-    const handleCopyPrompt = () => {
-        const prompt = image.prompt?.trim()
-        if (!prompt) {
-            toast.error("No prompt available to copy")
-            return
-        }
-
-        navigator.clipboard.writeText(prompt)
-        setIsPromptCopied(true)
-        if (copyPromptTimeoutRef.current !== null) {
-            window.clearTimeout(copyPromptTimeoutRef.current)
-        }
-        copyPromptTimeoutRef.current = window.setTimeout(() => {
-            setIsPromptCopied(false)
-            copyPromptTimeoutRef.current = null
-        }, COPY_FEEDBACK_MS)
-        toast.success("Prompt copied to clipboard")
-    }
+    const { isPromptCopied, handleDownload, handleCopyPrompt } = useImageViewerActions({
+        url: fullResolutionUrl,
+        storageKey: image.storageKey,
+        prompt: image.prompt,
+        fallbackFileName: `silkscreen-image-${label}`,
+        downloadErrorLabel: "Failed to download comparison image:",
+        resetKey: image._id
+    })
 
     return (
         <div className="flex flex-nowrap items-center justify-between gap-3">
@@ -781,9 +723,9 @@ function SliderView({
                             className="absolute inset-y-0 z-20"
                             style={{ left: `${sliderPercent}%` }}
                         >
-                            <div className="-translate-x-1/2 pointer-events-none absolute inset-y-0 w-0.5 bg-background shadow-md" />
+                            <div className="pointer-events-none absolute inset-y-0 w-0.5 -translate-x-1/2 bg-background shadow-md" />
                             <div
-                                className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 flex size-9 cursor-ew-resize touch-none items-center justify-center rounded-full border border-border/70 bg-background/95 shadow-lg backdrop-blur"
+                                className="absolute top-1/2 flex size-9 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full border border-border/70 bg-background/95 shadow-lg backdrop-blur"
                                 role="slider"
                                 aria-label="Comparison divider"
                                 aria-valuemin={0}

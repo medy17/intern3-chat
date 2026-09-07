@@ -1,3 +1,5 @@
+import { useImageViewerLoad } from "@/hooks/use-image-viewer-load"
+import { useImageViewerActions } from "@/hooks/use-image-viewer-actions"
 import { ImageLoadIndicator } from "@/components/library/image-load-indicator"
 import {
     ImageMetadataPanel,
@@ -45,7 +47,7 @@ import { fitImageAspectRatioBox, getImageAspectRatioValue } from "@/lib/image-as
 import { matchesNextImageShortcut, matchesPreviousImageShortcut } from "@/lib/keyboard-shortcuts"
 import { getIsImageHidden } from "@/lib/private-viewing"
 import { useSharedModels } from "@/lib/shared-models"
-import { cn, downloadUrl } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import { useAction, useConvex, useMutation } from "convex/react"
 import {
     Archive,
@@ -67,7 +69,6 @@ import {
     useRef,
     useState
 } from "react"
-import { toast } from "sonner"
 
 interface ImageDetailsModalProps {
     image: Doc<"generatedImages"> | null
@@ -168,9 +169,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
     const [isDetailsOpen, setIsDetailsOpen] = useState(false)
     const [isDetailsPreviewVisible, setIsDetailsPreviewVisible] = useState(false)
-    const [isPromptCopied, setIsPromptCopied] = useState(false)
     const [imageRecoveryPhase, setImageRecoveryPhase] = useState<"primary" | "fallback">("primary")
-    const [loadState, setLoadState] = useState<"loading" | "revealing" | "ready">("loading")
     const [viewportSize, setViewportSize] = useState(() =>
         typeof window === "undefined"
             ? { width: 1440, height: 900 }
@@ -182,9 +181,6 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
     const isMobile = viewportSize.width < DESKTOP_BREAKPOINT
     const [mobileDrawerTop, setMobileDrawerTop] = useState<number | null>(null)
     const [mobileDismissOffset, setMobileDismissOffset] = useState(0)
-    const revealTimeoutRef = useRef<number | null>(null)
-    const copyPromptTimeoutRef = useRef<number | null>(null)
-    const imageRef = useRef<HTMLImageElement | null>(null)
     const mobileDrawerRef = useRef<HTMLDivElement | null>(null)
     const mobileSwipeStartYRef = useRef<number | null>(null)
     const mobileSwipeTrackingRef = useRef(false)
@@ -227,43 +223,22 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
     })
     const renderedImageUrl = renderedImageSource.src
 
-    useEffect(() => {
-        if (!localImage || !isOpen) return
-
-        if (revealTimeoutRef.current !== null) {
-            window.clearTimeout(revealTimeoutRef.current)
-            revealTimeoutRef.current = null
-        }
-
-        if (loadedDetailImageUrls.has(renderedImageUrl)) {
-            setLoadState("ready")
-            return
-        }
-
-        setLoadState("loading")
-
-        const syncCachedImageState = window.requestAnimationFrame(() => {
-            const imageElement = imageRef.current
-            if (!imageElement?.complete || imageElement.naturalWidth <= 0) {
-                return
-            }
-
-            loadedDetailImageUrls.add(renderedImageUrl)
-            setLoadState("ready")
-        })
-
-        return () => {
-            window.cancelAnimationFrame(syncCachedImageState)
-            if (revealTimeoutRef.current !== null) {
-                window.clearTimeout(revealTimeoutRef.current)
-                revealTimeoutRef.current = null
-            }
-            if (copyPromptTimeoutRef.current !== null) {
-                window.clearTimeout(copyPromptTimeoutRef.current)
-                copyPromptTimeoutRef.current = null
-            }
-        }
-    }, [isOpen, localImage, renderedImageUrl])
+    const { imageRef, loadState, handleImageLoad, handleImageFailure } = useImageViewerLoad({
+        url: renderedImageUrl,
+        enabled: isOpen && !!localImage,
+        cache: loadedDetailImageUrls,
+        revealMs: 240
+    })
+    const fullResolutionUrl =
+        directImageUrl || (localImage ? getGeneratedImageProxyUrl(localImage.storageKey) : "")
+    const { isPromptCopied, handleCopyPrompt, handleDownload } = useImageViewerActions({
+        url: fullResolutionUrl,
+        storageKey: localImage?.storageKey,
+        prompt: localImage?.prompt,
+        fallbackFileName: "silkchat-image",
+        resetKey: localImage?._id,
+        enabled: isOpen && !!localImage
+    })
 
     useEffect(() => {
         if (!isOpen || typeof window === "undefined") return
@@ -397,73 +372,14 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
           })
         : false
 
-    const handleImageLoad = () => {
-        if (loadedDetailImageUrls.has(renderedImageUrl)) {
-            setLoadState("ready")
-            return
-        }
-
-        loadedDetailImageUrls.add(renderedImageUrl)
-        setLoadState("revealing")
-
-        if (revealTimeoutRef.current !== null) {
-            window.clearTimeout(revealTimeoutRef.current)
-        }
-
-        revealTimeoutRef.current = window.setTimeout(() => {
-            setLoadState("ready")
-            revealTimeoutRef.current = null
-        }, 240)
-    }
-
     const handleImageError = () => {
-        loadedDetailImageUrls.delete(renderedImageUrl)
-
         const nextPhase = getNextGeneratedImageRecoveryPhase(imageRecoveryPhase)
-        if (nextPhase === "error") {
-            setLoadState("ready")
-            return
-        }
-
-        setImageRecoveryPhase(nextPhase)
-        setLoadState("loading")
-    }
-
-    const handleDownload = async () => {
-        if (!localImage) return
-
-        try {
-            await downloadUrl({
-                url: fullResolutionUrl,
-                fileName: localImage.storageKey.split("/").pop() || "silkchat-image"
-            })
-        } catch (error) {
-            console.error("Failed to download image:", error)
-            toast.error("Failed to download image")
-        }
+        handleImageFailure(nextPhase !== "error")
+        if (nextPhase !== "error") setImageRecoveryPhase(nextPhase)
     }
 
     const handleViewFullResolution = () => {
         window.open(fullResolutionUrl, "_blank")
-    }
-
-    const handleCopyPrompt = () => {
-        const prompt = localImage?.prompt?.trim()
-        if (!prompt) {
-            toast.error("No prompt available to copy")
-            return
-        }
-
-        navigator.clipboard.writeText(prompt)
-        setIsPromptCopied(true)
-        if (copyPromptTimeoutRef.current !== null) {
-            window.clearTimeout(copyPromptTimeoutRef.current)
-        }
-        copyPromptTimeoutRef.current = window.setTimeout(() => {
-            setIsPromptCopied(false)
-            copyPromptTimeoutRef.current = null
-        }, 1500)
-        toast.success("Prompt copied to clipboard")
     }
 
     const handleToggleImageVisibility = () => {
@@ -552,10 +468,6 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
 
         setIsModalImageHidden(initialImageHidden)
     }, [initialImageHidden, isOpen, localImage])
-
-    useEffect(() => {
-        setIsPromptCopied(false)
-    }, [localImage?._id, isOpen])
 
     useEffect(() => {
         if (!isOpen) {
@@ -656,7 +568,6 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
     if (!localImage) return null
 
     const isImageHidden = isModalImageHidden
-    const fullResolutionUrl = directImageUrl || getGeneratedImageProxyUrl(localImage.storageKey)
     const model = models.find((m) => m.id === localImage.modelId)
     const formattedDate = new Date(localImage.createdAt).toLocaleDateString()
     const resolutionLabel = localImage.resolution || "1K"
@@ -1006,7 +917,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                 type="button"
                                 variant="outline"
                                 size="icon"
-                                className="-left-[4.5rem] -translate-y-1/2 absolute top-1/2 z-20 h-11 w-11 rounded-lg border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-md hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-35"
+                                className="absolute top-1/2 -left-[4.5rem] z-20 h-11 w-11 -translate-y-1/2 rounded-lg border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-md hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-35"
                                 onClick={onPrevious}
                                 disabled={!canNavigatePrevious}
                             >
@@ -1017,7 +928,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                                 type="button"
                                 variant="outline"
                                 size="icon"
-                                className="-right-[4.5rem] -translate-y-1/2 absolute top-1/2 z-20 h-11 w-11 rounded-lg border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-md hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-35"
+                                className="absolute top-1/2 -right-[4.5rem] z-20 h-11 w-11 -translate-y-1/2 rounded-lg border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-md hover:bg-accent/80 disabled:pointer-events-none disabled:opacity-35"
                                 onClick={onNext}
                                 disabled={!canNavigateNext}
                             >
@@ -1030,7 +941,7 @@ export const ImageDetailsModal = memo(function ImageDetailsModal({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="-top-14 lg:-right-[4.5rem] absolute right-0 z-20 h-11 w-11 rounded-lg border border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-sm hover:bg-accent lg:top-0"
+                        className="absolute -top-14 right-0 z-20 h-11 w-11 rounded-lg border border-border/70 bg-background/85 text-foreground shadow-lg backdrop-blur-sm hover:bg-accent lg:top-0 lg:-right-[4.5rem]"
                         onClick={onClose}
                     >
                         <span className="sr-only">Close</span>
