@@ -1,21 +1,14 @@
 import {
-    BlackForestLabsIcon,
-    ClaudeIcon,
-    DeepSeekIcon,
-    FalAIIcon,
-    GeminiIcon,
-    GrokIcon,
-    GroqIcon,
-    MetaIcon,
-    MiniMaxIcon,
-    MoonshotLogo,
-    OpenAIIcon,
-    OpenRouterIcon,
-    QwenIcon,
-    StabilityIcon,
-    XiaomiIcon,
-    ZAIIcon
-} from "@/components/brand-icons"
+    buildModelPickerSections,
+    isLegacyModel,
+    isOpenRouterOnlySharedModel,
+    getModelProviderId,
+    getModelSectionId,
+    getProviderSectionLabel
+} from "@/lib/model-picker-data"
+import { useModelFavorites } from "@/hooks/use-model-favorites"
+import { getProviderIcon, getProviderSectionIcon } from "./model-picker-icons"
+export { getProviderIcon, getProviderSectionIcon } from "./model-picker-icons"
 import { ModelCostIndicator } from "@/components/model-cost-indicator"
 import { useCreditAccess } from "@/components/credits/credit-access-runtime"
 import { Badge } from "@/components/ui/badge"
@@ -37,15 +30,7 @@ import { modelSupportsNativePdf } from "@/lib/attachment-support"
 import { DefaultSettings } from "@/lib/default-user-settings"
 import { OPEN_MODEL_PICKER_SHORTCUT_EVENT } from "@/lib/keyboard-shortcuts"
 import type { ModelBenchmarkPayload } from "@/lib/model-benchmarks"
-import {
-    DEFAULT_FAVORITE_MODEL_IDS,
-    FAVORITES_SECTION_ID,
-    getFavoriteModelIdsByRecentlyAdded,
-    getFavoriteToggleAction,
-    getModelFavoritesStorageKey,
-    reconcileFavoriteModelIds,
-    resolveFavoriteModelIds
-} from "@/lib/model-favorites"
+import { FAVORITES_SECTION_ID, getFavoriteToggleAction } from "@/lib/model-favorites"
 import { isNewModelRelease } from "@/lib/model-release"
 import { type ReasoningEffort, useModelStore } from "@/lib/model-store"
 import {
@@ -84,7 +69,6 @@ import {
     Image,
     Key,
     Search,
-    Server,
     Sparkle,
     Star,
     Terminal,
@@ -95,76 +79,6 @@ import { LayoutGroup, motion } from "motion/react"
 import { toast } from "sonner"
 import "./model-selector.css"
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip"
-
-const getDeveloperBrandIcon = (developer?: string, className = "size-4") => {
-    switch (developer?.trim()) {
-        case "Z.ai":
-            return <ZAIIcon className={className} />
-        case "Moonshot AI":
-            return <MoonshotLogo className={`${className} rounded-sm`} />
-        case "DeepSeek":
-            return <DeepSeekIcon className={`${className} rounded-sm`} />
-        case "Qwen":
-            return <QwenIcon className={className} />
-        case "Xiaomi":
-            return <XiaomiIcon className={className} />
-        case "MiniMax":
-            return <MiniMaxIcon className={className} />
-        case "Meta":
-            return <MetaIcon className={className} />
-        default:
-            return null
-    }
-}
-
-export const getProviderIcon = (model: DisplayModel, isCustom: boolean) => {
-    if (isCustom) {
-        return <Badge className="text-xs">Custom</Badge>
-    }
-
-    const sharedModel = model as SharedModel
-    if (sharedModel.customIcon || sharedModel.adapters) {
-        const firstAdapter = sharedModel.adapters?.[0]
-        const icon = sharedModel.customIcon ?? firstAdapter?.split(":")[0]
-
-        switch (icon) {
-            case "i3-openai":
-            case "openai":
-                return <OpenAIIcon className="size-4" />
-            case "i3-anthropic":
-            case "anthropic":
-                return <ClaudeIcon className="size-4" />
-            case "i3-google":
-            case "google":
-                return <GeminiIcon className="size-4" />
-            case "i3-xai":
-            case "xai":
-                return <GrokIcon className="size-4" />
-            case "i3-groq":
-            case "groq":
-                return <GroqIcon className="size-4" />
-            case "i3-fal":
-            case "fal":
-                return <FalAIIcon className="size-4" />
-            case "openrouter":
-                return (
-                    getDeveloperBrandIcon(sharedModel.developer) ?? (
-                        <OpenRouterIcon className="size-4" />
-                    )
-                )
-            case "bflabs":
-                return <BlackForestLabsIcon className="size-4" />
-            case "stability-ai":
-                return <StabilityIcon className="size-4" />
-            case "meta":
-                return <MetaIcon className="size-4" />
-            default:
-                return <Badge className="text-xs">Built-in</Badge>
-        }
-    }
-
-    return <Badge className="text-xs">Built-in</Badge>
-}
 
 const getGrokModeIcon = (model: SharedModel, reasoningEffort: ReasoningEffort) => {
     const isToggleOnlyReasoningModel =
@@ -184,51 +98,6 @@ type ProviderSection = {
     label: string
     models: DisplayModel[]
     icon: React.ReactNode
-}
-
-const PROVIDER_ORDER = ["openai", "anthropic", "google", "xai", "groq", "fal", "openrouter"]
-const getModelReleaseOrder = (model: DisplayModel) =>
-    "isCustom" in model && model.isCustom ? 0 : ((model as SharedModel).releaseOrder ?? 0)
-const isLegacyModel = (model: DisplayModel) => "legacy" in model && model.legacy === true
-
-const normalizeProviderId = (providerId: string) =>
-    providerId.startsWith("i3-") ? providerId.slice(3) : providerId
-
-const getOpenRouterDeveloperSectionId = (developer: string) =>
-    `openrouter-developer:${developer
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")}`
-
-const isOpenRouterOnlySharedModel = (model: SharedModel) => {
-    const adapters = model.adapters ?? []
-    return adapters.length > 0 && adapters.every((adapter) => adapter.startsWith("openrouter:"))
-}
-
-const getModelProviderId = (model: DisplayModel) => {
-    if ("isCustom" in model && model.isCustom) {
-        return normalizeProviderId(model.providerId)
-    }
-
-    const sharedModel = model as SharedModel
-    const adapters = sharedModel.adapters ?? []
-    const preferredAdapter =
-        adapters.find((adapter) => !adapter.startsWith("openrouter:")) ?? adapters[0]
-
-    return normalizeProviderId(preferredAdapter?.split(":")[0] ?? "unknown")
-}
-
-const getModelSectionId = (model: DisplayModel) => {
-    if ("isCustom" in model && model.isCustom) {
-        return normalizeProviderId(model.providerId)
-    }
-
-    const sharedModel = model as SharedModel
-    if (isOpenRouterOnlySharedModel(sharedModel) && sharedModel.developer?.trim()) {
-        return getOpenRouterDeveloperSectionId(sharedModel.developer)
-    }
-
-    return getModelProviderId(model)
 }
 
 const getActiveRuntimeProvider = (
@@ -309,66 +178,6 @@ const getActiveRuntimeProvider = (
     }
 
     return null
-}
-
-const getProviderSectionLabel = (
-    providerId: string,
-    currentProviders: ReturnType<typeof useAvailableModels>["currentProviders"],
-    models?: DisplayModel[]
-) => {
-    if (providerId.startsWith("openrouter-developer:")) {
-        const developer = models?.find((model) => !("isCustom" in model && model.isCustom)) as
-            | SharedModel
-            | undefined
-        return developer?.developer?.trim() || "OpenRouter"
-    }
-
-    switch (providerId) {
-        case "google":
-            return "Gemini"
-        case "xai":
-            return "xAI"
-        default:
-            return getProviderDisplayName(providerId, currentProviders)
-    }
-}
-
-export const getProviderSectionIcon = (
-    providerId: string,
-    models?: DisplayModel[],
-    className = "size-4"
-) => {
-    if (providerId.startsWith("openrouter-developer:")) {
-        const developer = models?.find((model) => !("isCustom" in model && model.isCustom)) as
-            | SharedModel
-            | undefined
-        return (
-            getDeveloperBrandIcon(developer?.developer, className) ?? (
-                <OpenRouterIcon className={className} />
-            )
-        )
-    }
-
-    switch (providerId) {
-        case FAVORITES_SECTION_ID:
-            return <Star className={className} />
-        case "openai":
-            return <OpenAIIcon className={className} />
-        case "anthropic":
-            return <ClaudeIcon className={className} />
-        case "google":
-            return <GeminiIcon className={className} />
-        case "xai":
-            return <GrokIcon className={className} />
-        case "groq":
-            return <GroqIcon className={className} />
-        case "fal":
-            return <FalAIIcon className={className} />
-        case "openrouter":
-            return <OpenRouterIcon className={className} />
-        default:
-            return <Server className={className} />
-    }
 }
 
 const getAbilityTooltip = (ability: string) => {
@@ -1366,10 +1175,6 @@ export function ModelSelector({
     const reasoningEffort = useModelStore((state) => state.reasoningEffort)
     const setReasoningEffort = useModelStore((state) => state.setReasoningEffort)
     const creditPlan = useCreditAccess((state) => state.plan)
-    const [favoriteModelIds, setFavoriteModelIds] = React.useState<string[]>(() => [
-        ...DEFAULT_FAVORITE_MODEL_IDS
-    ])
-    const [loadedFavoritesKey, setLoadedFavoritesKey] = React.useState<string | null>(null)
     const [canScrollUp, setCanScrollUp] = React.useState(false)
     const [canScrollDown, setCanScrollDown] = React.useState(false)
     const [newModelReferenceTime] = React.useState(() => Date.now())
@@ -1419,138 +1224,22 @@ export function ModelSelector({
             ),
         [availableModels, newModelReferenceTime]
     )
-    const favoritesStorageKey = session.user?.id
-        ? getModelFavoritesStorageKey(session.user.id)
-        : null
-
-    React.useEffect(() => {
-        if (!favoritesStorageKey) {
-            setFavoriteModelIds([...DEFAULT_FAVORITE_MODEL_IDS])
-            setLoadedFavoritesKey(null)
-            return
-        }
-
-        let storedValue: string | null = null
-        try {
-            storedValue = window.localStorage.getItem(favoritesStorageKey)
-        } catch {}
-
-        setFavoriteModelIds(resolveFavoriteModelIds(storedValue))
-        setLoadedFavoritesKey(favoritesStorageKey)
-    }, [favoritesStorageKey])
-
-    React.useEffect(() => {
-        if (
-            !favoritesStorageKey ||
-            loadedFavoritesKey !== favoritesStorageKey ||
-            sharedModels.length === 0
-        ) {
-            return
-        }
-
-        const availableModelIds = new Set(availableModels.map((model) => model.id))
-        setFavoriteModelIds((currentIds) => {
-            const reconciledIds = reconcileFavoriteModelIds({
-                favoriteModelIds: currentIds,
-                sharedModels,
-                availableModelIds
-            })
-            const unchanged =
-                reconciledIds.length === currentIds.length &&
-                reconciledIds.every((modelId, index) => modelId === currentIds[index])
-            if (unchanged) return currentIds
-
-            try {
-                window.localStorage.setItem(favoritesStorageKey, JSON.stringify(reconciledIds))
-            } catch {}
-            return reconciledIds
-        })
-    }, [availableModels, favoritesStorageKey, loadedFavoritesKey, sharedModels])
-
-    const toggleFavorite = React.useCallback(
-        (modelId: string) => {
-            setFavoriteModelIds((currentIds) => {
-                const nextIds = currentIds.includes(modelId)
-                    ? currentIds.filter((id) => id !== modelId)
-                    : [...currentIds, modelId]
-
-                if (favoritesStorageKey) {
-                    try {
-                        window.localStorage.setItem(favoritesStorageKey, JSON.stringify(nextIds))
-                    } catch {}
-                }
-
-                return nextIds
-            })
-        },
-        [favoritesStorageKey]
+    const { favoriteModelIds, toggleFavorite } = useModelFavorites(
+        session.user?.id,
+        availableModels,
+        sharedModels
     )
 
-    const providerSections = React.useMemo<ProviderSection[]>(() => {
-        const textModels = availableModels.filter((model) => isChatModel(model))
-        const grouped = textModels.reduce<Record<string, DisplayModel[]>>((acc, model) => {
-            const sectionId = getModelSectionId(model)
-            if (!acc[sectionId]) {
-                acc[sectionId] = []
-            }
-            acc[sectionId].push(model)
-            return acc
-        }, {})
-
-        const sections = Object.entries(grouped)
-            .map(([providerId, models]) => {
-                const label = getProviderSectionLabel(providerId, currentProviders, models)
-                return {
-                    id: providerId,
-                    label,
-                    models: [...models].sort((left, right) => {
-                        const legacyDelta =
-                            Number(isLegacyModel(left)) - Number(isLegacyModel(right))
-                        if (legacyDelta !== 0) {
-                            return legacyDelta
-                        }
-
-                        const releaseDelta =
-                            getModelReleaseOrder(right) - getModelReleaseOrder(left)
-                        if (releaseDelta !== 0) {
-                            return releaseDelta
-                        }
-                        return left.name.localeCompare(right.name)
-                    }),
-                    icon: getProviderSectionIcon(providerId, models)
-                }
-            })
-            .sort((left, right) => {
-                const leftId = left.id
-                const rightId = right.id
-                const leftOrder = PROVIDER_ORDER.indexOf(leftId)
-                const rightOrder = PROVIDER_ORDER.indexOf(rightId)
-                const resolvedLeftOrder = leftOrder === -1 ? Number.MAX_SAFE_INTEGER : leftOrder
-                const resolvedRightOrder = rightOrder === -1 ? Number.MAX_SAFE_INTEGER : rightOrder
-                if (resolvedLeftOrder !== resolvedRightOrder) {
-                    return resolvedLeftOrder - resolvedRightOrder
-                }
-                return left.label.localeCompare(right.label)
-            })
-
-        const modelsById = new Map(textModels.map((model) => [model.id, model]))
-        const favoriteModels = getFavoriteModelIdsByRecentlyAdded(favoriteModelIds).flatMap(
-            (modelId) => {
-                const model = modelsById.get(modelId)
-                return model ? [model] : []
-            }
-        )
-
-        return [
-            {
-                id: FAVORITES_SECTION_ID,
-                label: "Favorites",
-                models: favoriteModels,
-                icon: getProviderSectionIcon(FAVORITES_SECTION_ID)
-            },
-            ...sections
-        ]
-    }, [availableModels, currentProviders, favoriteModelIds])
+    const providerSections = React.useMemo<ProviderSection[]>(
+        () =>
+            buildModelPickerSections(availableModels, currentProviders, favoriteModelIds).map(
+                (section) => ({
+                    ...section,
+                    icon: getProviderSectionIcon(section.id, section.models)
+                })
+            ),
+        [availableModels, currentProviders, favoriteModelIds]
+    )
 
     const newProviderSectionIds = React.useMemo(
         () =>
@@ -2163,4 +1852,3 @@ export function ModelSelector({
     )
 }
 import { useCurrentUserSettings } from "@/hooks/use-current-user-settings"
-import { isChatModel } from "@/convex/lib/models"

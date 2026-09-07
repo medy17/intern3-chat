@@ -10,7 +10,6 @@ import {
     getAbilityIcon,
     getAbilityLabel,
     getAllowedReasoningEffortsForModel,
-    getProviderDisplayName,
     getReasoningEffortForPlan,
     getReasoningEffortIcon,
     getReasoningEffortLabelForModel,
@@ -23,7 +22,11 @@ import { cn } from "@/lib/utils"
 import { useConvexAuth } from "@convex-dev/react-query"
 import { Archive, ChevronRight, Crown, RotateCcw } from "lucide-react"
 import * as React from "react"
-import { getProviderSectionIcon } from "./model-selector"
+import { getProviderSectionIcon } from "./model-picker-icons"
+import { buildModelPickerSections, getModelSectionId } from "@/lib/model-picker-data"
+import { FAVORITES_SECTION_ID } from "@/lib/model-favorites"
+import { useModelFavorites } from "@/hooks/use-model-favorites"
+import { useSharedModels } from "@/lib/shared-models"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion"
 import { Badge } from "./ui/badge"
 import { Button } from "./ui/button"
@@ -40,72 +43,6 @@ import {
 } from "./ui/dropdown-menu"
 import { ResponsivePopover, ResponsivePopoverContent } from "./ui/responsive-popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip"
-
-const PROVIDER_ORDER = ["openai", "anthropic", "google", "xai", "groq", "fal", "openrouter"]
-const getModelReleaseOrder = (model: DisplayModel) =>
-    "isCustom" in model && model.isCustom ? 0 : ((model as SharedModel).releaseOrder ?? 0)
-
-const normalizeProviderId = (providerId: string) =>
-    providerId.startsWith("i3-") ? providerId.slice(3) : providerId
-
-const getOpenRouterDeveloperSectionId = (developer: string) =>
-    `openrouter-developer:${developer
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")}`
-
-const isOpenRouterOnlySharedModel = (model: SharedModel) => {
-    const adapters = model.adapters ?? []
-    return adapters.length > 0 && adapters.every((adapter) => adapter.startsWith("openrouter:"))
-}
-
-const getModelProviderId = (model: DisplayModel) => {
-    if ("isCustom" in model && model.isCustom) {
-        return normalizeProviderId(model.providerId)
-    }
-
-    const sharedModel = model as SharedModel
-    const adapters = sharedModel.adapters ?? []
-    const preferredAdapter =
-        adapters.find((adapter) => !adapter.startsWith("openrouter:")) ?? adapters[0]
-
-    return normalizeProviderId(preferredAdapter?.split(":")[0] ?? "unknown")
-}
-
-const getModelSectionId = (model: DisplayModel) => {
-    if ("isCustom" in model && model.isCustom) {
-        return normalizeProviderId(model.providerId)
-    }
-
-    const sharedModel = model as SharedModel
-    if (isOpenRouterOnlySharedModel(sharedModel) && sharedModel.developer?.trim()) {
-        return getOpenRouterDeveloperSectionId(sharedModel.developer)
-    }
-
-    return getModelProviderId(model)
-}
-
-const getProviderSectionLabel = (
-    providerId: string,
-    currentProviders: ReturnType<typeof useAvailableModels>["currentProviders"],
-    models?: DisplayModel[]
-) => {
-    if (providerId.startsWith("openrouter-developer:")) {
-        const developer = models?.find((model) => !("isCustom" in model && model.isCustom)) as
-            | SharedModel
-            | undefined
-        return developer?.developer?.trim() || "OpenRouter"
-    }
-
-    switch (providerId) {
-        case "google":
-            return "Gemini"
-        case "xai":
-            return "xAI"
-        default:
-            return getProviderDisplayName(providerId, currentProviders)
-    }
-}
 
 function RetryMenuDisabledReasonTooltip({
     reason,
@@ -249,12 +186,19 @@ const RetrySubmenuContent = ({
 
 const RetryModelRowContent = ({
     model,
-    isModelLocked
+    isModelLocked,
+    showProviderIcon
 }: {
     model: DisplayModel
     isModelLocked: boolean
+    showProviderIcon: boolean
 }) => (
     <div className="flex min-w-0 flex-1 items-center justify-between gap-4 p-3">
+        {showProviderIcon && (
+            <span aria-hidden="true" className="flex size-4 shrink-0 items-center justify-center">
+                {getProviderSectionIcon(getModelSectionId(model), [model], "size-4")}
+            </span>
+        )}
         <span className="min-w-0 flex-1 font-medium text-muted-foreground">
             <span className="w-fit whitespace-nowrap max-sm:whitespace-normal max-sm:break-words">
                 {model.name}
@@ -318,53 +262,15 @@ export function RetryMenu({
         [creditPlan, reasoningEffort]
     )
 
-    const providerSections = React.useMemo(() => {
-        const textModels = availableModels.filter((model) => isChatModel(model))
-        const grouped = textModels.reduce<Record<string, DisplayModel[]>>((acc, model) => {
-            const sectionId = getModelSectionId(model)
-            if (!acc[sectionId]) {
-                acc[sectionId] = []
-            }
-            acc[sectionId].push(model)
-            return acc
-        }, {})
-
-        return Object.entries(grouped)
-            .map(([providerId, models]) => {
-                const label = getProviderSectionLabel(providerId, currentProviders, models)
-                return {
-                    id: providerId,
-                    label,
-                    models: [...models].sort((left, right) => {
-                        const leftLegacy = "legacy" in left && left.legacy ? 1 : 0
-                        const rightLegacy = "legacy" in right && right.legacy ? 1 : 0
-
-                        if (leftLegacy !== rightLegacy) {
-                            return leftLegacy - rightLegacy
-                        }
-
-                        const releaseDelta =
-                            getModelReleaseOrder(right) - getModelReleaseOrder(left)
-                        if (releaseDelta !== 0) {
-                            return releaseDelta
-                        }
-                        return left.name.localeCompare(right.name)
-                    })
-                }
-            })
-            .sort((left, right) => {
-                const leftId = left.id
-                const rightId = right.id
-                const leftOrder = PROVIDER_ORDER.indexOf(leftId)
-                const rightOrder = PROVIDER_ORDER.indexOf(rightId)
-                const resolvedLeftOrder = leftOrder === -1 ? Number.MAX_SAFE_INTEGER : leftOrder
-                const resolvedRightOrder = rightOrder === -1 ? Number.MAX_SAFE_INTEGER : rightOrder
-                if (resolvedLeftOrder !== resolvedRightOrder) {
-                    return resolvedLeftOrder - resolvedRightOrder
-                }
-                return left.label.localeCompare(right.label)
-            })
-    }, [availableModels, currentProviders])
+    const { models: sharedModels } = useSharedModels()
+    const { favoriteModelIds } = useModelFavorites(session.user?.id, availableModels, sharedModels)
+    const providerSections = React.useMemo(
+        () =>
+            buildModelPickerSections(availableModels, currentProviders, favoriteModelIds).filter(
+                (section) => section.id !== FAVORITES_SECTION_ID || section.models.length > 0
+            ),
+        [availableModels, currentProviders, favoriteModelIds]
+    )
 
     const getDisabledReason = React.useCallback(
         (isModelLocked: boolean, isVisionBlocked: boolean, isNativePdfBlocked: boolean) => {
@@ -440,9 +346,17 @@ export function RetryMenu({
                         (model) => "legacy" in model && model.legacy
                     )
                     const visibleModels =
-                        currentModels.length > 0 ? currentModels : legacyModels.slice(0, 5)
+                        section.id === FAVORITES_SECTION_ID
+                            ? section.models
+                            : currentModels.length > 0
+                              ? currentModels
+                              : legacyModels.slice(0, 5)
                     const hiddenLegacyModels =
-                        currentModels.length > 0 ? legacyModels : legacyModels.slice(5)
+                        section.id === FAVORITES_SECTION_ID
+                            ? []
+                            : currentModels.length > 0
+                              ? legacyModels
+                              : legacyModels.slice(5)
 
                     const renderModel = (model: DisplayModel) => {
                         const sharedModel =
@@ -478,7 +392,11 @@ export function RetryMenu({
                         }
 
                         const rowContent = (
-                            <RetryModelRowContent model={model} isModelLocked={isModelLocked} />
+                            <RetryModelRowContent
+                                model={model}
+                                isModelLocked={isModelLocked}
+                                showProviderIcon={section.id === FAVORITES_SECTION_ID}
+                            />
                         )
 
                         if (isModelDisabled) {
@@ -729,4 +647,3 @@ export function RetryMenu({
     )
 }
 import { useCurrentUserSettings } from "@/hooks/use-current-user-settings"
-import { isChatModel } from "@/convex/lib/models"

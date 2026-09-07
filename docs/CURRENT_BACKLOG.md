@@ -13,11 +13,11 @@
 #### Frontend
 
 - **Shared chat controller.** Move the common model, message, composer, retry, and thread-sync behavior out of `chat.tsx` and `folder-chat.tsx`. Keep only the thread/folder differences in those components.
-- **Shared model-picker data.** Move provider order, grouping, labels, icons, sorting, and mode filtering out of `model-selector.tsx` and `retry-menu.tsx`.
 - **Shared image viewer.** Reuse loading, source fallback, responsive layout, copy, download, archive, restore, and delete behavior across the library and image modals.
 
 ### Completed:
 
+- Shared model-picker data. (Picker and Retry share provider grouping, labels, ordering, icons, and chat-model filtering. Both use the same account-scoped favorites; Retry now has a Favorites submenu. Their existing layouts and selection controls remain separate.)
 - Shared thread-import parser. (Frontend and backend now use `convex/lib/thread_import_core/`; old entry points re-export the same implementation.)
 - Shared settings hook. (Eight consumers use `useCurrentUserSettings`, with cache keys scoped to the current account.)
 - Shared persona avatar editor. (Settings now uses the existing cropper and crop/compression helpers.)

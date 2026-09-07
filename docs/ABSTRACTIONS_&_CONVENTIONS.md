@@ -104,6 +104,14 @@ literals, keep it beside the list and add a test that proves they match.
 - If two screens need the same sorting, grouping, labels, or actions, extract a pure view-model
   module. Do not import helpers from one large screen component into another.
 
+The model picker and Retry use `src/lib/model-picker-data.ts` for provider sections and model
+ordering, and `src/components/model-picker-icons.tsx` for their existing icons. Keep their layouts
+and selection controls separate. `useModelFavorites` shares the existing account-scoped localStorage
+preference through a subscribed store so changes reach both menus and other tabs. Retry displays
+favorites using its normal model rows, including the same plan and attachment restrictions.
+Only Retry's Favorites rows show provider logos: that submenu mixes providers. Provider-specific
+submenus omit row logos because their parent entry already identifies the provider.
+
 ### State
 
 | Kind of state | Owner |
