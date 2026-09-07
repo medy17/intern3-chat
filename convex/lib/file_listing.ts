@@ -10,6 +10,7 @@ const USER_VISIBLE_FILE_ROOTS = [
     "attachments",
     "references",
     "generations",
+    "tts",
     "code-artifacts",
     "persona-avatars",
     "persona-docs"

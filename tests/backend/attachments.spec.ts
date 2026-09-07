@@ -42,6 +42,7 @@ import {
     deleteFile,
     getFile,
     getUploadPolicy,
+    listFiles,
     listGeneratedFiles,
     r2,
     uploadFile
@@ -64,6 +65,13 @@ const listGeneratedFilesHandler = listGeneratedFiles as unknown as (
     ctx: Record<string, unknown>,
     args: { limit?: number; sortBy?: "size" | "newest" | "oldest" }
 ) => Promise<Array<{ key: string }>>
+const listFilesHandler = listFiles as unknown as (
+    ctx: Record<string, unknown>,
+    args: {
+        paginationOpts: { numItems: number; cursor: string | null }
+        type: "all" | "other"
+    }
+) => Promise<{ page: Array<{ key: string }> }>
 const getFileHandler = getFile as unknown as (
     ctx: Record<string, unknown>,
     request: Request
@@ -276,6 +284,41 @@ describe("attachments", () => {
 
         expect(r2.deleteObject).toHaveBeenCalledWith(expect.anything(), "file-1")
         expect(result).toEqual({ success: true })
+    })
+
+    it("lists owned TTS audio in Files without adding it to the generated-image gallery", async () => {
+        getUserIdentityMock.mockResolvedValue({ id: "user-1" })
+        const files = [
+            { key: "tts/user-1/new-speech.wav", contentType: "audio/wav" },
+            { key: "tts/user-2/private-speech.wav", contentType: "audio/wav" },
+            { key: "generations/user-1/image.png", contentType: "image/png" },
+            { key: "imports/user-1/source.json", contentType: "application/json" }
+        ].map((file) => ({ ...file, lastModified: "2026-09-08T00:00:00.000Z" }))
+        ;(r2.listMetadata as ReturnType<typeof vi.fn>).mockImplementation(
+            (_ctx, _userId, _limit, _cursor, prefix: string) => ({
+                page: files.filter((file) => file.key.startsWith(prefix)),
+                isDone: true,
+                continueCursor: ""
+            })
+        )
+
+        const all = await listFilesHandler(createQueryCtx(), {
+            paginationOpts: { numItems: 20, cursor: null },
+            type: "all"
+        })
+        expect(all.page.map((file) => file.key).sort()).toEqual([
+            "generations/user-1/image.png",
+            "tts/user-1/new-speech.wav"
+        ])
+        const other = await listFilesHandler(createQueryCtx(), {
+            paginationOpts: { numItems: 20, cursor: null },
+            type: "other"
+        })
+        expect(other.page.map((file) => file.key)).toEqual(["tts/user-1/new-speech.wav"])
+        const gallery = await listGeneratedFilesHandler(createQueryCtx(), {})
+        expect(gallery.map((file) => file.key)).toEqual(["generations/user-1/image.png"])
+        expect(r2.store).not.toHaveBeenCalled()
+        expect(r2.deleteObject).not.toHaveBeenCalled()
     })
 
     it("walks generated-file pages, deduplicates repeated cursors, and sorts by size", async () => {

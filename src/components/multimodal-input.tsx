@@ -996,15 +996,7 @@ export function useComposerToolbarState() {
         null
     )
 
-    const userSettings = useDiskCachedQuery(
-        api.settings.getUserSettings,
-        {
-            key: "user-settings",
-            default: DefaultSettings(session.user?.id ?? "CACHE"),
-            forceCache: true
-        },
-        session.user?.id && !auth.isLoading ? {} : "skip"
-    )
+    const userSettings = useCurrentUserSettings(session.user?.id, auth.isLoading)
     const toolAvailability = useDiskCachedQuery(
         api.settings.getToolAvailability,
         {
@@ -2990,3 +2982,4 @@ export const MultimodalInput = forwardRef<
         </>
     )
 })
+import { useCurrentUserSettings } from "@/hooks/use-current-user-settings"

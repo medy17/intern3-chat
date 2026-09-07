@@ -401,32 +401,7 @@ export const getUserRegistryInternal = internalQuery({
                     available_adapters.push(adapter)
                 }
             }
-            models[model.id] = {
-                id: model.id,
-                name: model.name,
-                adapters: available_adapters,
-                abilities: model.abilities,
-                mode: model.mode,
-                transcription: model.transcription,
-                speech: model.speech,
-                contextLength: model.contextLength,
-                maxTokens: model.maxTokens,
-                inputUsdPer1MTokens: model.inputUsdPer1MTokens,
-                outputUsdPer1MTokens: model.outputUsdPer1MTokens,
-                hostedContextLength: model.hostedContextLength,
-                supportsDisablingReasoning: model.supportsDisablingReasoning,
-                reasoningEfforts: model.reasoningEfforts,
-                defaultReasoningEffort: model.defaultReasoningEffort,
-                maxPerMessage: model.maxPerMessage,
-                supportsReferenceImages: model.supportsReferenceImages,
-                openrouterImageModalities: model.openrouterImageModalities,
-                openrouterProvider: model.openrouterProvider,
-                supportedImageSizes: model.supportedImageSizes,
-                supportedImageResolutions: model.supportedImageResolutions,
-                availableToPickFor: model.availableToPickFor,
-                availableToPickForReasoningEfforts: model.availableToPickForReasoningEfforts,
-                requiredRole: model.requiredRole
-            }
+            models[model.id] = { ...model, adapters: available_adapters }
         }
 
         for (const [modelId, model] of Object.entries(settings.customModels)) {

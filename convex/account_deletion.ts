@@ -1,4 +1,3 @@
-import type { R2MetadataPage } from "@convex-dev/r2"
 import type { BetterAuthOptions } from "better-auth"
 import {
     type GenericActionCtx,
@@ -1157,22 +1156,17 @@ const purgeR2ObjectsForUser = async <DataModel extends GenericDataModel>(
         await deleteR2Key(ctx, key)
     }
 
-    let cursor: string | null = null
-    const seenCursors = new Set<string>()
-    while (true) {
-        const page: R2MetadataPage = await r2.listMetadata(ctx, userId, 100, cursor)
-        for (const file of page.page) {
+    for await (const page of iterateMetadataPages(
+        (cursor) => r2.listMetadata(ctx, userId, 100, cursor),
+        () => {
+            throw new Error("R2 deletion pagination did not advance")
+        }
+    )) {
+        for (const file of page) {
             if (seenKeys.has(file.key)) continue
             seenKeys.add(file.key)
             await deleteR2Key(ctx, file.key)
         }
-
-        if (page.isDone) break
-        if (seenCursors.has(page.continueCursor)) {
-            throw new Error("R2 deletion pagination did not advance")
-        }
-        seenCursors.add(page.continueCursor)
-        cursor = page.continueCursor
     }
 }
 
@@ -1389,3 +1383,4 @@ export const processMyPendingAccountDeletion = action({
         return { queued: true }
     }
 })
+import { iterateMetadataPages } from "./lib/r2_pagination"

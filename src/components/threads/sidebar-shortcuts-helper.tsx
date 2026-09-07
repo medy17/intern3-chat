@@ -4,10 +4,7 @@ import {
     ResponsivePopoverContent,
     ResponsivePopoverTrigger
 } from "@/components/ui/responsive-popover"
-import { api } from "@/convex/_generated/api"
 import { useSession } from "@/hooks/auth-hooks"
-import { useDiskCachedQuery } from "@/lib/convex-cached-query"
-import { DefaultSettings } from "@/lib/default-user-settings"
 import {
     SHORTCUTS,
     getShortcutDisplayLabel,
@@ -41,15 +38,7 @@ function ShortcutTokens({ tokens }: { tokens: readonly string[] }) {
 export function SidebarShortcutsHelper() {
     const session = useSession()
     const auth = useConvexAuth()
-    const userSettings = useDiskCachedQuery(
-        api.settings.getUserSettings,
-        {
-            key: "user-settings",
-            default: DefaultSettings(session.user?.id ?? "CACHE"),
-            forceCache: true
-        },
-        session.user?.id && !auth.isLoading ? {} : "skip"
-    )
+    const userSettings = useCurrentUserSettings(session.user?.id, auth.isLoading)
     const invertSendNewlineBehavior =
         !("error" in userSettings) && userSettings.invertSendNewlineBehavior === true
     const shortcutHelpSections = getShortcutHelpSections(invertSendNewlineBehavior)
@@ -117,3 +106,4 @@ export function SidebarShortcutsHelper() {
         </ResponsivePopover>
     )
 }
+import { useCurrentUserSettings } from "@/hooks/use-current-user-settings"

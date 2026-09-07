@@ -2,12 +2,15 @@ import { estimateImageCost, getImageCostLevel } from "@/convex/lib/image_generat
 import type { SharedModel } from "@/convex/lib/models"
 import { describe, expect, it } from "vitest"
 
-const imageModel = (overrides: Partial<SharedModel> = {}): SharedModel => ({
+const imageModel = (
+    overrides: Partial<Extract<SharedModel, { mode: "image" }>> = {}
+): SharedModel => ({
     id: "test-image-model",
     name: "Test image model",
     adapters: [],
     abilities: [],
     mode: "image",
+    supportedImageSizes: ["1:1"],
     ...overrides
 })
 

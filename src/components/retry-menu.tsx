@@ -1,11 +1,9 @@
-import { api } from "@/convex/_generated/api"
 import type { SharedModel } from "@/convex/lib/models"
 import { useCreditAccess } from "@/components/credits/credit-access-runtime"
 import { useSession } from "@/hooks/auth-hooks"
 import { useIsMobile } from "@/hooks/use-mobile"
 import type { AssistantConfigOverride } from "@/lib/assistant-config"
 import { modelSupportsNativePdf, modelSupportsVision } from "@/lib/attachment-support"
-import { useDiskCachedQuery } from "@/lib/convex-cached-query"
 import { DefaultSettings } from "@/lib/default-user-settings"
 import { type ReasoningEffort, useModelStore } from "@/lib/model-store"
 import {
@@ -18,7 +16,6 @@ import {
     getReasoningEffortLabelForModel,
     getRequiredPlanToPickModel,
     isAdminOnlyModel,
-    isImageGenerationCapableModel,
     useAvailableModels
 } from "@/lib/models-providers-shared"
 import type { DisplayModel } from "@/lib/models-providers-shared"
@@ -293,15 +290,7 @@ export function RetryMenu({
     const session = useSession()
     const isMobile = useIsMobile()
     const [mobileDisabledReason, setMobileDisabledReason] = React.useState<string | null>(null)
-    const userSettings = useDiskCachedQuery(
-        api.settings.getUserSettings,
-        {
-            key: "user-settings",
-            default: DefaultSettings(session.user?.id ?? "CACHE"),
-            forceCache: true
-        },
-        session.user?.id && !auth.isLoading ? {} : "skip"
-    )
+    const userSettings = useCurrentUserSettings(session.user?.id, auth.isLoading)
 
     const reasoningEffort = useModelStore((state) => state.reasoningEffort)
     const creditPlan = useCreditAccess((state) => state.plan)
@@ -330,12 +319,7 @@ export function RetryMenu({
     )
 
     const providerSections = React.useMemo(() => {
-        const textModels = availableModels.filter(
-            (model) =>
-                !isImageGenerationCapableModel(model) &&
-                model.mode !== "speech-to-text" &&
-                model.mode !== "text-to-speech"
-        )
+        const textModels = availableModels.filter((model) => isChatModel(model))
         const grouped = textModels.reduce<Record<string, DisplayModel[]>>((acc, model) => {
             const sectionId = getModelSectionId(model)
             if (!acc[sectionId]) {
@@ -744,3 +728,5 @@ export function RetryMenu({
         </DropdownMenu>
     )
 }
+import { useCurrentUserSettings } from "@/hooks/use-current-user-settings"
+import { isChatModel } from "@/convex/lib/models"

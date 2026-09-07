@@ -2,24 +2,11 @@ import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
 import { action, internalMutation, internalQuery, query } from "./_generated/server"
-import { r2 } from "./attachments"
-import { downloadFalImage } from "./fal_webhooks"
+import { saveFalImages } from "./lib/image_generation/save_fal_images"
 import { assertAccountNotDeletingForAction } from "./lib/account_deletion_gate"
 import { getUserIdentity } from "./lib/identity"
 import { getVariantIndexFromClientRequestId } from "./lib/image_generation/shared"
-import { ImageGenerationJobAsset } from "./schema/image_generation_job"
-
-const jobStatusValidator = v.union(
-    v.literal("submitting"),
-    v.literal("submitted"),
-    v.literal("processing"),
-    v.literal("completed"),
-    v.literal("partial"),
-    v.literal("storing_failed"),
-    v.literal("refunded"),
-    v.literal("failed"),
-    v.literal("unknown")
-)
+import { ImageGenerationJobAsset, ImageGenerationJobStatus } from "./schema/image_generation_job"
 
 const TERMINAL_JOB_STATUSES = new Set(["completed", "partial", "refunded", "failed", "unknown"])
 const WEBHOOK_PROCESSING_LEASE_MS = 2 * 60 * 1000
@@ -197,7 +184,7 @@ export const claimImageGenerationJobForWebhook = internalMutation({
 export const finalizeImageGenerationJob = internalMutation({
     args: {
         falRequestId: v.string(),
-        status: jobStatusValidator,
+        status: ImageGenerationJobStatus,
         generatedImageIds: v.optional(v.array(v.id("generatedImages"))),
         error: v.optional(v.string()),
         webhookPayload: v.optional(v.any())
@@ -404,38 +391,15 @@ export const reprocessImageGenerationJobAsset = action({
             const generatedImageIds: Id<"generatedImages">[] = []
             const failures: string[] = []
 
-            for (const asset of claim.assetUrls) {
-                try {
-                    const downloaded = await downloadFalImage({
-                        url: asset.url,
-                        contentType: asset.contentType
-                    })
-                    const storageKey = await r2.store(ctx, downloaded.bytes, {
-                        authorId: claim.userId,
-                        key: `generations/${claim.userId}/${Date.now()}-${crypto.randomUUID()}-fal.${downloaded.extension}`,
-                        type: downloaded.contentType
-                    })
-                    const id: Id<"generatedImages"> = await ctx.runMutation(
-                        internal.images.insertGeneratedImage,
-                        {
-                            userId: claim.userId,
-                            storageKey,
-                            prompt: claim.prompt,
-                            modelId: claim.appModelId,
-                            aspectRatio: claim.aspectRatio,
-                            resolution: claim.resolution,
-                            referenceImageKeys: claim.referenceImageKeys,
-                            generationJobId: args.jobId,
-                            falRequestId: claim.falRequestId
-                        }
-                    )
-                    generatedImageIds.push(id)
-                } catch (error) {
-                    failures.push(
-                        error instanceof Error ? error.message : "Unknown image storage error"
-                    )
-                }
-            }
+            const saved = await saveFalImages(
+                ctx,
+                claim,
+                args.jobId,
+                claim.falRequestId,
+                claim.assetUrls
+            )
+            generatedImageIds.push(...saved.generatedImageIds)
+            failures.push(...saved.failures)
 
             if (generatedImageIds.length === 0) {
                 throw new Error(failures[0] ?? "Could not fetch the image. Please try again.")

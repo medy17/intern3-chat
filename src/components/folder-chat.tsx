@@ -50,15 +50,7 @@ export function FolderChat({ folderId, isActiveRoute = true }: FolderChatProps) 
     const { data: session, isPending } = useSession()
     const location = useLocation()
     const defaultModelId = useDefaultModelId()
-    const userSettings = useDiskCachedQuery(
-        api.settings.getUserSettings,
-        {
-            key: "user-settings",
-            default: DefaultSettings(session?.user?.id ?? "CACHE"),
-            forceCache: true
-        },
-        session?.user?.id && !isPending ? {} : "skip"
-    )
+    const userSettings = useCurrentUserSettings(session?.user?.id, isPending)
     const resolvedUserSettings =
         "error" in userSettings ? DefaultSettings(session?.user?.id ?? "") : userSettings
     const { availableModels } = useAvailableModels(resolvedUserSettings)
@@ -368,7 +360,7 @@ export function FolderChat({ folderId, isActiveRoute = true }: FolderChatProps) 
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 20 }}
                         transition={{ duration: 0.2, ease: "easeInOut" }}
-                        className="md:-bottom-10 pointer-events-none absolute inset-x-0 z-[10] flex flex-col items-center justify-center pb-6"
+                        className="pointer-events-none absolute inset-x-0 z-[10] flex flex-col items-center justify-center pb-6 md:-bottom-10"
                         style={{
                             bottom: "calc(-1 * var(--chat-composer-overlap))"
                         }}
@@ -405,3 +397,4 @@ export function FolderChat({ folderId, isActiveRoute = true }: FolderChatProps) 
         </div>
     )
 }
+import { useCurrentUserSettings } from "@/hooks/use-current-user-settings"

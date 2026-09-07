@@ -1,3 +1,10 @@
+import {
+    PersonaAvatarCropper as AvatarCropper,
+    type PersonaAvatarCropState as AvatarCropState,
+    readPersonaAvatarAsDataUrl as readFileAsDataUrl,
+    cropPersonaAvatarToSquare as cropAvatarToSquare,
+    compressPersonaAvatar as compressAvatar
+} from "@/components/persona-avatar-cropper"
 import { ModelSelector } from "@/components/model-selector"
 import { PersonaAvatar } from "@/components/persona-avatar"
 import { SettingsLayout } from "@/components/settings/settings-layout"
@@ -23,7 +30,6 @@ import {
 } from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Slider } from "@/components/ui/slider"
 import { Textarea } from "@/components/ui/textarea"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
@@ -35,11 +41,9 @@ import {
 } from "@/hooks/use-model-lifecycle-migration"
 import { resolveJwtToken } from "@/lib/auth-token"
 import { browserEnv } from "@/lib/browser-env"
-import { useDiskCachedQuery } from "@/lib/convex-cached-query"
-import { DefaultSettings } from "@/lib/default-user-settings"
 import { uploadFileDirect } from "@/lib/direct-upload"
 import { estimateTokenCount } from "@/lib/file_constants"
-import { isImageGenerationCapableModel, useAvailableModels } from "@/lib/models-providers-shared"
+import { useAvailableModels } from "@/lib/models-providers-shared"
 import {
     MAX_PERSONA_KNOWLEDGE_DOCS,
     MAX_PERSONA_PROMPT_TOKENS,
@@ -59,9 +63,7 @@ import {
     useRef,
     useState
 } from "react"
-import Cropper, { type Area } from "react-easy-crop"
-import "react-easy-crop/react-easy-crop.css"
-import "./personas-cropper.css"
+import type { Area } from "react-easy-crop"
 import { toast } from "sonner"
 
 export const Route = createFileRoute("/settings/personas")({
@@ -147,133 +149,6 @@ const ensureStarterSlots = (starters: string[]) =>
         ? starters
         : [...starters, ...Array.from({ length: MIN_PERSONA_STARTERS - starters.length }, () => "")]
 
-const readFileAsDataUrl = async (file: File) =>
-    await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => {
-            if (typeof reader.result === "string") {
-                resolve(reader.result)
-                return
-            }
-
-            reject(new Error("Failed to read avatar image"))
-        }
-        reader.onerror = () => reject(new Error("Failed to read avatar image"))
-        reader.readAsDataURL(file)
-    })
-
-const loadImage = async (src: string) =>
-    await new Promise<HTMLImageElement>((resolve, reject) => {
-        const image = new Image()
-        image.onload = () => resolve(image)
-        image.onerror = () => reject(new Error("Failed to decode avatar image"))
-        image.src = src
-    })
-
-const cropAvatarToSquare = async ({
-    src,
-    croppedAreaPixels,
-    fileName
-}: {
-    src: string
-    croppedAreaPixels: Area
-    fileName: string
-}) => {
-    const image = await loadImage(src)
-    const canvas = document.createElement("canvas")
-    const cropWidth = Math.max(1, Math.round(croppedAreaPixels.width))
-    const cropHeight = Math.max(1, Math.round(croppedAreaPixels.height))
-    const scale = Math.min(1, 512 / Math.max(cropWidth, cropHeight))
-
-    canvas.width = Math.max(1, Math.round(cropWidth * scale))
-    canvas.height = Math.max(1, Math.round(cropHeight * scale))
-
-    const context = canvas.getContext("2d")
-    if (!context) {
-        throw new Error("Avatar cropping is not available in this browser")
-    }
-
-    context.drawImage(
-        image,
-        croppedAreaPixels.x,
-        croppedAreaPixels.y,
-        croppedAreaPixels.width,
-        croppedAreaPixels.height,
-        0,
-        0,
-        canvas.width,
-        canvas.height
-    )
-
-    const blob = await new Promise<Blob | null>((resolve) => {
-        canvas.toBlob((value) => resolve(value), "image/webp", 0.92)
-    })
-
-    if (!blob) {
-        throw new Error("Failed to create cropped avatar")
-    }
-
-    return new File([blob], `${fileName.replace(/\.[^.]+$/, "") || "persona-avatar"}.webp`, {
-        type: "image/webp",
-        lastModified: Date.now()
-    })
-}
-
-async function compressAvatar(file: File) {
-    if (file.size <= MAX_AVATAR_BYTES) {
-        return file
-    }
-
-    const objectUrl = URL.createObjectURL(file)
-
-    try {
-        const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-            const element = new Image()
-            element.onload = () => resolve(element)
-            element.onerror = () => reject(new Error("Failed to decode avatar image"))
-            element.src = objectUrl
-        })
-
-        const canvas = document.createElement("canvas")
-        const largestSide = Math.max(image.width, image.height)
-        const scale = Math.min(1, 512 / largestSide)
-        canvas.width = Math.max(1, Math.floor(image.width * scale))
-        canvas.height = Math.max(1, Math.floor(image.height * scale))
-
-        const context = canvas.getContext("2d")
-        if (!context) {
-            throw new Error("Avatar compression is not available in this browser")
-        }
-
-        context.drawImage(image, 0, 0, canvas.width, canvas.height)
-
-        for (const quality of [0.9, 0.82, 0.74, 0.66, 0.58]) {
-            const blob = await new Promise<Blob | null>((resolve) => {
-                canvas.toBlob((value) => resolve(value), "image/webp", quality)
-            })
-
-            if (!blob) continue
-
-            const compressedFile = new File(
-                [blob],
-                `${file.name.replace(/\.[^.]+$/, "") || "persona-avatar"}.webp`,
-                {
-                    type: "image/webp",
-                    lastModified: file.lastModified
-                }
-            )
-
-            if (compressedFile.size <= MAX_AVATAR_BYTES) {
-                return compressedFile
-            }
-        }
-
-        throw new Error("Could not compress avatar below 100KB")
-    } finally {
-        URL.revokeObjectURL(objectUrl)
-    }
-}
-
 const buildFormFromPersona = (persona: UserPersonaRecord, duplicate = false): PersonaFormState => ({
     personaId: duplicate ? undefined : persona._id,
     name: duplicate ? `${persona.name} Copy` : persona.name,
@@ -298,150 +173,6 @@ const buildFormFromPersona = (persona: UserPersonaRecord, duplicate = false): Pe
         tokenCount: doc.tokenCount
     }))
 })
-
-type AvatarCropState = {
-    src: string
-    fileName: string
-}
-
-function AvatarCropper({
-    cropState,
-    open,
-    onOpenChange,
-    onConfirm,
-    isSaving
-}: {
-    cropState: AvatarCropState | null
-    open: boolean
-    onOpenChange: (open: boolean) => void
-    onConfirm: (croppedAreaPixels: Area) => Promise<void>
-    isSaving: boolean
-}) {
-    const isMobile = useIsMobile()
-    const [crop, setCrop] = useState({ x: 0, y: 0 })
-    const [zoom, setZoom] = useState(1)
-    const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
-
-    useEffect(() => {
-        if (!open || !cropState) return
-        setCrop({ x: 0, y: 0 })
-        setZoom(1)
-        setCroppedAreaPixels(null)
-    }, [cropState, open])
-
-    const content = (
-        <>
-            <div className="space-y-5 px-4 pb-4 md:px-6 md:pb-0">
-                <div className="persona-avatar-cropper relative h-72 overflow-hidden rounded-[var(--radius-xl)] border border-border bg-muted/60 md:h-96">
-                    {cropState && (
-                        <Cropper
-                            image={cropState.src}
-                            crop={crop}
-                            zoom={zoom}
-                            aspect={1}
-                            cropShape="rect"
-                            showGrid
-                            objectFit="contain"
-                            classes={{
-                                containerClassName: "persona-avatar-cropper__container",
-                                mediaClassName: "persona-avatar-cropper__media",
-                                cropAreaClassName: "persona-avatar-cropper__area"
-                            }}
-                            onCropChange={setCrop}
-                            onZoomChange={setZoom}
-                            onCropComplete={(_, areaPixels) => setCroppedAreaPixels(areaPixels)}
-                        />
-                    )}
-                </div>
-                <div className="space-y-3 rounded-[var(--radius-lg)] border border-border/70 bg-muted/30 px-4 py-3">
-                    <div className="flex items-center justify-between text-sm">
-                        <Label htmlFor="persona-avatar-zoom">Zoom</Label>
-                        <span className="text-muted-foreground">{Math.round(zoom * 100)}%</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <span className="text-muted-foreground text-xs">1x</span>
-                        <Slider
-                            id="persona-avatar-zoom"
-                            min={1}
-                            max={3}
-                            step={0.01}
-                            value={[zoom]}
-                            onValueChange={([value]) => setZoom(value ?? 1)}
-                            className="flex-1"
-                        />
-                        <span className="text-muted-foreground text-xs">3x</span>
-                    </div>
-                </div>
-            </div>
-            {isMobile ? (
-                <DrawerFooter className="shrink-0 border-t px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-                    <Button
-                        onClick={() => croppedAreaPixels && void onConfirm(croppedAreaPixels)}
-                        disabled={!croppedAreaPixels || isSaving}
-                    >
-                        {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                        Apply Crop
-                    </Button>
-                    <DrawerClose asChild>
-                        <Button variant="outline" disabled={isSaving}>
-                            Cancel
-                        </Button>
-                    </DrawerClose>
-                </DrawerFooter>
-            ) : (
-                <DialogFooter className="border-t px-6 py-4">
-                    <Button
-                        variant="outline"
-                        onClick={() => onOpenChange(false)}
-                        disabled={isSaving}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        onClick={() => croppedAreaPixels && void onConfirm(croppedAreaPixels)}
-                        disabled={!croppedAreaPixels || isSaving}
-                    >
-                        {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                        Apply Crop
-                    </Button>
-                </DialogFooter>
-            )}
-        </>
-    )
-
-    if (isMobile) {
-        return (
-            <Drawer open={open} onOpenChange={onOpenChange}>
-                <DrawerContent
-                    className="z-[80] flex max-h-[92dvh] flex-col gap-0 overflow-hidden border-border/60 bg-background p-0"
-                    overlayClassName="z-[80]"
-                >
-                    <DrawerHeader className="shrink-0 text-left">
-                        <DrawerTitle>Crop Persona Avatar</DrawerTitle>
-                        <DrawerDescription>
-                            Adjust the image inside a locked 1:1 crop.
-                        </DrawerDescription>
-                    </DrawerHeader>
-                    {content}
-                </DrawerContent>
-            </Drawer>
-        )
-    }
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl gap-0 overflow-hidden p-0">
-                <DialogHeader className="border-b px-6 pt-6 pb-4">
-                    <DialogTitle>Crop Persona Avatar</DialogTitle>
-                    <DialogDescription>
-                        Adjust the image inside a locked 1:1 crop.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="py-5">{content}</div>
-            </DialogContent>
-        </Dialog>
-    )
-}
 
 function PersonaEditorForm({
     form,
@@ -909,15 +640,7 @@ function PersonasSettings() {
         api.personas.listUserPersonas,
         session.user?.id ? {} : "skip"
     )
-    const userSettings = useDiskCachedQuery(
-        api.settings.getUserSettings,
-        {
-            key: "user-settings",
-            default: DefaultSettings(session.user?.id ?? "CACHE"),
-            forceCache: true
-        },
-        session.user?.id && !auth.isLoading ? {} : "skip"
-    )
+    const userSettings = useCurrentUserSettings(session.user?.id, auth.isLoading)
     const createPersona = useConvexMutation(api.personas.createUserPersona)
     const updatePersona = useConvexMutation(api.personas.updateUserPersona)
     const deletePersona = useConvexMutation(api.personas.deleteUserPersona)
@@ -927,13 +650,7 @@ function PersonasSettings() {
     const { models: sharedModels } = useSharedModels()
 
     const personaModels = useMemo(
-        () =>
-            availableModels.filter(
-                (model) =>
-                    !isImageGenerationCapableModel(model) &&
-                    model.mode !== "speech-to-text" &&
-                    model.mode !== "text-to-speech"
-            ),
+        () => availableModels.filter((model) => isChatModel(model)),
         [availableModels]
     )
 
@@ -1405,3 +1122,5 @@ function PersonasSettings() {
         </SettingsLayout>
     )
 }
+import { useCurrentUserSettings } from "@/hooks/use-current-user-settings"
+import { isChatModel } from "@/convex/lib/models"

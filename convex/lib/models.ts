@@ -43,45 +43,4 @@ export const MODELS_SHARED: SharedModel[] = [
     ...FAL_IMAGE_MODELS
 ] as const
 
-export const SHARED_MODELS_VERSION = JSON.stringify(
-    MODELS_SHARED.map((model) => [
-        model.id,
-        model.name,
-        model.shortName,
-        model.shortDescription,
-        model.description,
-        model.developer,
-        model.knowledgeCutoff,
-        model.addedOn,
-        model.artificialAnalysis,
-        model.releaseOrder,
-        model.adapters,
-        model.abilities,
-        model.mode,
-        model.transcription,
-        model.speech,
-        model.contextLength,
-        model.maxTokens,
-        model.inputUsdPer1MTokens,
-        model.outputUsdPer1MTokens,
-        model.hostedContextLength,
-        model.maxPerMessage,
-        model.supportsReferenceImages,
-        model.openrouterImageModalities,
-        model.openrouterProvider,
-        model.supportedImageSizes,
-        model.supportedImageResolutions,
-        model.defaultImageQuality,
-        model.imagePricing,
-        model.customIcon,
-        model.supportsDisablingReasoning,
-        model.reasoningEfforts,
-        model.defaultReasoningEffort,
-        model.availableToPickFor,
-        model.availableToPickForReasoningEfforts,
-        model.requiredRole,
-        model.legacy,
-        model.sunsetOn,
-        model.replacementId
-    ])
-)
+export const SHARED_MODELS_VERSION = JSON.stringify(MODELS_SHARED)

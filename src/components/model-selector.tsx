@@ -30,12 +30,10 @@ import {
 } from "@/components/ui/responsive-popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
-import { api } from "@/convex/_generated/api"
 import type { SharedModel } from "@/convex/lib/models"
 import { useSession } from "@/hooks/auth-hooks"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { modelSupportsNativePdf } from "@/lib/attachment-support"
-import { useDiskCachedQuery } from "@/lib/convex-cached-query"
 import { DefaultSettings } from "@/lib/default-user-settings"
 import { OPEN_MODEL_PICKER_SHORTCUT_EVENT } from "@/lib/keyboard-shortcuts"
 import type { ModelBenchmarkPayload } from "@/lib/model-benchmarks"
@@ -1317,15 +1315,7 @@ export function ModelSelector({
     const auth = useConvexAuth()
     const session = useSession()
     const isMobile = useIsMobile()
-    const userSettings = useDiskCachedQuery(
-        api.settings.getUserSettings,
-        {
-            key: "user-settings",
-            default: DefaultSettings(session.user?.id ?? "CACHE"),
-            forceCache: true
-        },
-        session.user?.id && !auth.isLoading ? {} : "skip"
-    )
+    const userSettings = useCurrentUserSettings(session.user?.id, auth.isLoading)
 
     const [internalOpen, setOpenState] = React.useState(false)
     const open = controlledOpen ?? internalOpen
@@ -1497,12 +1487,7 @@ export function ModelSelector({
     )
 
     const providerSections = React.useMemo<ProviderSection[]>(() => {
-        const textModels = availableModels.filter(
-            (model) =>
-                !isImageGenerationCapableModel(model) &&
-                model.mode !== "speech-to-text" &&
-                model.mode !== "text-to-speech"
-        )
+        const textModels = availableModels.filter((model) => isChatModel(model))
         const grouped = textModels.reduce<Record<string, DisplayModel[]>>((acc, model) => {
             const sectionId = getModelSectionId(model)
             if (!acc[sectionId]) {
@@ -2177,3 +2162,5 @@ export function ModelSelector({
         </ResponsivePopover>
     )
 }
+import { useCurrentUserSettings } from "@/hooks/use-current-user-settings"
+import { isChatModel } from "@/convex/lib/models"

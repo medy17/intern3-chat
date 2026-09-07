@@ -857,23 +857,12 @@ export const migrateUserImages = action({
         const { r2 } = await import("./attachments")
         const keyPrefix = `generations/${user.id}/`
         const pageSize = 200
-        let cursor: string | null = null
         const files: { key: string; lastModified: string | number }[] = []
-        const seenCursors = new Set<string>()
-
-        while (true) {
-            const result: {
-                page: { key: string; lastModified: string | number }[]
-                isDone: boolean
-                continueCursor: string
-            } = await r2.listMetadata(ctx, user.id, pageSize, cursor, keyPrefix)
-            files.push(...result.page)
-
-            if (result.isDone) break
-
-            if (seenCursors.has(result.continueCursor)) break
-            seenCursors.add(result.continueCursor)
-            cursor = result.continueCursor
+        for await (const page of iterateMetadataPages(
+            (cursor) => r2.listMetadata(ctx, user.id, pageSize, cursor, keyPrefix),
+            () => console.warn("[images.sync] Repeated pagination cursor detected")
+        )) {
+            files.push(...page)
         }
 
         // Get existing entries from DB
@@ -917,3 +906,4 @@ export const migrateUserImages = action({
         })
     }
 })
+import { iterateMetadataPages } from "./lib/r2_pagination"

@@ -21,6 +21,8 @@ import {
     useDiskCachedPaginatedQuery,
     useDiskCachedQuery
 } from "@/lib/convex-cached-query"
+import { useCurrentUserSettings } from "@/hooks/use-current-user-settings"
+import { DefaultSettings } from "@/lib/default-user-settings"
 
 const useDiskCachedQueryTest = useDiskCachedQuery as unknown as (
     query: never,
@@ -41,6 +43,23 @@ const useDiskCachedPaginatedQueryTest = useDiskCachedPaginatedQuery as unknown a
 ) => { results: unknown[]; loadMore: ReturnType<typeof vi.fn>; status: string }
 
 describe("convex-cached-query", () => {
+    it("keeps cached settings separate across account changes and logout", () => {
+        localStorage.clear()
+        useQueryMock.mockReturnValue(undefined)
+        localStorage.setItem(
+            "CVX_DISK_CACHE:user-settings:alice",
+            JSON.stringify({ ...DefaultSettings("alice"), invertSendNewlineBehavior: true })
+        )
+        const { result, rerender } = renderHook(
+            ({ userId }: { userId: string | undefined }) => useCurrentUserSettings(userId, true),
+            { initialProps: { userId: "alice" as string | undefined } }
+        )
+        expect(result.current).toMatchObject({ userId: "alice", invertSendNewlineBehavior: true })
+        rerender({ userId: "bob" })
+        expect(result.current).toMatchObject({ userId: "bob", invertSendNewlineBehavior: false })
+        rerender({ userId: undefined })
+        expect(result.current).toMatchObject({ userId: "CACHE", invertSendNewlineBehavior: false })
+    })
     beforeEach(() => {
         localStorage.clear()
         usePaginatedQueryMock.mockReset()

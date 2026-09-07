@@ -121,7 +121,7 @@ export type ModelReasoningProfiles = {
     >
 }
 
-export type SharedModel<Abilities extends ModelAbility[] = ModelAbility[]> = {
+type SharedModelFields<Abilities extends ModelAbility[] = ModelAbility[]> = {
     id: string
     name: string
     shortName?: string
@@ -134,9 +134,6 @@ export type SharedModel<Abilities extends ModelAbility[] = ModelAbility[]> = {
     releaseOrder?: number
     adapters: RegistryKey[]
     abilities: Abilities
-    mode?: "text" | "image" | "speech-to-text" | "text-to-speech"
-    transcription?: TranscriptionConfig
-    speech?: SpeechConfig
     contextLength?: number
     maxTokens?: number
     inputUsdPer1MTokens?: number
@@ -163,3 +160,29 @@ export type SharedModel<Abilities extends ModelAbility[] = ModelAbility[]> = {
     sunsetOn?: string
     replacementId?: string
 }
+
+export const MODEL_MODES = ["text", "image", "speech-to-text", "text-to-speech"] as const
+export type ModelMode = (typeof MODEL_MODES)[number]
+
+export const isModelMode = (value: unknown): value is ModelMode =>
+    typeof value === "string" && MODEL_MODES.some((mode) => mode === value)
+
+export const isChatModel = (model: {
+    mode?: string
+    supportedImageResolutions?: readonly string[]
+}) =>
+    (model.mode === undefined || model.mode === "text") && !model.supportedImageResolutions?.length
+
+type ModelModeFields =
+    | { mode?: "text"; transcription?: never; speech?: never; imagePricing?: never }
+    | { mode: "image"; supportedImageSizes: ImageSize[]; transcription?: never; speech?: never }
+    | {
+          mode: "speech-to-text"
+          transcription: TranscriptionConfig
+          speech?: never
+          imagePricing?: never
+      }
+    | { mode: "text-to-speech"; speech: SpeechConfig; transcription?: never; imagePricing?: never }
+
+export type SharedModel<Abilities extends ModelAbility[] = ModelAbility[]> =
+    SharedModelFields<Abilities> & ModelModeFields

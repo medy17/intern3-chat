@@ -67,15 +67,7 @@ const ChatContent = ({ threadId: routeThreadId, folderId, isActiveRoute = true }
     const mode = themeState.currentMode
     const { data: session, isPending } = useSession()
     const defaultModelId = useDefaultModelId()
-    const userSettings = useDiskCachedQuery(
-        api.settings.getUserSettings,
-        {
-            key: "user-settings",
-            default: DefaultSettings(session?.user?.id ?? "CACHE"),
-            forceCache: true
-        },
-        session?.user?.id && !isPending ? {} : "skip"
-    )
+    const userSettings = useCurrentUserSettings(session?.user?.id, isPending)
     const resolvedUserSettings =
         "error" in userSettings ? DefaultSettings(session?.user?.id ?? "") : userSettings
     const { availableModels } = useAvailableModels(resolvedUserSettings)
@@ -623,3 +615,4 @@ const ChatContent = ({ threadId: routeThreadId, folderId, isActiveRoute = true }
 export const Chat = ({ threadId, folderId, isActiveRoute = true }: ChatProps) => {
     return <ChatContent threadId={threadId} folderId={folderId} isActiveRoute={isActiveRoute} />
 }
+import { useCurrentUserSettings } from "@/hooks/use-current-user-settings"

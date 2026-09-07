@@ -1,5 +1,5 @@
 // convex/attachments.ts
-import { R2, type R2MetadataPage } from "@convex-dev/r2"
+import { R2 } from "@convex-dev/r2"
 import { paginationOptsValidator } from "convex/server"
 import { v } from "convex/values"
 import { components } from "./_generated/api"
@@ -464,29 +464,14 @@ export const listFiles = query({
 
             const files: Awaited<ReturnType<typeof r2.listMetadata>>["page"] = []
             for (const keyPrefix of getUserVisibleFilePrefixes(user.id)) {
-                const seenCursors = new Set<string>()
-                let cursor: string | null = null
-
-                while (true) {
-                    const result: R2MetadataPage = await r2.listMetadata(
-                        ctx,
-                        user.id,
-                        200,
-                        cursor,
-                        keyPrefix
-                    )
-                    files.push(...result.page)
-
-                    if (result.isDone) break
-                    if (seenCursors.has(result.continueCursor)) {
+                for await (const page of iterateMetadataPages(
+                    (cursor) => r2.listMetadata(ctx, user.id, 200, cursor, keyPrefix),
+                    () =>
                         console.warn(
                             `[attachments.listFiles] Repeated pagination cursor for ${keyPrefix}`
                         )
-                        break
-                    }
-
-                    seenCursors.add(result.continueCursor)
-                    cursor = result.continueCursor
+                )) {
+                    files.push(...page)
                 }
             }
 
@@ -527,33 +512,15 @@ export const listGeneratedFiles = query({
 
             const pageSize = 200
             const files: Awaited<ReturnType<typeof r2.listMetadata>>["page"] = []
-            let cursor: string | null = null
-            const seenCursors = new Set<string>()
             const keyPrefix = `generations/${user.id}/`
-
-            while (true) {
-                const result: R2MetadataPage = await r2.listMetadata(
-                    ctx,
-                    user.id,
-                    pageSize,
-                    cursor,
-                    keyPrefix
-                )
-                files.push(...result.page)
-
-                if (result.isDone) {
-                    break
-                }
-
-                if (seenCursors.has(result.continueCursor)) {
+            for await (const page of iterateMetadataPages(
+                (cursor) => r2.listMetadata(ctx, user.id, pageSize, cursor, keyPrefix),
+                () =>
                     console.warn(
                         "[attachments.listGeneratedFiles] Repeated pagination cursor detected"
                     )
-                    break
-                }
-
-                seenCursors.add(result.continueCursor)
-                cursor = result.continueCursor
+            )) {
+                files.push(...page)
             }
 
             switch (args.sortBy || "newest") {
@@ -624,3 +591,4 @@ export const getFile = httpAction(async (ctx, req) => {
         return new Response(null, { status: 500 })
     }
 })
+import { iterateMetadataPages } from "./lib/r2_pagination"

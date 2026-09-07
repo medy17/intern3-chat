@@ -1,17 +1,12 @@
 "use node"
 
+import { getOrCreateImageDerivative } from "./derivatives_node"
+
 import type { GenericActionCtx } from "convex/server"
 import { v } from "convex/values"
 import type { DataModel } from "../../_generated/dataModel"
 import { internalAction } from "../../_generated/server"
-import { r2 } from "../../attachments"
-import {
-    DEFAULT_UPLOAD_POLICY_VERSION,
-    MAX_COMPRESSIBLE_IMAGE_SIZE,
-    formatFileSizeLimit
-} from "../file_constants"
-import { compressImageBytesToWebpLimit } from "../image_compression_node"
-import { assertOwnedImageKey, getMetadataString } from "./shared"
+import { assertOwnedImageKey } from "./shared"
 
 export const MAX_MODEL_CONTEXT_IMAGE_SIZE = 1 * 1024 * 1024
 
@@ -40,73 +35,20 @@ const buildDirectPublicAssetUrl = (key: string, publicAssetBaseUrl?: string) => 
     return `${trimTrailingSlash(publicAssetBaseUrl)}/${encodeKeyPath(key)}`
 }
 
-const getSourceKeyHash = async (sourceKey: string) => {
-    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(sourceKey))
-    return Array.from(new Uint8Array(digest))
-        .map((byte) => byte.toString(16).padStart(2, "0"))
-        .join("")
-        .slice(0, 32)
-}
-
-const fetchStoredImageBytes = async (key: string) => {
-    const url = await r2.getUrl(key)
-    const response = await fetch(url, {
-        headers: {
-            Accept: "image/*",
-            "Accept-Encoding": "identity"
-        }
-    })
-
-    if (!response.ok) {
-        throw new Error(`Failed to load generated image context (${response.status})`)
-    }
-
-    return new Uint8Array(await response.arrayBuffer())
-}
-
-const getOrCreateGeneratedImageContextDerivative = async (
+const getOrCreateGeneratedImageContextDerivative = (
     ctx: GenericActionCtx<DataModel>,
-    {
-        userId,
-        sourceKey
-    }: {
-        userId: string
-        sourceKey: string
-    }
-) => {
-    const sourceHash = await getSourceKeyHash(sourceKey)
-    const derivativeKey = `references/${userId}/generated-context/${sourceHash}-${DEFAULT_UPLOAD_POLICY_VERSION}.webp`
-
-    try {
-        const existing = await r2.getMetadata(ctx, derivativeKey)
-        if (existing && getMetadataString(existing, "authorId") === userId) {
-            return derivativeKey
+    args: { userId: string; sourceKey: string }
+) =>
+    getOrCreateImageDerivative(ctx, {
+        ...args,
+        profile: {
+            subdirectory: "generated-context",
+            maxBytes: MAX_MODEL_CONTEXT_IMAGE_SIZE,
+            steps: MODEL_CONTEXT_IMAGE_COMPRESSION_STEPS,
+            label: "Generated image context",
+            errorLabel: "generated image context"
         }
-    } catch {
-        // Missing derivative: create it below.
-    }
-
-    const bytes = await fetchStoredImageBytes(sourceKey)
-    if (bytes.byteLength > MAX_COMPRESSIBLE_IMAGE_SIZE) {
-        throw new Error(
-            `Generated image context exceeds ${formatFileSizeLimit(MAX_COMPRESSIBLE_IMAGE_SIZE)} limit`
-        )
-    }
-
-    const compressed = await compressImageBytesToWebpLimit({
-        bytes,
-        maxBytes: MAX_MODEL_CONTEXT_IMAGE_SIZE,
-        steps: MODEL_CONTEXT_IMAGE_COMPRESSION_STEPS,
-        errorLabel: "generated image context"
     })
-
-    return await r2.store(ctx, compressed, {
-        authorId: userId,
-        key: derivativeKey,
-        type: "image/webp",
-        cacheControl: "public, max-age=604800, s-maxage=2592000, stale-while-revalidate=604800"
-    })
-}
 
 export const resolveGeneratedImageContextUrl = async (
     ctx: GenericActionCtx<DataModel>,

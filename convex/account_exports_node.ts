@@ -1,7 +1,6 @@
 "use node"
 
 import { createHash, randomBytes } from "node:crypto"
-import type { R2MetadataPage } from "@convex-dev/r2"
 import type { BetterAuthOptions } from "better-auth"
 import { v } from "convex/values"
 import {
@@ -108,19 +107,14 @@ const loadStoredFiles = async (
     const files: AccountExportStoredFile[] = []
 
     for (const keyPrefix of getUserVisibleFilePrefixes(userId)) {
-        let cursor: string | null = null
-        const seenCursors = new Set<string>()
-
-        while (true) {
-            const result: R2MetadataPage = await r2.listMetadata(
-                ctx,
-                userId,
-                200,
-                cursor,
-                keyPrefix
-            )
+        for await (const page of iterateMetadataPages(
+            (cursor) => r2.listMetadata(ctx, userId, 200, cursor, keyPrefix),
+            () => {
+                throw new Error(`Repeated R2 pagination cursor for ${keyPrefix}`)
+            }
+        )) {
             files.push(
-                ...result.page.map((file) => ({
+                ...page.map((file) => ({
                     key: file.key,
                     url: toPublicAssetUrl(publicAssetBaseUrl, file.key),
                     contentType: file.contentType,
@@ -128,12 +122,6 @@ const loadStoredFiles = async (
                     lastModified: file.lastModified
                 }))
             )
-            if (result.isDone) break
-            if (seenCursors.has(result.continueCursor)) {
-                throw new Error(`Repeated R2 pagination cursor for ${keyPrefix}`)
-            }
-            seenCursors.add(result.continueCursor)
-            cursor = result.continueCursor
         }
     }
 
@@ -397,3 +385,4 @@ export const deliverAccountExportEmail = internalAction({
         }
     }
 })
+import { iterateMetadataPages } from "./lib/r2_pagination"

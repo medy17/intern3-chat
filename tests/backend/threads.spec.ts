@@ -75,6 +75,7 @@ vi.mock("../../convex/schema", () => ({
 
 vi.mock("../../convex/schema/message", () => ({
     HTTPAIMessage: {},
+    ImportedMessageMetadata: {},
     Message: {}
 }))
 

@@ -24,7 +24,6 @@ import {
 } from "@/hooks/use-model-lifecycle-migration"
 import { useChatStore } from "@/lib/chat-store"
 import { useDiskCachedQuery } from "@/lib/convex-cached-query"
-import { DefaultSettings } from "@/lib/default-user-settings"
 import { getFavoriteToggleAction } from "@/lib/model-favorites"
 import { useModelStore } from "@/lib/model-store"
 import { useAvailableModels } from "@/lib/models-providers-shared"
@@ -762,15 +761,7 @@ export function PersonaSelector({
         },
         session.user?.id && !auth.isLoading && canRevalidatePickerOptions ? {} : "skip"
     )
-    const userSettings = useDiskCachedQuery(
-        api.settings.getUserSettings,
-        {
-            key: "user-settings",
-            default: DefaultSettings(session.user?.id ?? "CACHE"),
-            forceCache: true
-        },
-        session.user?.id && !auth.isLoading ? {} : "skip"
-    )
+    const userSettings = useCurrentUserSettings(session.user?.id, auth.isLoading)
     const resolvedPickerOptions = "error" in pickerOptions ? null : pickerOptions
     const { availableModels } = useAvailableModels(
         "error" in userSettings ? undefined : userSettings
@@ -1334,3 +1325,4 @@ export function PersonaSelector({
         </motion.div>
     )
 }
+import { useCurrentUserSettings } from "@/hooks/use-current-user-settings"
