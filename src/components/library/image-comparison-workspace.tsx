@@ -1,15 +1,9 @@
+import { AnimatePresence, MotionConfig, motion, useReducedMotion } from "motion/react"
 import { useImageViewerLoad } from "@/hooks/use-image-viewer-load"
 import { useImageViewerActions } from "@/hooks/use-image-viewer-actions"
 import { ImageLoadIndicator } from "@/components/library/image-load-indicator"
-import { ImageMetadataPanel } from "@/components/library/image-metadata-panel"
+import { ReferenceImageThumbnails } from "@/components/library/image-metadata-panel"
 import { Button } from "@/components/ui/button"
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle
-} from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Doc } from "@/convex/_generated/dataModel"
@@ -35,6 +29,10 @@ import {
     Download,
     ExternalLink,
     SquareSplitHorizontal,
+    Info,
+    ZoomIn,
+    ZoomOut,
+    Scan,
     X
 } from "lucide-react"
 import {
@@ -53,10 +51,8 @@ type GeneratedImage = Doc<"generatedImages">
 
 type ComparisonMode = "side-by-side" | "slider"
 
-interface ImageComparisonModalProps {
-    images: readonly [GeneratedImage, GeneratedImage] | null
-    isOpen: boolean
-    onClose: () => void
+interface ImageComparisonWorkspaceProps {
+    images: readonly [GeneratedImage, GeneratedImage]
 }
 
 interface ViewTransform {
@@ -72,19 +68,6 @@ const DOUBLE_CLICK_SCALE = 2.5
 const WHEEL_ZOOM_SENSITIVITY = 0.0015
 const INITIAL_SLIDER_PERCENT = 50
 const SLIDER_KEYBOARD_STEP = 5
-// Metadata panels are hidden below Tailwind's md breakpoint.
-const METADATA_PANEL_BREAKPOINT = 768
-const METADATA_PANEL_MIN_HEIGHT = 288
-const CONTENT_GAP = 16
-
-function getMetadataPanelReservedHeight() {
-    if (typeof window === "undefined" || window.innerWidth < METADATA_PANEL_BREAKPOINT) {
-        return 0
-    }
-
-    return METADATA_PANEL_MIN_HEIGHT + CONTENT_GAP
-}
-
 function clampScale(scale: number) {
     return Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale))
 }
@@ -149,8 +132,7 @@ function useElementSize<T extends HTMLElement>() {
 
 function useFittedImageBox(
     aspectRatio: string | undefined,
-    size: { width: number; height: number },
-    reservedHeight = 0
+    size: { width: number; height: number }
 ) {
     return useMemo(() => {
         if (size.width < 10 || size.height < 10) return null
@@ -158,9 +140,9 @@ function useFittedImageBox(
         return fitImageAspectRatioBox({
             aspectRatioValue: getImageAspectRatioValue(aspectRatio || "1:1"),
             maxWidth: size.width,
-            maxHeight: Math.max(120, size.height - reservedHeight)
+            maxHeight: size.height
         })
-    }, [aspectRatio, size, reservedHeight])
+    }, [aspectRatio, size])
 }
 
 function ComparisonImage({
@@ -175,6 +157,8 @@ function ComparisonImage({
 }) {
     const [recoveryPhase, setRecoveryPhase] = useState<GeneratedImageRecoveryPhase>("primary")
 
+    // Reset fallback recovery when the selected image changes.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: storageKey identifies the image to reset.
     useEffect(() => {
         setRecoveryPhase("primary")
     }, [image.storageKey])
@@ -202,7 +186,26 @@ function ComparisonImage({
     const handleError = () => {
         const nextPhase = getNextGeneratedImageRecoveryPhase(recoveryPhase)
         handleImageFailure(nextPhase !== "error")
-        if (nextPhase !== "error") setRecoveryPhase(nextPhase)
+        setRecoveryPhase(nextPhase)
+    }
+
+    if (recoveryPhase === "error") {
+        return (
+            <div
+                className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-muted text-sm"
+                role="status"
+            >
+                <p>Couldn't load this image.</p>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() => setRecoveryPhase("primary")}
+                >
+                    Try again
+                </Button>
+            </div>
+        )
     }
 
     return (
@@ -251,7 +254,7 @@ function PaneBadge({
     return (
         <div
             className={cn(
-                "pointer-events-none z-10 max-w-[70%] truncate rounded-[var(--radius-md)] border border-background/40 bg-background/80 px-2 py-1 font-medium text-foreground text-xs shadow-lg backdrop-blur-md",
+                "min-w-0 truncate rounded-[var(--radius-md)] bg-background/70 px-3 py-2 font-medium text-foreground text-sm backdrop-blur-md",
                 className
             )}
         >
@@ -272,7 +275,7 @@ function PanelActions({ image, label }: { image: GeneratedImage; label: "A" | "B
     })
 
     return (
-        <div className="flex flex-nowrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
             <Button
                 variant="outline"
                 className="min-w-0"
@@ -281,7 +284,7 @@ function PanelActions({ image, label }: { image: GeneratedImage; label: "A" | "B
                 <ExternalLink className="mr-2 h-4 w-4" />
                 Full Resolution
             </Button>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
                 <Button
                     variant="secondary"
                     size="icon"
@@ -423,6 +426,9 @@ function ComparisonViewport({
         // Registered manually because React wheel listeners are passive, which
         // blocks preventDefault and lets the page scroll behind the dialog.
         const handleWheel = (event: WheelEvent) => {
+            // On the scrolling mobile page, ordinary wheel gestures reach the
+            // details below. Trackpad pinch (Ctrl+wheel) still zooms the image.
+            if (window.innerWidth < 1024 && !event.ctrlKey && !event.metaKey) return
             event.preventDefault()
             const { transform: current } = stateRef.current
             zoomAtPoint(
@@ -586,7 +592,8 @@ function ComparisonViewport({
         <div
             ref={containerRef}
             className={cn(
-                "touch-none overscroll-contain",
+                "overscroll-contain",
+                transform.scale > 1 ? "touch-none" : "touch-pan-y",
                 transform.scale > 1
                     ? "cursor-grab active:cursor-grabbing"
                     : onScrub && "cursor-ew-resize",
@@ -620,39 +627,47 @@ function SideBySidePane({
     pinchStateRef: { current: PinchGestureState }
 }) {
     const { ref, size } = useElementSize<HTMLDivElement>()
-    const box = useFittedImageBox(image.aspectRatio, size, getMetadataPanelReservedHeight())
+    const box = useFittedImageBox(image.aspectRatio, size)
 
     return (
-        <section
-            ref={ref}
-            className="flex min-h-0 min-w-0 flex-col items-center justify-center gap-4 md:justify-start"
+        <motion.section
+            layout="position"
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            className="flex min-h-0 min-w-0 flex-col gap-3"
             aria-label={`Comparison image ${label}`}
         >
-            {box && (
-                <>
+            <div
+                style={{ width: Math.max(box?.width || 0, 220) }}
+                className={cn(
+                    "flex max-w-full items-center justify-between gap-2 self-center px-1",
+                    label === "A" ? "md:self-end" : "md:self-start"
+                )}
+            >
+                <PaneBadge label={label} modelName={modelName} />
+                <span className="shrink-0 rounded-[var(--radius-sm)] bg-background/85 px-2 py-1 text-muted-foreground text-xs backdrop-blur-md">
+                    {image.aspectRatio || "1:1"}
+                </span>
+            </div>
+            <div
+                ref={ref}
+                className={cn(
+                    "flex min-h-0 flex-1 items-center justify-center overflow-hidden",
+                    label === "A" ? "md:justify-end" : "md:justify-start"
+                )}
+            >
+                {box && (
                     <ComparisonViewport
                         transform={transform}
                         onTransformChange={onTransformChange}
                         pinchStateRef={pinchStateRef}
-                        className="relative shrink-0 overflow-hidden rounded-[var(--radius-xl)] border border-border/60 bg-muted/35 shadow-2xl"
+                        className="relative shrink-0 overflow-hidden rounded-[var(--radius-xl)] border border-border/60 bg-background/30 shadow-2xl lg:rounded-[var(--radius-sm)] lg:border-0 lg:bg-transparent lg:shadow-none"
                         style={{ width: box.width, height: box.height }}
                     >
                         <ComparisonImage image={image} transform={transform} />
-                        <PaneBadge
-                            label={label}
-                            modelName={modelName}
-                            className="absolute bottom-2 left-2"
-                        />
                     </ComparisonViewport>
-                    <ImageMetadataPanel
-                        image={image}
-                        modelName={modelName}
-                        className="hidden min-h-0 w-full flex-1 md:flex"
-                        footer={<PanelActions image={image} label={label} />}
-                    />
-                </>
-            )}
-        </section>
+                )}
+            </div>
+        </motion.section>
     )
 }
 
@@ -676,7 +691,10 @@ function SliderView({
     onSliderPercentChange: (percent: number) => void
 }) {
     const { ref, size } = useElementSize<HTMLDivElement>()
-    const box = useFittedImageBox(imageA.aspectRatio, size, getMetadataPanelReservedHeight())
+    const box = useFittedImageBox(imageA.aspectRatio, {
+        width: size.width,
+        height: Math.max(0, size.height - 48)
+    })
     const boxRef = useRef<HTMLDivElement | null>(null)
 
     const handleDividerPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -696,13 +714,17 @@ function SliderView({
     return (
         <div
             ref={ref}
-            className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-4 md:justify-start"
+            className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-3 overflow-hidden"
         >
             {box && (
                 <>
+                    <div style={{ width: box.width }} className="grid shrink-0 grid-cols-2 gap-2">
+                        <PaneBadge label="A" modelName={modelNameA} />
+                        <PaneBadge label="B" modelName={modelNameB} className="text-right" />
+                    </div>
                     <div
                         ref={boxRef}
-                        className="relative shrink-0 overflow-hidden rounded-[var(--radius-xl)] border border-border/60 bg-muted/35 shadow-2xl"
+                        className="relative shrink-0 overflow-hidden rounded-[var(--radius-xl)] border border-border/60 bg-background/30 shadow-2xl lg:rounded-[var(--radius-sm)] lg:border-0 lg:bg-transparent lg:shadow-none"
                         style={{ width: box.width, height: box.height }}
                     >
                         <ComparisonViewport
@@ -711,12 +733,19 @@ function SliderView({
                             onScrub={onSliderPercentChange}
                             className="absolute inset-0"
                         >
-                            <ComparisonImage image={imageB} transform={transform} />
-                            <ComparisonImage
-                                image={imageA}
-                                transform={transform}
-                                clipPercent={sliderPercent}
-                            />
+                            <motion.div
+                                key={`${imageA._id}-${imageB._id}`}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="absolute inset-0"
+                            >
+                                <ComparisonImage image={imageB} transform={transform} />
+                                <ComparisonImage
+                                    image={imageA}
+                                    transform={transform}
+                                    clipPercent={sliderPercent}
+                                />
+                            </motion.div>
                         </ComparisonViewport>
 
                         <div
@@ -725,44 +754,37 @@ function SliderView({
                         >
                             <div className="pointer-events-none absolute inset-y-0 w-0.5 -translate-x-1/2 bg-background shadow-md" />
                             <div
-                                className="absolute top-1/2 flex size-9 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full border border-border/70 bg-background/95 shadow-lg backdrop-blur"
+                                className="absolute top-1/2 flex h-12 w-8 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-[var(--radius-md)] border border-border/70 bg-background text-foreground shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                 role="slider"
                                 aria-label="Comparison divider"
                                 aria-valuemin={0}
                                 aria-valuemax={100}
                                 aria-valuenow={Math.round(sliderPercent)}
+                                aria-valuetext={`${Math.round(sliderPercent)}% image A`}
                                 tabIndex={0}
+                                onKeyDown={(event) => {
+                                    const next =
+                                        event.key === "Home"
+                                            ? 0
+                                            : event.key === "End"
+                                              ? 100
+                                              : event.key === "ArrowLeft" ||
+                                                  event.key === "ArrowDown"
+                                                ? sliderPercent - SLIDER_KEYBOARD_STEP
+                                                : event.key === "ArrowRight" ||
+                                                    event.key === "ArrowUp"
+                                                  ? sliderPercent + SLIDER_KEYBOARD_STEP
+                                                  : null
+                                    if (next === null) return
+                                    event.preventDefault()
+                                    onSliderPercentChange(clampSliderPercent(next))
+                                }}
                                 onPointerDown={handleDividerPointerDown}
                                 onPointerMove={handleDividerPointerMove}
                             >
                                 <ChevronsLeftRight className="size-4" />
                             </div>
                         </div>
-
-                        <PaneBadge
-                            label="A"
-                            modelName={modelNameA}
-                            className="absolute bottom-2 left-2"
-                        />
-                        <PaneBadge
-                            label="B"
-                            modelName={modelNameB}
-                            className="absolute right-2 bottom-2"
-                        />
-                    </div>
-                    <div className="hidden min-h-0 w-full flex-1 gap-4 md:grid md:grid-cols-2">
-                        <ImageMetadataPanel
-                            image={imageA}
-                            modelName={modelNameA}
-                            className="min-h-0"
-                            footer={<PanelActions image={imageA} label="A" />}
-                        />
-                        <ImageMetadataPanel
-                            image={imageB}
-                            modelName={modelNameB}
-                            className="min-h-0"
-                            footer={<PanelActions image={imageB} label="B" />}
-                        />
                     </div>
                 </>
             )}
@@ -770,8 +792,20 @@ function SliderView({
     )
 }
 
-export function ImageComparisonModal({ images, isOpen, onClose }: ImageComparisonModalProps) {
+export function ImageComparisonWorkspace({ images }: ImageComparisonWorkspaceProps) {
     const { models } = useSharedModels()
+    const reducedMotion = useReducedMotion()
+    const [isDesktop, setIsDesktop] = useState(
+        () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches
+    )
+    useEffect(() => {
+        const query = window.matchMedia("(min-width: 1024px)")
+        const update = () => setIsDesktop(query.matches)
+        update()
+        query.addEventListener("change", update)
+        return () => query.removeEventListener("change", update)
+    }, [])
+    const [showDetails, setShowDetails] = useState(false)
     const [mode, setMode] = useState<ComparisonMode>("side-by-side")
     const [orderedImages, setOrderedImages] = useState(images)
     const [transform, setTransform] = useState<ViewTransform>(INITIAL_TRANSFORM)
@@ -784,37 +818,6 @@ export function ImageComparisonModal({ images, isOpen, onClose }: ImageCompariso
         setTransform(INITIAL_TRANSFORM)
         setSliderPercent(INITIAL_SLIDER_PERCENT)
     }, [images])
-
-    useEffect(() => {
-        if (!isOpen || mode !== "slider") return
-
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) {
-                return
-            }
-
-            const target = event.target
-            if (
-                target instanceof HTMLElement &&
-                (target.isContentEditable ||
-                    target.tagName === "INPUT" ||
-                    target.tagName === "TEXTAREA" ||
-                    target.tagName === "SELECT")
-            ) {
-                return
-            }
-
-            if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-                event.preventDefault()
-                const step =
-                    event.key === "ArrowLeft" ? -SLIDER_KEYBOARD_STEP : SLIDER_KEYBOARD_STEP
-                setSliderPercent((current) => clampSliderPercent(current + step))
-            }
-        }
-
-        window.addEventListener("keydown", handleKeyDown)
-        return () => window.removeEventListener("keydown", handleKeyDown)
-    }, [isOpen, mode])
 
     const modelNameById = useMemo(
         () =>
@@ -836,102 +839,285 @@ export function ImageComparisonModal({ images, isOpen, onClose }: ImageCompariso
         setOrderedImages((current) => (current ? ([current[1], current[0]] as const) : current))
     }
 
-    return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent
-                showCloseButton={false}
-                overlayClassName="backdrop-blur-xl"
-                className="inset-0 flex h-[100dvh] max-h-none w-full max-w-none translate-x-0 translate-y-0 flex-col rounded-none border-0 bg-transparent p-3 shadow-none sm:max-w-none sm:p-4"
-            >
-                <DialogHeader className="sr-only">
-                    <DialogTitle>Compare images</DialogTitle>
-                    <DialogDescription>
-                        Compare two generated images side by side or with an overlay slider, with
-                        synchronized zooming and panning.
-                    </DialogDescription>
-                </DialogHeader>
+    const changeZoom = (delta: number) => {
+        setTransform((current) => {
+            const scale = clampScale(current.scale + delta)
+            if (scale === 1) return INITIAL_TRANSFORM
+            const ratio = scale / current.scale
+            return { scale, x: current.x * ratio, y: current.y * ratio }
+        })
+    }
 
-                <div className="relative flex min-h-0 flex-1 flex-col">
-                    <div className="absolute top-0 left-0 z-30">
+    const detailsContent = (
+        <div className="p-5 lg:h-full lg:w-[360px] lg:overflow-y-auto">
+            <div className="mb-5 flex items-center justify-between">
+                <h2 className="font-semibold text-lg">Image details</h2>
+                <Button
+                    size="icon"
+                    variant="ghost"
+                    className="hidden lg:inline-flex"
+                    aria-label="Hide image details"
+                    onClick={() => setShowDetails(false)}
+                >
+                    <X className="size-4" />
+                </Button>
+            </div>
+            {orderedImages.map((image, index) => (
+                <section
+                    key={image._id}
+                    className="space-y-4 py-4 first:pt-0 [&+section]:mt-4 [&+section]:border-border [&+section]:border-t"
+                >
+                    <h2 className="font-medium text-sm">
+                        {index === 0 ? "A" : "B"} · {getModelName(image)}
+                    </h2>
+                    <dl className="flex flex-wrap gap-x-4 gap-y-2 text-muted-foreground text-xs">
+                        <div>
+                            <dt className="sr-only">Aspect ratio</dt>
+                            <dd>{image.aspectRatio || "Unknown ratio"}</dd>
+                        </div>
+                        <div>
+                            <dt className="sr-only">Resolution</dt>
+                            <dd>{image.resolution || "1K"}</dd>
+                        </div>
+                        <div>
+                            <dt className="sr-only">Created</dt>
+                            <dd>{new Date(image.createdAt).toLocaleDateString()}</dd>
+                        </div>
+                    </dl>
+                    <div>
+                        <h3 className="mb-2 font-medium text-xs">Prompt</h3>
+                        <p className="whitespace-pre-wrap break-words text-muted-foreground text-sm leading-relaxed">
+                            {image.prompt || "No prompt available."}
+                        </p>
+                    </div>
+                    <ReferenceImageThumbnails referenceImageKeys={image.referenceImageKeys} />
+                    <PanelActions image={image} label={index === 0 ? "A" : "B"} />
+                </section>
+            ))}
+        </div>
+    )
+
+    return (
+        <MotionConfig
+            reducedMotion="user"
+            transition={{ duration: reducedMotion ? 0 : 0.32, ease: [0.16, 1, 0.3, 1] }}
+        >
+            <div className="h-dvh overflow-y-auto bg-background text-foreground lg:overflow-hidden">
+                <div className="relative flex h-dvh shrink-0 flex-col gap-4 p-3 sm:gap-5 sm:p-6 lg:gap-2 lg:p-3">
+                    <motion.header
+                        initial={{ opacity: 0, y: reducedMotion ? 0 : -12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex shrink-0 items-center justify-between gap-3"
+                    >
                         <Tabs
                             value={mode}
                             onValueChange={(value) => setMode(value as ComparisonMode)}
                         >
-                            <TabsList className="h-9 border border-border/70 shadow-lg backdrop-blur-md">
-                                <TabsTrigger value="side-by-side" className="text-xs">
-                                    <Columns2 className="mr-2 hidden h-3.5 w-3.5 sm:block" />
-                                    Side by side
+                            <TabsList className="h-11 rounded-[var(--radius-lg)] border border-border/60 bg-background/90 p-1 shadow-lg backdrop-blur-md">
+                                <TabsTrigger
+                                    value="side-by-side"
+                                    className="h-9 rounded-[var(--radius-md)] px-3 sm:px-5"
+                                >
+                                    <Columns2 className="size-4" />
+                                    <span className="hidden sm:inline">Side by side</span>
+                                    <span className="sm:hidden">Split</span>
                                 </TabsTrigger>
-                                <TabsTrigger value="slider" className="text-xs">
-                                    <SquareSplitHorizontal className="mr-2 hidden h-3.5 w-3.5 sm:block" />
+                                <TabsTrigger
+                                    value="slider"
+                                    className="h-9 rounded-[var(--radius-md)] px-3 sm:px-5"
+                                >
+                                    <SquareSplitHorizontal className="size-4" />
                                     Slider
                                 </TabsTrigger>
                             </TabsList>
                         </Tabs>
-                    </div>
-
-                    <div className="absolute top-0 right-0 z-30 flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                            <Button
+                                variant={showDetails ? "secondary" : "outline"}
+                                className="hidden h-11 rounded-[var(--radius-lg)] border-border/60 bg-background/90 px-3 shadow-lg backdrop-blur-md lg:inline-flex"
+                                size="sm"
+                                aria-expanded={showDetails}
+                                aria-controls="comparison-details"
+                                onClick={() => setShowDetails(!showDetails)}
+                            >
+                                <Info className="size-4" />
+                                Details
+                            </Button>
+                        </div>
+                    </motion.header>
+                    <motion.div
+                        initial={{
+                            opacity: 0,
+                            scale: reducedMotion ? 1 : 0.96,
+                            y: reducedMotion ? 0 : 16
+                        }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        className="flex min-h-0 flex-1 flex-col lg:flex-row"
+                    >
+                        <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 rounded-[var(--radius-xl)] bg-muted/30 p-3 sm:p-5 lg:rounded-none lg:bg-transparent lg:p-0">
+                            <AnimatePresence mode="wait" initial={false}>
+                                <motion.div
+                                    key={mode}
+                                    initial={{
+                                        opacity: 0,
+                                        scale: reducedMotion ? 1 : 0.97,
+                                        y: reducedMotion ? 0 : 8
+                                    }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{
+                                        opacity: 0,
+                                        scale: reducedMotion ? 1 : 0.98,
+                                        transition: { duration: reducedMotion ? 0 : 0.12 }
+                                    }}
+                                    className="flex min-h-0 flex-1 flex-col gap-3"
+                                >
+                                    {mode === "side-by-side" ? (
+                                        <div className="grid min-h-0 flex-1 grid-rows-2 gap-3 md:grid-cols-2 md:grid-rows-1 md:gap-5">
+                                            <SideBySidePane
+                                                key={imageA._id}
+                                                image={imageA}
+                                                label="A"
+                                                modelName={getModelName(imageA)}
+                                                transform={transform}
+                                                onTransformChange={setTransform}
+                                                pinchStateRef={sharedPinchStateRef}
+                                            />
+                                            <SideBySidePane
+                                                key={imageB._id}
+                                                image={imageB}
+                                                label="B"
+                                                modelName={getModelName(imageB)}
+                                                transform={transform}
+                                                onTransformChange={setTransform}
+                                                pinchStateRef={sharedPinchStateRef}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <SliderView
+                                            modelNameA={getModelName(imageA)}
+                                            modelNameB={getModelName(imageB)}
+                                            imageA={imageA}
+                                            imageB={imageB}
+                                            transform={transform}
+                                            onTransformChange={setTransform}
+                                            sliderPercent={sliderPercent}
+                                            onSliderPercentChange={setSliderPercent}
+                                        />
+                                    )}
+                                </motion.div>
+                            </AnimatePresence>
+                            {mode === "slider" && imageA.aspectRatio !== imageB.aspectRatio && (
+                                <p className="text-center text-muted-foreground text-xs">
+                                    Different aspect ratios: images are fitted without cropping.
+                                </p>
+                            )}
+                        </main>
+                        <AnimatePresence initial={false}>
+                            {isDesktop && showDetails && (
+                                <motion.aside
+                                    key="desktop-details"
+                                    initial={{
+                                        opacity: 0,
+                                        width: 0,
+                                        height: "100%",
+                                        marginLeft: 0,
+                                        marginTop: 0
+                                    }}
+                                    animate={{
+                                        opacity: 1,
+                                        width: 360,
+                                        height: "100%",
+                                        marginLeft: 16,
+                                        marginTop: 0
+                                    }}
+                                    exit={{
+                                        opacity: 0,
+                                        width: 0,
+                                        height: "100%",
+                                        marginLeft: 0,
+                                        marginTop: 0
+                                    }}
+                                    id="comparison-details"
+                                    aria-label="Image details"
+                                    className="shrink-0 overflow-hidden border-border border-l bg-background"
+                                >
+                                    {detailsContent}
+                                </motion.aside>
+                            )}
+                        </AnimatePresence>
+                    </motion.div>
+                    <motion.div
+                        initial={{ opacity: 0, y: reducedMotion ? 0 : 14 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex shrink-0 items-center gap-1 self-center rounded-[var(--radius-xl)] border border-border/60 bg-background/90 p-1.5 shadow-xl backdrop-blur-xl lg:absolute lg:top-3 lg:left-1/2 lg:-translate-x-1/2 lg:rounded-[var(--radius-lg)] lg:border-transparent lg:bg-transparent lg:p-1 lg:shadow-none"
+                    >
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-9 rounded-[var(--radius-lg)] border-border/70 bg-background/85 shadow-lg backdrop-blur-md hover:bg-accent/80"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-9"
                                     onClick={handleSwap}
+                                    aria-label="Swap images A and B"
                                 >
                                     <ArrowLeftRight className="size-4" />
-                                    <span className="hidden sm:inline">Swap</span>
                                 </Button>
                             </TooltipTrigger>
                             <TooltipContent>Swap A and B</TooltipContent>
                         </Tooltip>
-
+                        <div className="mx-1 h-5 w-px bg-border" />
                         <Button
-                            type="button"
-                            variant="outline"
+                            variant="ghost"
                             size="icon"
-                            className="h-9 w-9 rounded-[var(--radius-lg)] border-border/70 bg-background/85 shadow-lg backdrop-blur-md hover:bg-accent/80"
-                            onClick={onClose}
+                            className="size-9"
+                            disabled={transform.scale <= MIN_SCALE}
+                            onClick={() => changeZoom(-0.5)}
+                            aria-label="Zoom out"
                         >
-                            <span className="sr-only">Close</span>
-                            <X className="size-4" />
+                            <ZoomOut className="size-4" />
                         </Button>
-                    </div>
-
-                    {mode === "side-by-side" ? (
-                        <div className="grid min-h-0 flex-1 grid-rows-2 gap-4 md:grid-cols-2 md:grid-rows-1">
-                            <SideBySidePane
-                                image={imageA}
-                                label="A"
-                                modelName={getModelName(imageA)}
-                                transform={transform}
-                                onTransformChange={setTransform}
-                                pinchStateRef={sharedPinchStateRef}
-                            />
-                            <SideBySidePane
-                                image={imageB}
-                                label="B"
-                                modelName={getModelName(imageB)}
-                                transform={transform}
-                                onTransformChange={setTransform}
-                                pinchStateRef={sharedPinchStateRef}
-                            />
-                        </div>
-                    ) : (
-                        <SliderView
-                            imageA={imageA}
-                            imageB={imageB}
-                            modelNameA={getModelName(imageA)}
-                            modelNameB={getModelName(imageB)}
-                            transform={transform}
-                            onTransformChange={setTransform}
-                            sliderPercent={sliderPercent}
-                            onSliderPercentChange={setSliderPercent}
-                        />
-                    )}
+                        <span className="w-12 text-center text-xs tabular-nums">
+                            {Math.round(transform.scale * 100)}%
+                        </span>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-9"
+                            disabled={transform.scale >= MAX_SCALE}
+                            onClick={() => changeZoom(0.5)}
+                            aria-label="Zoom in"
+                        >
+                            <ZoomIn className="size-4" />
+                        </Button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-9"
+                                    aria-label="Reset zoom and divider"
+                                    onClick={() => {
+                                        setTransform(INITIAL_TRANSFORM)
+                                        setSliderPercent(INITIAL_SLIDER_PERCENT)
+                                    }}
+                                >
+                                    <Scan className="size-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Fit images and center divider</TooltipContent>
+                        </Tooltip>
+                    </motion.div>
                 </div>
-            </DialogContent>
-        </Dialog>
+                {!isDesktop && (
+                    <section
+                        id="comparison-details"
+                        aria-label="Image details"
+                        className="border-border border-t pb-[env(safe-area-inset-bottom)]"
+                    >
+                        {detailsContent}
+                    </section>
+                )}
+            </div>
+        </MotionConfig>
     )
 }

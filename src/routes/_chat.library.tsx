@@ -4,7 +4,7 @@ import {
     type LibraryCursorHistory
 } from "@/lib/library-pagination"
 import { useGenerationStore } from "@/components/library/generation-store"
-import { ImageComparisonModal } from "@/components/library/image-comparison-modal"
+import { getImageComparisonUrl } from "@/lib/image-comparison-search"
 import { ImageDetailsModal } from "@/components/library/image-details-modal"
 import { usePrivateViewingStore } from "@/components/library/private-viewing-store"
 import {
@@ -1014,7 +1014,7 @@ const GeneratedImageItem = memo(
                             {onCompareSelected && selectedCount === 2 && (
                                 <ContextMenuItem onClick={onCompareSelected}>
                                     <Images className="mr-2 h-4 w-4" />
-                                    Compare Selected
+                                    Compare in New Tab
                                 </ContextMenuItem>
                             )}
                             {onBulkDownload && (
@@ -1408,9 +1408,6 @@ export function LibraryView({
     const [hiddenImageIds, setHiddenImageIds] = useState<Set<string>>(new Set())
     const [isSelectionMode, setIsSelectionMode] = useState(false)
     const [selectedImageIds, setSelectedImageIds] = useState<Set<Id<"generatedImages">>>(new Set())
-    const [comparisonImages, setComparisonImages] = useState<
-        [Doc<"generatedImages">, Doc<"generatedImages">] | null
-    >(null)
     const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false)
     const bulkDeleteCancelRef = useRef<HTMLButtonElement>(null)
     const deleteImageAction = useAction(api.images_node.deleteGeneratedImage)
@@ -1711,20 +1708,9 @@ export function LibraryView({
 
     const handleCompareSelected = useCallback(() => {
         if (selectedImageIds.size !== 2) return
-
-        const imageById = new Map(images.map((image) => [image._id, image]))
-        const selected = Array.from(selectedImageIds)
-            .map((id) => imageById.get(id))
-            .filter((image): image is Doc<"generatedImages"> => image !== undefined)
-
-        if (selected.length !== 2) {
-            toast.error("Both selected images must be on the current page")
-            return
-        }
-
-        setComparisonImages([selected[0], selected[1]])
-        handleClearSelection()
-    }, [handleClearSelection, images, selectedImageIds])
+        const [a, b] = Array.from(selectedImageIds)
+        window.open(getImageComparisonUrl(a, b), "_blank", "noopener,noreferrer")
+    }, [selectedImageIds])
 
     const allVisibleImagesSelected =
         images.length > 0 && images.every((image) => selectedImageIds.has(image._id))
@@ -2545,7 +2531,7 @@ export function LibraryView({
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                aria-label="Compare selected images"
+                                aria-label="Compare selected images in a new tab"
                                 className="rounded-[var(--radius-md)] px-2 sm:px-3"
                                 disabled={selectedImageIds.size !== 2}
                                 onClick={handleCompareSelected}
@@ -2672,11 +2658,6 @@ export function LibraryView({
                     onDeleteStart={handleHideImageLocally}
                     onArchiveStart={handleHideImageLocally}
                     onRestoreStart={handleHideImageLocally}
-                />
-                <ImageComparisonModal
-                    images={comparisonImages}
-                    isOpen={comparisonImages !== null}
-                    onClose={() => setComparisonImages(null)}
                 />
             </motion.div>
         </AnimatePresence>

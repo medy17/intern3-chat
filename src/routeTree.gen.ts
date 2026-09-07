@@ -14,6 +14,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ChatRouteImport } from './routes/_chat'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthorRouteImport } from './routes/author'
+import { Route as CompareRouteImport } from './routes/compare'
 import { Route as LegalRouteImport } from './routes/legal'
 import { Route as MeRouteImport } from './routes/me'
 import { Route as OgBackgroundsRouteImport } from './routes/og-backgrounds'
@@ -72,6 +73,11 @@ const AboutRoute = AboutRouteImport.update({
 const AuthorRoute = AuthorRouteImport.update({
   id: '/author',
   path: '/author',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompareRoute = CompareRouteImport.update({
+  id: '/compare',
+  path: '/compare',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LegalRoute = LegalRouteImport.update({
@@ -304,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/': typeof ChatIndexRoute
   '/about': typeof AboutRoute
   '/author': typeof AuthorRoute
+  '/compare': typeof CompareRoute
   '/legal': typeof LegalRoute
   '/me': typeof MeRoute
   '/og-backgrounds': typeof OgBackgroundsRoute
@@ -349,6 +356,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/about': typeof AboutRoute
   '/author': typeof AuthorRoute
+  '/compare': typeof CompareRoute
   '/legal': typeof LegalRoute
   '/me': typeof MeRoute
   '/og-backgrounds': typeof OgBackgroundsRoute
@@ -397,6 +405,7 @@ export interface FileRoutesById {
   '/_chat': typeof ChatRouteWithChildren
   '/about': typeof AboutRoute
   '/author': typeof AuthorRoute
+  '/compare': typeof CompareRoute
   '/legal': typeof LegalRoute
   '/me': typeof MeRoute
   '/og-backgrounds': typeof OgBackgroundsRoute
@@ -446,6 +455,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/author'
+    | '/compare'
     | '/legal'
     | '/me'
     | '/og-backgrounds'
@@ -491,6 +501,7 @@ export interface FileRouteTypes {
   to:
     | '/about'
     | '/author'
+    | '/compare'
     | '/legal'
     | '/me'
     | '/og-backgrounds'
@@ -538,6 +549,7 @@ export interface FileRouteTypes {
     | '/_chat'
     | '/about'
     | '/author'
+    | '/compare'
     | '/legal'
     | '/me'
     | '/og-backgrounds'
@@ -586,6 +598,7 @@ export interface RootRouteChildren {
   ChatRoute: typeof ChatRouteWithChildren
   AboutRoute: typeof AboutRoute
   AuthorRoute: typeof AuthorRoute
+  CompareRoute: typeof CompareRoute
   LegalRoute: typeof LegalRoute
   MeRoute: typeof MeRoute
   OgBackgroundsRoute: typeof OgBackgroundsRoute
@@ -629,6 +642,13 @@ declare module '@tanstack/react-router' {
       path: '/author'
       fullPath: '/author'
       preLoaderRoute: typeof AuthorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/compare': {
+      id: '/compare'
+      path: '/compare'
+      fullPath: '/compare'
+      preLoaderRoute: typeof CompareRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/legal': {
@@ -1006,6 +1026,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRouteWithChildren,
   AboutRoute: AboutRoute,
   AuthorRoute: AuthorRoute,
+  CompareRoute: CompareRoute,
   LegalRoute: LegalRoute,
   MeRoute: MeRoute,
   OgBackgroundsRoute: OgBackgroundsRoute,
