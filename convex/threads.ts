@@ -996,7 +996,18 @@ export const regenerateThreadTitle = action({
             publicAssetBaseUrl: process.env.R2_PUBLIC_BASE_URL
         })
 
-        const title = await generateThreadName(ctx, threadId, titleMessages, user.id, settings)
+        const personaSnapshot = await ctx.runQuery(
+            internal.personas.getThreadPersonaSnapshotInternal,
+            { threadId }
+        )
+        const title = await generateThreadName(
+            ctx,
+            threadId,
+            titleMessages,
+            user.id,
+            settings,
+            personaSnapshot
+        )
 
         return { success: true, title }
     }

@@ -1694,7 +1694,8 @@ export const chatPOST = httpAction(async (ctx, req) => {
                         mutationResult.threadId,
                         mapped_messages,
                         user.id,
-                        settings
+                        settings,
+                        persistedPersonaSnapshot
                     )
                 }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+    buildThreadTitlePrompt,
     fallbackShareQuestion,
     fallbackTitleFromMessages,
     getTitlePromptMessages,
@@ -220,5 +221,79 @@ describe("getTitlePromptMessages", () => {
         ])
 
         expect(title).toBe("Please summarize this [file: large-report.md]")
+    })
+})
+
+describe("persona thread titles", () => {
+    const persona = {
+        name: "Elara",
+        description: "A ranger seeking help at a ruined watchtower.",
+        instructions: "Roleplay as Elara. The user is a fellow traveler."
+    }
+    const opening = {
+        role: "assistant" as const,
+        content: "Will you join me at the ruined watchtower?"
+    }
+    const reply = { role: "user" as const, content: "I'll come with you." }
+
+    it("keeps persona background, the selected opening, and later scenes in the title context", () => {
+        const prompt = buildThreadTitlePrompt(
+            getTitlePromptMessages([
+                opening,
+                reply,
+                { role: "assistant", content: "We reach the tower." },
+                { role: "user", content: "Let's explore." },
+                { role: "assistant", content: "Days later, we arrive at the harbor." },
+                { role: "user", content: "I offer the captain a bargain." },
+                { role: "assistant", content: "The captain demands our map." }
+            ]),
+            persona
+        )
+
+        const context = prompt.messages[0].content
+        expect(context).toContain(persona.description)
+        expect(context).toContain(persona.instructions)
+        expect(context).toContain(opening.content)
+        expect(context).toContain(reply.content)
+        expect(context).toContain("I offer the captain a bargain.")
+        expect(context).not.toContain("We reach the tower.")
+    })
+
+    it("bounds persona fields separately and excludes knowledge documents and unused starters", () => {
+        const largePersona = {
+            ...persona,
+            description: "d".repeat(5000),
+            instructions: "i".repeat(10000),
+            compiledPrompt: "Full knowledge base should not be sent",
+            conversationStarters: ["An unused opening"]
+        }
+        const prompt = buildThreadTitlePrompt(
+            getTitlePromptMessages([opening, reply]),
+            largePersona
+        )
+        const context = prompt.messages[0].content
+        const background = JSON.parse(context.split("\n")[1])
+
+        expect(background.description.length).toBeLessThanOrEqual(600)
+        expect(background.instructions.length).toBeLessThanOrEqual(1800)
+        expect(Object.keys(background)).toEqual(["name", "description", "instructions"])
+        expect(context).not.toContain(largePersona.compiledPrompt)
+        expect(context).not.toContain(largePersona.conversationStarters[0])
+        expect(context).toContain(opening.content)
+        expect(context).toContain(reply.content)
+    })
+
+    it("falls back to the persona name for roleplay and task personas, preserving ordinary chat fallback", () => {
+        expect(fallbackTitleFromMessages([opening, reply], persona)).toBe("Elara")
+        expect(fallbackTitleFromMessages([], persona)).toBe("Elara")
+        expect(
+            fallbackTitleFromMessages([reply], {
+                name: "Code Tutor",
+                description: "Helps debug code",
+                instructions: "Explain programming concepts"
+            })
+        ).toBe("Code Tutor")
+        expect(fallbackTitleFromMessages([reply], null)).toBe("I'll come with you.")
+        expect(fallbackTitleFromMessages([])).toBe("New Chat")
     })
 })
