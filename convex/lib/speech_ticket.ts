@@ -27,7 +27,7 @@ export function parseSpeechTicket(value: unknown): SpeechTicket | null {
         if (typeof item[name] !== "string" || !item[name]) return null
     }
     if (
-        !(item.storageKey as string).startsWith(`generations/${item.userId}/`) ||
+        !(item.storageKey as string).startsWith(`tts/${item.userId}/`) ||
         !(item.storageKey as string).endsWith("-speech.wav")
     )
         return null

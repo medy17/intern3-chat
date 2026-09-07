@@ -26,7 +26,7 @@ const storageKeyFor = async (userId: string, threadId: string, messageId: string
     const hash = Array.from(new Uint8Array(digest), (byte) =>
         byte.toString(16).padStart(2, "0")
     ).join("")
-    return `generations/${userId}/${hash}-speech.wav`
+    return `tts/${userId}/${hash}-speech.wav`
 }
 
 // Control plane only: no audio is downloaded, uploaded, or proxied through Convex.

@@ -4,6 +4,10 @@ The Worker keeps generated image and read-aloud bytes out of Convex. Convex send
 and the Worker streams each asset into the bound bucket. Convex records the resulting metadata after
 storage completes.
 
+Read-aloud recordings use `tts/<userId>/<hash>-speech.wav`. The `generations/` prefix is reserved
+for generated images. Speech ticket validation is shared by Convex and the Worker, so prefix changes
+require deploying both.
+
 Image ingestion falls back to the existing Convex download-and-upload path when the Worker is
 disabled or its request fails. Read aloud requires the Worker and uses signed callbacks to exchange
 configuration and finalize metadata. The Worker owns no durable job state.

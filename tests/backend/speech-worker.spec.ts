@@ -15,7 +15,7 @@ const ticket = {
     messageId: "message-1",
     leaseId: "lease-1",
     acquiredAt: 123,
-    storageKey: "generations/user-1/test-speech.wav",
+    storageKey: "tts/user-1/test-speech.wav",
     origin: "https://app.example",
     callbackUrl: "https://convex.example/speech/worker"
 }

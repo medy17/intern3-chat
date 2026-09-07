@@ -105,9 +105,7 @@ describe("message speech", () => {
         const body = await response.json()
         expect(body.url).toBe("https://worker.example/speech")
         expect(body.format).toBe("pcm")
-        expect(JSON.parse(body.ticket.body).storageKey).toMatch(
-            /^generations\/user-1\/.+-speech\.wav$/
-        )
+        expect(JSON.parse(body.ticket.body).storageKey).toMatch(/^tts\/user-1\/.+-speech\.wav$/)
         expect(JSON.stringify(body)).not.toContain("hosted-test-key")
         expect(fetchMock).not.toHaveBeenCalled()
         expect(mocks.r2.store).not.toHaveBeenCalled()
